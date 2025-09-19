@@ -1,0 +1,436 @@
+// !$*UTF8*$!
+{
+	archiveVersion = 1;
+	classes = {
+	};
+	objectVersion = 56;
+	objects = {
+
+/* Begin PBXBuildFile section */
+		A1234567890123456789012345678901 /* DayPlannerApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1234567890123456789012345678902 /* DayPlannerApp.swift */; };
+		A1234567890123456789012345678903 /* Models.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1234567890123456789012345678904 /* Models.swift */; };
+		A1234567890123456789012345678905 /* Storage.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1234567890123456789012345678906 /* Storage.swift */; };
+		A1234567890123456789012345678907 /* LiquidGlass.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1234567890123456789012345678908 /* LiquidGlass.swift */; };
+		A1234567890123456789012345678909 /* RippleEffects.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1234567890123456789012345678910 /* RippleEffects.swift */; };
+		A1234567890123456789012345678911 /* Animations.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1234567890123456789012345678912 /* Animations.swift */; };
+		A1234567890123456789012345678913 /* TodayGlass.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1234567890123456789012345678914 /* TodayGlass.swift */; };
+		A1234567890123456789012345678915 /* AIOrb.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1234567890123456789012345678916 /* AIOrb.swift */; };
+		A1234567890123456789012345678917 /* FlowGlass.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1234567890123456789012345678918 /* FlowGlass.swift */; };
+		A1234567890123456789012345678919 /* AIService.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1234567890123456789012345678920 /* AIService.swift */; };
+		A1234567890123456789012345678921 /* PatternLearning.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1234567890123456789012345678922 /* PatternLearning.swift */; };
+		A1234567890123456789012345678923 /* Extensions.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1234567890123456789012345678924 /* Extensions.swift */; };
+/* End PBXBuildFile section */
+
+/* Begin PBXFileReference section */
+		A1234567890123456789012345678900 /* DayPlanner.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = DayPlanner.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		A1234567890123456789012345678902 /* DayPlannerApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DayPlannerApp.swift; sourceTree = "<group>"; };
+		A1234567890123456789012345678904 /* Models.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Models.swift; sourceTree = "<group>"; };
+		A1234567890123456789012345678906 /* Storage.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Storage.swift; sourceTree = "<group>"; };
+		A1234567890123456789012345678908 /* LiquidGlass.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LiquidGlass.swift; sourceTree = "<group>"; };
+		A1234567890123456789012345678910 /* RippleEffects.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RippleEffects.swift; sourceTree = "<group>"; };
+		A1234567890123456789012345678912 /* Animations.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Animations.swift; sourceTree = "<group>"; };
+		A1234567890123456789012345678914 /* TodayGlass.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TodayGlass.swift; sourceTree = "<group>"; };
+		A1234567890123456789012345678916 /* AIOrb.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AIOrb.swift; sourceTree = "<group>"; };
+		A1234567890123456789012345678918 /* FlowGlass.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FlowGlass.swift; sourceTree = "<group>"; };
+		A1234567890123456789012345678920 /* AIService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AIService.swift; sourceTree = "<group>"; };
+		A1234567890123456789012345678922 /* PatternLearning.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PatternLearning.swift; sourceTree = "<group>"; };
+		A1234567890123456789012345678924 /* Extensions.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Extensions.swift; sourceTree = "<group>"; };
+		A1234567890123456789012345678925 /* DayPlanner.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = DayPlanner.entitlements; sourceTree = "<group>"; };
+		A1234567890123456789012345678927 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
+/* End PBXFileReference section */
+
+/* Begin PBXFrameworksBuildPhase section */
+		A1234567890123456789012345678926 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXFrameworksBuildPhase section */
+
+/* Begin PBXGroup section */
+		A1234567890123456789012345678927 = {
+			isa = PBXGroup;
+			children = (
+				A1234567890123456789012345678928 /* DayPlanner */,
+				A1234567890123456789012345678929 /* Products */,
+			);
+			sourceTree = "<group>";
+		};
+		A1234567890123456789012345678928 /* DayPlanner */ = {
+			isa = PBXGroup;
+			children = (
+				A1234567890123456789012345678930 /* App */,
+				A1234567890123456789012345678931 /* Data */,
+				A1234567890123456789012345678932 /* Glass */,
+				A1234567890123456789012345678933 /* Surfaces */,
+				A1234567890123456789012345678934 /* AI */,
+				A1234567890123456789012345678935 /* Intelligence */,
+				A1234567890123456789012345678936 /* Extensions */,
+				A1234567890123456789012345678925 /* DayPlanner.entitlements */,
+				A1234567890123456789012345678927 /* Info.plist */,
+			);
+			path = DayPlanner;
+			sourceTree = "<group>";
+		};
+		A1234567890123456789012345678929 /* Products */ = {
+			isa = PBXGroup;
+			children = (
+				A1234567890123456789012345678900 /* DayPlanner.app */,
+			);
+			name = Products;
+			sourceTree = "<group>";
+		};
+		A1234567890123456789012345678930 /* App */ = {
+			isa = PBXGroup;
+			children = (
+				A1234567890123456789012345678902 /* DayPlannerApp.swift */,
+			);
+			path = App;
+			sourceTree = "<group>";
+		};
+		A1234567890123456789012345678931 /* Data */ = {
+			isa = PBXGroup;
+			children = (
+				A1234567890123456789012345678904 /* Models.swift */,
+				A1234567890123456789012345678906 /* Storage.swift */,
+			);
+			path = Data;
+			sourceTree = "<group>";
+		};
+		A1234567890123456789012345678932 /* Glass */ = {
+			isa = PBXGroup;
+			children = (
+				A1234567890123456789012345678908 /* LiquidGlass.swift */,
+				A1234567890123456789012345678910 /* RippleEffects.swift */,
+				A1234567890123456789012345678912 /* Animations.swift */,
+			);
+			path = Glass;
+			sourceTree = "<group>";
+		};
+		A1234567890123456789012345678933 /* Surfaces */ = {
+			isa = PBXGroup;
+			children = (
+				A1234567890123456789012345678914 /* TodayGlass.swift */,
+				A1234567890123456789012345678916 /* AIOrb.swift */,
+				A1234567890123456789012345678918 /* FlowGlass.swift */,
+			);
+			path = Surfaces;
+			sourceTree = "<group>";
+		};
+		A1234567890123456789012345678934 /* AI */ = {
+			isa = PBXGroup;
+			children = (
+				A1234567890123456789012345678920 /* AIService.swift */,
+			);
+			path = AI;
+			sourceTree = "<group>";
+		};
+		A1234567890123456789012345678935 /* Intelligence */ = {
+			isa = PBXGroup;
+			children = (
+				A1234567890123456789012345678922 /* PatternLearning.swift */,
+			);
+			path = Intelligence;
+			sourceTree = "<group>";
+		};
+		A1234567890123456789012345678936 /* Extensions */ = {
+			isa = PBXGroup;
+			children = (
+				A1234567890123456789012345678924 /* Extensions.swift */,
+			);
+			path = Extensions;
+			sourceTree = "<group>";
+		};
+/* End PBXGroup section */
+
+/* Begin PBXNativeTarget section */
+		A1234567890123456789012345678937 /* DayPlanner */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = A1234567890123456789012345678938 /* Build configuration list for PBXNativeTarget "DayPlanner" */;
+			buildPhases = (
+				A1234567890123456789012345678939 /* Sources */,
+				A1234567890123456789012345678926 /* Frameworks */,
+				A1234567890123456789012345678940 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = DayPlanner;
+			productName = DayPlanner;
+			productReference = A1234567890123456789012345678900 /* DayPlanner.app */;
+			productType = "com.apple.product-type.application";
+		};
+/* End PBXNativeTarget section */
+
+/* Begin PBXProject section */
+		A1234567890123456789012345678941 /* Project object */ = {
+			isa = PBXProject;
+			attributes = {
+				BuildIndependentTargetsInParallel = 1;
+				LastSwiftUpdateCheck = 1600;
+				LastUpgradeCheck = 1600;
+				TargetAttributes = {
+					A1234567890123456789012345678937 = {
+						CreatedOnToolsVersion = 16.0;
+					};
+				};
+			};
+			buildConfigurationList = A1234567890123456789012345678942 /* Build configuration list for PBXProject "DayPlanner" */;
+			compatibilityVersion = "Xcode 14.0";
+			developmentRegion = en;
+			hasScannedForEncodings = 0;
+			knownRegions = (
+				en,
+				Base,
+			);
+			mainGroup = A1234567890123456789012345678927;
+			productRefGroup = A1234567890123456789012345678929 /* Products */;
+			projectDirPath = "";
+			projectRoot = "";
+			targets = (
+				A1234567890123456789012345678937 /* DayPlanner */,
+			);
+		};
+/* End PBXProject section */
+
+/* Begin PBXResourcesBuildPhase section */
+		A1234567890123456789012345678940 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXResourcesBuildPhase section */
+
+/* Begin PBXSourcesBuildPhase section */
+		A1234567890123456789012345678939 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				A1234567890123456789012345678901 /* DayPlannerApp.swift in Sources */,
+				A1234567890123456789012345678903 /* Models.swift in Sources */,
+				A1234567890123456789012345678905 /* Storage.swift in Sources */,
+				A1234567890123456789012345678907 /* LiquidGlass.swift in Sources */,
+				A1234567890123456789012345678909 /* RippleEffects.swift in Sources */,
+				A1234567890123456789012345678911 /* Animations.swift in Sources */,
+				A1234567890123456789012345678913 /* TodayGlass.swift in Sources */,
+				A1234567890123456789012345678915 /* AIOrb.swift in Sources */,
+				A1234567890123456789012345678917 /* FlowGlass.swift in Sources */,
+				A1234567890123456789012345678919 /* AIService.swift in Sources */,
+				A1234567890123456789012345678921 /* PatternLearning.swift in Sources */,
+				A1234567890123456789012345678923 /* Extensions.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXSourcesBuildPhase section */
+
+/* Begin XCBuildConfiguration section */
+		A1234567890123456789012345678943 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS = YES;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++20";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				COPY_PHASE_STRIP = NO;
+				DEBUG_INFORMATION_FORMAT = dwarf;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				ENABLE_TESTABILITY = YES;
+				ENABLE_USER_SCRIPT_SANDBOXING = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu17;
+				GCC_DYNAMIC_NO_PIC = NO;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_OPTIMIZATION_LEVEL = 0;
+				GCC_PREPROCESSOR_DEFINITIONS = (
+					"DEBUG=1",
+					"$(inherited)",
+				);
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				LOCALIZATION_PREFERS_STRING_CATALOGS = YES;
+				MACOSX_DEPLOYMENT_TARGET = 14.0;
+				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
+				MTL_FAST_MATH = YES;
+				ONLY_ACTIVE_ARCH = YES;
+				SDKROOT = macosx;
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = "DEBUG $(inherited)";
+				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
+			};
+			name = Debug;
+		};
+		A1234567890123456789012345678944 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS = YES;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++20";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				COPY_PHASE_STRIP = NO;
+				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
+				ENABLE_NS_ASSERTIONS = NO;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				ENABLE_USER_SCRIPT_SANDBOXING = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu17;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				LOCALIZATION_PREFERS_STRING_CATALOGS = YES;
+				MACOSX_DEPLOYMENT_TARGET = 14.0;
+				MTL_ENABLE_DEBUG_INFO = NO;
+				MTL_FAST_MATH = YES;
+				SDKROOT = macosx;
+				SWIFT_COMPILATION_MODE = wholemodule;
+			};
+			name = Release;
+		};
+		A1234567890123456789012345678945 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CODE_SIGN_ENTITLEMENTS = DayPlanner/DayPlanner.entitlements;
+				CODE_SIGN_STYLE = Automatic;
+				COMBINE_HIDPI_IMAGES = YES;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_ASSET_PATHS = "";
+				DEVELOPMENT_TEAM = "";
+				ENABLE_HARDENED_RUNTIME = YES;
+				ENABLE_PREVIEWS = YES;
+				INFOPLIST_FILE = DayPlanner/Info.plist;
+				INFOPLIST_KEY_CFBundleDisplayName = "Day Planner";
+				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.productivity";
+				INFOPLIST_KEY_NSHumanReadableCopyright = "";
+				INFOPLIST_KEY_NSMicrophoneUsageDescription = "Day Planner uses the microphone for voice input to the AI assistant.";
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+				);
+				MACOSX_DEPLOYMENT_TARGET = 14.0;
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.dayplanner.liquidglass;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_VERSION = 5.0;
+			};
+			name = Debug;
+		};
+		A1234567890123456789012345678946 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CODE_SIGN_ENTITLEMENTS = DayPlanner/DayPlanner.entitlements;
+				CODE_SIGN_STYLE = Automatic;
+				COMBINE_HIDPI_IMAGES = YES;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_ASSET_PATHS = "";
+				DEVELOPMENT_TEAM = "";
+				ENABLE_HARDENED_RUNTIME = YES;
+				ENABLE_PREVIEWS = YES;
+				INFOPLIST_FILE = DayPlanner/Info.plist;
+				INFOPLIST_KEY_CFBundleDisplayName = "Day Planner";
+				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.productivity";
+				INFOPLIST_KEY_NSHumanReadableCopyright = "";
+				INFOPLIST_KEY_NSMicrophoneUsageDescription = "Day Planner uses the microphone for voice input to the AI assistant.";
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+				);
+				MACOSX_DEPLOYMENT_TARGET = 14.0;
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.dayplanner.liquidglass;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_VERSION = 5.0;
+			};
+			name = Release;
+		};
+/* End XCBuildConfiguration section */
+
+/* Begin XCConfigurationList section */
+		A1234567890123456789012345678938 /* Build configuration list for PBXNativeTarget "DayPlanner" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				A1234567890123456789012345678945 /* Debug */,
+				A1234567890123456789012345678946 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		A1234567890123456789012345678942 /* Build configuration list for PBXProject "DayPlanner" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				A1234567890123456789012345678943 /* Debug */,
+				A1234567890123456789012345678944 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+/* End XCConfigurationList section */
+	};
+	rootObject = A1234567890123456789012345678941 /* Project object */;
+}

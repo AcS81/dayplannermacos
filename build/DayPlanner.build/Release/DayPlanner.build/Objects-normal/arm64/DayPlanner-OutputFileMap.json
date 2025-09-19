@@ -1,0 +1,71 @@
+{
+  "" : {
+    "const-values" : "/Users/mac/Desktop/waraondesk/build/DayPlanner.build/Release/DayPlanner.build/Objects-normal/arm64/DayPlanner-primary.swiftconstvalues",
+    "dependencies" : "/Users/mac/Desktop/waraondesk/build/DayPlanner.build/Release/DayPlanner.build/Objects-normal/arm64/DayPlanner-primary.d",
+    "diagnostics" : "/Users/mac/Desktop/waraondesk/build/DayPlanner.build/Release/DayPlanner.build/Objects-normal/arm64/DayPlanner-primary.dia",
+    "emit-module-dependencies" : "/Users/mac/Desktop/waraondesk/build/DayPlanner.build/Release/DayPlanner.build/Objects-normal/arm64/DayPlanner-primary-emit-module.d",
+    "emit-module-diagnostics" : "/Users/mac/Desktop/waraondesk/build/DayPlanner.build/Release/DayPlanner.build/Objects-normal/arm64/DayPlanner-primary-emit-module.dia",
+    "pch" : "/Users/mac/Desktop/waraondesk/build/DayPlanner.build/Release/DayPlanner.build/Objects-normal/arm64/DayPlanner-primary-Bridging-header.pch",
+    "swift-dependencies" : "/Users/mac/Desktop/waraondesk/build/DayPlanner.build/Release/DayPlanner.build/Objects-normal/arm64/DayPlanner-primary.swiftdeps"
+  },
+  "/Users/mac/Desktop/waraondesk/DayPlanner/AI/AIService.swift" : {
+    "index-unit-output-path" : "/DayPlanner.build/Release/DayPlanner.build/Objects-normal/arm64/AIService.o",
+    "llvm-bc" : "/Users/mac/Desktop/waraondesk/build/DayPlanner.build/Release/DayPlanner.build/Objects-normal/arm64/AIService.bc",
+    "object" : "/Users/mac/Desktop/waraondesk/build/DayPlanner.build/Release/DayPlanner.build/Objects-normal/arm64/AIService.o"
+  },
+  "/Users/mac/Desktop/waraondesk/DayPlanner/App/DayPlannerApp.swift" : {
+    "index-unit-output-path" : "/DayPlanner.build/Release/DayPlanner.build/Objects-normal/arm64/DayPlannerApp.o",
+    "llvm-bc" : "/Users/mac/Desktop/waraondesk/build/DayPlanner.build/Release/DayPlanner.build/Objects-normal/arm64/DayPlannerApp.bc",
+    "object" : "/Users/mac/Desktop/waraondesk/build/DayPlanner.build/Release/DayPlanner.build/Objects-normal/arm64/DayPlannerApp.o"
+  },
+  "/Users/mac/Desktop/waraondesk/DayPlanner/Data/Models.swift" : {
+    "index-unit-output-path" : "/DayPlanner.build/Release/DayPlanner.build/Objects-normal/arm64/Models.o",
+    "llvm-bc" : "/Users/mac/Desktop/waraondesk/build/DayPlanner.build/Release/DayPlanner.build/Objects-normal/arm64/Models.bc",
+    "object" : "/Users/mac/Desktop/waraondesk/build/DayPlanner.build/Release/DayPlanner.build/Objects-normal/arm64/Models.o"
+  },
+  "/Users/mac/Desktop/waraondesk/DayPlanner/Data/Storage.swift" : {
+    "index-unit-output-path" : "/DayPlanner.build/Release/DayPlanner.build/Objects-normal/arm64/Storage.o",
+    "llvm-bc" : "/Users/mac/Desktop/waraondesk/build/DayPlanner.build/Release/DayPlanner.build/Objects-normal/arm64/Storage.bc",
+    "object" : "/Users/mac/Desktop/waraondesk/build/DayPlanner.build/Release/DayPlanner.build/Objects-normal/arm64/Storage.o"
+  },
+  "/Users/mac/Desktop/waraondesk/DayPlanner/Extensions/Extensions.swift" : {
+    "index-unit-output-path" : "/DayPlanner.build/Release/DayPlanner.build/Objects-normal/arm64/Extensions.o",
+    "llvm-bc" : "/Users/mac/Desktop/waraondesk/build/DayPlanner.build/Release/DayPlanner.build/Objects-normal/arm64/Extensions.bc",
+    "object" : "/Users/mac/Desktop/waraondesk/build/DayPlanner.build/Release/DayPlanner.build/Objects-normal/arm64/Extensions.o"
+  },
+  "/Users/mac/Desktop/waraondesk/DayPlanner/Glass/Animations.swift" : {
+    "index-unit-output-path" : "/DayPlanner.build/Release/DayPlanner.build/Objects-normal/arm64/Animations.o",
+    "llvm-bc" : "/Users/mac/Desktop/waraondesk/build/DayPlanner.build/Release/DayPlanner.build/Objects-normal/arm64/Animations.bc",
+    "object" : "/Users/mac/Desktop/waraondesk/build/DayPlanner.build/Release/DayPlanner.build/Objects-normal/arm64/Animations.o"
+  },
+  "/Users/mac/Desktop/waraondesk/DayPlanner/Glass/LiquidGlass.swift" : {
+    "index-unit-output-path" : "/DayPlanner.build/Release/DayPlanner.build/Objects-normal/arm64/LiquidGlass.o",
+    "llvm-bc" : "/Users/mac/Desktop/waraondesk/build/DayPlanner.build/Release/DayPlanner.build/Objects-normal/arm64/LiquidGlass.bc",
+    "object" : "/Users/mac/Desktop/waraondesk/build/DayPlanner.build/Release/DayPlanner.build/Objects-normal/arm64/LiquidGlass.o"
+  },
+  "/Users/mac/Desktop/waraondesk/DayPlanner/Glass/RippleEffects.swift" : {
+    "index-unit-output-path" : "/DayPlanner.build/Release/DayPlanner.build/Objects-normal/arm64/RippleEffects.o",
+    "llvm-bc" : "/Users/mac/Desktop/waraondesk/build/DayPlanner.build/Release/DayPlanner.build/Objects-normal/arm64/RippleEffects.bc",
+    "object" : "/Users/mac/Desktop/waraondesk/build/DayPlanner.build/Release/DayPlanner.build/Objects-normal/arm64/RippleEffects.o"
+  },
+  "/Users/mac/Desktop/waraondesk/DayPlanner/Intelligence/PatternLearning.swift" : {
+    "index-unit-output-path" : "/DayPlanner.build/Release/DayPlanner.build/Objects-normal/arm64/PatternLearning.o",
+    "llvm-bc" : "/Users/mac/Desktop/waraondesk/build/DayPlanner.build/Release/DayPlanner.build/Objects-normal/arm64/PatternLearning.bc",
+    "object" : "/Users/mac/Desktop/waraondesk/build/DayPlanner.build/Release/DayPlanner.build/Objects-normal/arm64/PatternLearning.o"
+  },
+  "/Users/mac/Desktop/waraondesk/DayPlanner/Surfaces/AIOrb.swift" : {
+    "index-unit-output-path" : "/DayPlanner.build/Release/DayPlanner.build/Objects-normal/arm64/AIOrb.o",
+    "llvm-bc" : "/Users/mac/Desktop/waraondesk/build/DayPlanner.build/Release/DayPlanner.build/Objects-normal/arm64/AIOrb.bc",
+    "object" : "/Users/mac/Desktop/waraondesk/build/DayPlanner.build/Release/DayPlanner.build/Objects-normal/arm64/AIOrb.o"
+  },
+  "/Users/mac/Desktop/waraondesk/DayPlanner/Surfaces/FlowGlass.swift" : {
+    "index-unit-output-path" : "/DayPlanner.build/Release/DayPlanner.build/Objects-normal/arm64/FlowGlass.o",
+    "llvm-bc" : "/Users/mac/Desktop/waraondesk/build/DayPlanner.build/Release/DayPlanner.build/Objects-normal/arm64/FlowGlass.bc",
+    "object" : "/Users/mac/Desktop/waraondesk/build/DayPlanner.build/Release/DayPlanner.build/Objects-normal/arm64/FlowGlass.o"
+  },
+  "/Users/mac/Desktop/waraondesk/DayPlanner/Surfaces/TodayGlass.swift" : {
+    "index-unit-output-path" : "/DayPlanner.build/Release/DayPlanner.build/Objects-normal/arm64/TodayGlass.o",
+    "llvm-bc" : "/Users/mac/Desktop/waraondesk/build/DayPlanner.build/Release/DayPlanner.build/Objects-normal/arm64/TodayGlass.bc",
+    "object" : "/Users/mac/Desktop/waraondesk/build/DayPlanner.build/Release/DayPlanner.build/Objects-normal/arm64/TodayGlass.o"
+  }
+}

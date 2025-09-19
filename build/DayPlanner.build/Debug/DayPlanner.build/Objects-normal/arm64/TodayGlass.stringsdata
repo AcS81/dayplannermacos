@@ -1,0 +1,400 @@
+{
+  "source": "/Users/mac/Desktop/waraondesk/DayPlanner/Surfaces/TodayGlass.swift",
+  "tables": {
+    "Localizable": [
+      {
+        "comment": "",
+        "key": "%lld",
+        "location": {
+          "startingColumn": 26,
+          "startingLine": 306
+        }
+      },
+      {
+        "comment": "",
+        "key": "Staged - awaiting confirmation",
+        "location": {
+          "startingColumn": 35,
+          "startingLine": 379
+        }
+      },
+      {
+        "comment": "",
+        "key": "%lld min",
+        "location": {
+          "startingColumn": 27,
+          "startingLine": 388
+        }
+      },
+      {
+        "comment": "",
+        "key": "View details",
+        "location": {
+          "startingColumn": 31,
+          "startingLine": 436
+        }
+      },
+      {
+        "comment": "",
+        "key": "Add 15 minutes",
+        "location": {
+          "startingColumn": 31,
+          "startingLine": 447
+        }
+      },
+      {
+        "comment": "",
+        "key": "Remove 15 minutes",
+        "location": {
+          "startingColumn": 31,
+          "startingLine": 457
+        }
+      },
+      {
+        "comment": "",
+        "key": "More options",
+        "location": {
+          "startingColumn": 31,
+          "startingLine": 470
+        }
+      },
+      {
+        "comment": "",
+        "key": "Edit Details",
+        "location": {
+          "startingColumn": 36,
+          "startingLine": 460
+        }
+      },
+      {
+        "comment": "",
+        "key": "Duplicate",
+        "location": {
+          "startingColumn": 36,
+          "startingLine": 461
+        }
+      },
+      {
+        "comment": "",
+        "key": "Delete",
+        "location": {
+          "startingColumn": 36,
+          "startingLine": 463
+        }
+      },
+      {
+        "comment": "",
+        "key": "Drag to adjust duration",
+        "location": {
+          "startingColumn": 19,
+          "startingLine": 644
+        }
+      },
+      {
+        "comment": "",
+        "key": "Your %@ is open",
+        "location": {
+          "startingColumn": 22,
+          "startingLine": 792
+        }
+      },
+      {
+        "comment": "",
+        "key": "Tap anywhere to add activities",
+        "location": {
+          "startingColumn": 22,
+          "startingLine": 797
+        }
+      },
+      {
+        "comment": "",
+        "key": "Or try these chains:",
+        "location": {
+          "startingColumn": 26,
+          "startingLine": 805
+        }
+      },
+      {
+        "comment": "",
+        "key": "%lldmin",
+        "location": {
+          "startingColumn": 38,
+          "startingLine": 820
+        }
+      },
+      {
+        "comment": "",
+        "key": "Delete Event",
+        "location": {
+          "startingColumn": 16,
+          "startingLine": 963
+        }
+      },
+      {
+        "comment": "",
+        "key": "Event Details",
+        "location": {
+          "startingColumn": 30,
+          "startingLine": 945
+        }
+      },
+      {
+        "comment": "",
+        "key": "Cancel",
+        "location": {
+          "startingColumn": 28,
+          "startingLine": 948
+        }
+      },
+      {
+        "comment": "",
+        "key": "Save",
+        "location": {
+          "startingColumn": 28,
+          "startingLine": 954
+        }
+      },
+      {
+        "comment": "",
+        "key": "Delete",
+        "location": {
+          "startingColumn": 20,
+          "startingLine": 964
+        }
+      },
+      {
+        "comment": "",
+        "key": "Cancel",
+        "location": {
+          "startingColumn": 20,
+          "startingLine": 967
+        }
+      },
+      {
+        "comment": "",
+        "key": "Are you sure you want to delete '%@'? This action cannot be undone.",
+        "location": {
+          "startingColumn": 18,
+          "startingLine": 969
+        }
+      },
+      {
+        "comment": "",
+        "key": "Event Information",
+        "location": {
+          "startingColumn": 18,
+          "startingLine": 1061
+        }
+      },
+      {
+        "comment": "",
+        "key": "Title:",
+        "location": {
+          "startingColumn": 26,
+          "startingLine": 1067
+        }
+      },
+      {
+        "comment": "",
+        "key": "Event title",
+        "location": {
+          "startingColumn": 31,
+          "startingLine": 1072
+        }
+      },
+      {
+        "comment": "",
+        "key": "Purpose:",
+        "location": {
+          "startingColumn": 30,
+          "startingLine": 1078
+        }
+      },
+      {
+        "comment": "",
+        "key": "Timing",
+        "location": {
+          "startingColumn": 18,
+          "startingLine": 1104
+        }
+      },
+      {
+        "comment": "",
+        "key": "Start:",
+        "location": {
+          "startingColumn": 26,
+          "startingLine": 1110
+        }
+      },
+      {
+        "comment": "",
+        "key": "Start time",
+        "location": {
+          "startingColumn": 32,
+          "startingLine": 1115
+        }
+      },
+      {
+        "comment": "",
+        "key": "Duration:",
+        "location": {
+          "startingColumn": 26,
+          "startingLine": 1120
+        }
+      },
+      {
+        "comment": "",
+        "key": "%lld minutes",
+        "location": {
+          "startingColumn": 29,
+          "startingLine": 1125
+        }
+      },
+      {
+        "comment": "",
+        "key": "Ends:",
+        "location": {
+          "startingColumn": 26,
+          "startingLine": 1137
+        }
+      },
+      {
+        "comment": "",
+        "key": "Properties",
+        "location": {
+          "startingColumn": 18,
+          "startingLine": 1169
+        }
+      },
+      {
+        "comment": "",
+        "key": "Energy Level",
+        "location": {
+          "startingColumn": 26,
+          "startingLine": 1176
+        }
+      },
+      {
+        "comment": "",
+        "key": "Flow State",
+        "location": {
+          "startingColumn": 26,
+          "startingLine": 1212
+        }
+      },
+      {
+        "comment": "",
+        "key": "Chain Actions",
+        "location": {
+          "startingColumn": 18,
+          "startingLine": 1260
+        }
+      },
+      {
+        "comment": "",
+        "key": "Create Chain from Event",
+        "location": {
+          "startingColumn": 30,
+          "startingLine": 1268
+        }
+      },
+      {
+        "comment": "",
+        "key": "Create a chain to group related activities together",
+        "location": {
+          "startingColumn": 26,
+          "startingLine": 1288
+        }
+      },
+      {
+        "comment": "",
+        "key": "Danger Zone",
+        "location": {
+          "startingColumn": 18,
+          "startingLine": 1307
+        }
+      },
+      {
+        "comment": "",
+        "key": "Delete Event",
+        "location": {
+          "startingColumn": 26,
+          "startingLine": 1314
+        }
+      },
+      {
+        "comment": "",
+        "key": "Create Chain",
+        "location": {
+          "startingColumn": 30,
+          "startingLine": 1395
+        }
+      },
+      {
+        "comment": "",
+        "key": "Chain Name",
+        "location": {
+          "startingColumn": 26,
+          "startingLine": 1353
+        }
+      },
+      {
+        "comment": "",
+        "key": "Enter chain name",
+        "location": {
+          "startingColumn": 31,
+          "startingLine": 1356
+        }
+      },
+      {
+        "comment": "",
+        "key": "Starting with: %@",
+        "location": {
+          "startingColumn": 26,
+          "startingLine": 1361
+        }
+      },
+      {
+        "comment": "",
+        "key": "This event will be the first activity in your chain",
+        "location": {
+          "startingColumn": 26,
+          "startingLine": 1365
+        }
+      },
+      {
+        "comment": "",
+        "key": "Flow Pattern",
+        "location": {
+          "startingColumn": 26,
+          "startingLine": 1376
+        }
+      },
+      {
+        "comment": "",
+        "key": "Pattern",
+        "location": {
+          "startingColumn": 28,
+          "startingLine": 1379
+        }
+      },
+      {
+        "comment": "",
+        "key": "Cancel",
+        "location": {
+          "startingColumn": 28,
+          "startingLine": 1398
+        }
+      },
+      {
+        "comment": "",
+        "key": "Create",
+        "location": {
+          "startingColumn": 28,
+          "startingLine": 1402
+        }
+      }
+    ]
+  },
+  "version": 1
+}

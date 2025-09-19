@@ -1,0 +1,12 @@
+{
+  "/Users/mac/Desktop/waraondesk/DayPlanner/App/DayPlannerApp.swift" : {
+    "abi-baseline-json" : "/Users/mac/Desktop/waraondesk/build/DayPlanner.build/Release/DayPlanner.build/Objects-normal/arm64/DayPlanner.abi.json",
+    "const-values" : "/Users/mac/Desktop/waraondesk/build/DayPlanner.build/Release/DayPlanner.build/Objects-normal/arm64/DayPlanner-primary.swiftconstvalues",
+    "dependencies" : "/Users/mac/Desktop/waraondesk/build/DayPlanner.build/Release/DayPlanner.build/Objects-normal/arm64/DayPlanner-primary.d",
+    "diagnostics" : "/Users/mac/Desktop/waraondesk/build/DayPlanner.build/Release/DayPlanner.build/Objects-normal/arm64/DayPlanner-primary.dia",
+    "objc-header" : "/Users/mac/Desktop/waraondesk/build/DayPlanner.build/Release/DayPlanner.build/Objects-normal/arm64/DayPlanner-Swift.h",
+    "swiftdoc" : "/Users/mac/Desktop/waraondesk/build/DayPlanner.build/Release/DayPlanner.build/Objects-normal/arm64/DayPlanner.swiftdoc",
+    "swiftmodule" : "/Users/mac/Desktop/waraondesk/build/DayPlanner.build/Release/DayPlanner.build/Objects-normal/arm64/DayPlanner.swiftmodule",
+    "swiftsourceinfo" : "/Users/mac/Desktop/waraondesk/build/DayPlanner.build/Release/DayPlanner.build/Objects-normal/arm64/DayPlanner.swiftsourceinfo"
+  }
+}
