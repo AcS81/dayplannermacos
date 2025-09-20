@@ -6065,46 +6065,158 @@ struct EmptyPillarsCard: View {
 
 struct ComprehensivePillarCreatorSheet: View {
     let onPillarCreated: (Pillar) -> Void
+    
     @Environment(\.dismiss) private var dismiss
+    @EnvironmentObject private var dataManager: AppDataManager
+    @EnvironmentObject private var aiService: AIService
+    
     @State private var pillarName = ""
+    @State private var pillarDescription = ""
     @State private var selectedType: PillarType = .actionable
+    @State private var wisdomText = ""
+    @State private var selectedFrequency: PillarFrequency = .daily
+    @State private var minDuration = 30 // minutes
+    @State private var maxDuration = 120 // minutes
+    @State private var autoStageEnabled = false
+    @State private var eventConsiderationEnabled = false
+    @State private var selectedColor: Color = .blue
+    @State private var preferredTimeWindows: [TimeWindow] = []
+    @State private var showingTimeWindowCreator = false
+    @State private var aiSuggestions = ""
+    @State private var isGeneratingAI = false
     
     var body: some View {
-        NavigationView {
-            VStack(spacing: 20) {
-                TextField("Pillar Name", text: $pillarName)
-                    .textFieldStyle(.roundedBorder)
-                
-                Picker("Type", selection: $selectedType) {
-                    ForEach(PillarType.allCases, id: \.self) { type in
-                        Text(type.rawValue).tag(type)
-                    }
+        VStack(spacing: 0) {
+            // Header
+            HStack {
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("Create Pillar")
+                        .font(.title2)
+                        .fontWeight(.semibold)
+                    
+                    Text("Define a recurring activity for AI auto-scheduling")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
                 }
-                .pickerStyle(.segmented)
                 
                 Spacer()
                 
+                Button("✕") { dismiss() }
+                    .font(.title3)
+                    .foregroundStyle(.secondary)
+                    .buttonStyle(.plain)
+            }
+            .padding(.horizontal, 24)
+            .padding(.vertical, 16)
+            .background(.thinMaterial)
+            
+                }
+                .padding(24)
+            }*/
+            
+            // Bottom actions
+            HStack(spacing: 16) {
+                Button("Cancel") {
+                    dismiss()
+                }
+                .buttonStyle(.bordered)
+                
+                Spacer()
+                
+                if isGeneratingAI {
+                    HStack {
+                        ProgressView()
+                            .controlSize(.small)
+                        Text("Getting AI suggestions...")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                }
+                
                 Button("Create Pillar") {
-                    let newPillar = Pillar(
-                        name: pillarName,
-                        description: "Auto-generated pillar",
-                        type: selectedType,
-                        frequency: .daily
-                    )
-                    onPillarCreated(newPillar)
+                    createPillar()
                 }
                 .buttonStyle(.borderedProminent)
                 .disabled(pillarName.isEmpty)
             }
-            .padding(24)
-            .navigationTitle("Create Pillar")
-            .toolbar {
-                ToolbarItem(placement: .cancellationAction) {
-                    Button("Cancel") { dismiss() }
+            .padding(.horizontal, 24)
+            .padding(.vertical, 16)
+            .background(.thinMaterial)
+        }
+        .frame(width: 600, height: 700)
+        .background(.regularMaterial)
+        .clipShape(RoundedRectangle(cornerRadius: 16))
+        .shadow(radius: 20)
+        .sheet(isPresented: $showingTimeWindowCreator) {
+            TimeWindowCreatorSheet { timeWindow in
+                preferredTimeWindows.append(timeWindow)
+                showingTimeWindowCreator = false
+            }
+            }
+        }
+    }
+    
+    private func generateAISuggestions() {
+        guard !pillarName.isEmpty else { return }
+        
+        isGeneratingAI = true
+        
+        Task {
+            let prompt = """
+            I'm creating a pillar called "\(pillarName)" for recurring activities in my schedule.
+            
+            Please suggest:
+            1. Optimal time windows for this activity
+            2. Realistic duration ranges
+            3. Frequency recommendations
+            4. Any scheduling considerations
+            
+            Keep suggestions practical and brief.
+            """
+            
+            do {
+                let context = DayContext(
+                    date: Date(),
+                    existingBlocks: [],
+                    currentEnergy: .daylight,
+                    preferredFlows: [.water],
+                    availableTime: 3600,
+                    mood: .crystal
+                )
+                
+                let response = try await aiService.processMessage(prompt, context: context)
+                
+                await MainActor.run {
+                    aiSuggestions = response.text
+                    isGeneratingAI = false
+                }
+            } catch {
+                await MainActor.run {
+                    aiSuggestions = "Consider when you typically do \(pillarName.lowercased()) activities and set appropriate time windows."
+                    isGeneratingAI = false
                 }
             }
         }
-        .frame(width: 500, height: 400)
+    }
+    
+    private func createPillar() {
+        let newPillar = Pillar(
+            name: pillarName,
+            description: pillarDescription,
+            type: selectedType,
+            frequency: selectedFrequency,
+            minDuration: selectedType == .actionable ? TimeInterval(minDuration * 60) : 0,
+            maxDuration: selectedType == .actionable ? TimeInterval(maxDuration * 60) : 0,
+            preferredTimeWindows: selectedType == .actionable ? preferredTimeWindows : [],
+            overlapRules: [], // Can be enhanced later
+            quietHours: [], // Can be enhanced later
+            autoStageEnabled: selectedType == .actionable ? autoStageEnabled : false,
+            eventConsiderationEnabled: eventConsiderationEnabled,
+            wisdomText: selectedType == .principle ? wisdomText : nil,
+            color: CodableColor(selectedColor)
+        )
+        
+        onPillarCreated(newPillar)
     }
 }
 

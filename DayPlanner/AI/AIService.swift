@@ -255,6 +255,12 @@ class AIService: ObservableObject {
     // MARK: - Private Methods
     
     private func buildPrompt(message: String, context: DayContext) -> String {
+        let pillarGuidanceText = context.pillarGuidance.isEmpty ? 
+            "" : "\n\nUser's Core Principles (guide all suggestions):\n\(context.pillarGuidance.joined(separator: "\n"))"
+        
+        let actionablePillarsText = context.actionablePillars.isEmpty ? 
+            "" : "\n\nActionable Pillars to consider:\n\(context.actionablePillars.map { "- \($0.name): \($0.description)" }.joined(separator: "\n"))"
+        
         return """
         You are a helpful day planning assistant. The user is planning their day and needs suggestions.
         
@@ -264,22 +270,23 @@ class AIService: ObservableObject {
         - Existing activities: \(context.existingBlocks.count)
         - Available time: \(Int(context.availableTime/3600)) hours
         - Mood: \(context.mood.description)
-        \(context.weatherContext != nil ? "- Weather: \(context.weatherContext!)" : "")
+        \(context.weatherContext != nil ? "- Weather: \(context.weatherContext!)" : "")\(pillarGuidanceText)\(actionablePillarsText)
         
         User message: "\(message)"
         
-        Consider the weather when making suggestions:
-        - If it's sunny and warm, suggest outdoor activities
-        - If it's rainy or cold, suggest indoor alternatives
-        - Match activity type to weather conditions
+        IMPORTANT: Always align suggestions with the user's core principles listed above. Consider:
+        - Weather conditions for indoor/outdoor activities
+        - User's guiding principles when making any suggestion
+        - How actionable pillars might need time slots
+        - The user's current energy and mood state
         
         Please provide a helpful response and exactly 2 activity suggestions in this exact JSON format:
         {
-            "response": "Your helpful response text",
+            "response": "Your helpful response text that acknowledges their principles",
             "suggestions": [
                 {
                     "title": "Activity name",
-                    "explanation": "Brief reason why this is suggested (consider weather)",
+                    "explanation": "Brief reason why this aligns with their principles and current context",
                     "duration": 60,
                     "energy": "sunrise|daylight|moonlight",
                     "flow": "crystal|water|mist",
@@ -288,7 +295,7 @@ class AIService: ObservableObject {
             ]
         }
         
-        Keep suggestions realistic and personalized to the context and weather.
+        Keep suggestions principle-aligned, realistic and personalized.
         """
     }
     

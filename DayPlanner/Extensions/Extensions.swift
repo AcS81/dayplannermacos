@@ -428,6 +428,142 @@ struct LiquidGlassEnvironment {
     static let tintIntensity: Double = 0.3
 }
 
+// MARK: - Astronomical Time Calculator
+
+/// Provides accurate astronomical twilight colors based on real solar positions
+class AstronomicalTimeCalculator {
+    static let shared = AstronomicalTimeCalculator()
+    
+    private init() {}
+    
+    /// Get time-based color for hour considering astronomical twilight
+    func getTimeColor(for hour: Int, date: Date) -> Color {
+        let (sunrise, sunset) = calculateSolarTimes(for: date)
+        let solarHour = Double(hour)
+        
+        // Calculate astronomical periods
+        let astronomicalDawn = sunrise - 1.5      // 90 min before sunrise
+        let nauticalDawn = sunrise - 1.0          // 60 min before sunrise
+        let civilDawn = sunrise - 0.5             // 30 min before sunrise
+        let goldenHourStart = sunset - 1.0        // 60 min before sunset
+        let civilDusk = sunset + 0.5              // 30 min after sunset
+        let nauticalDusk = sunset + 1.0           // 60 min after sunset
+        let astronomicalDusk = sunset + 1.5       // 90 min after sunset
+        
+        switch solarHour {
+        case ..<astronomicalDawn:
+            return createNightColor(intensity: 0.08) // Deep night
+        case astronomicalDawn..<nauticalDawn:
+            return createDawnColor(progress: (solarHour - astronomicalDawn) / 0.5, intensity: 0.03) // Astronomical dawn
+        case nauticalDawn..<civilDawn:
+            return createDawnColor(progress: (solarHour - nauticalDawn) / 0.5, intensity: 0.05) // Nautical dawn
+        case civilDawn..<sunrise:
+            return createDawnColor(progress: (solarHour - civilDawn) / 0.5, intensity: 0.08) // Civil dawn
+        case sunrise..<(sunrise + 1):
+            return createSunriseColor(progress: (solarHour - sunrise) / 1.0) // Sunrise hour
+        case (sunrise + 1)..<12:
+            return createMorningColor(progress: (solarHour - sunrise - 1) / max(1, 12 - sunrise - 1)) // Morning
+        case 12..<14:
+            return createNoonColor() // High noon
+        case 14..<goldenHourStart:
+            return createAfternoonColor(progress: (solarHour - 14) / max(1, goldenHourStart - 14)) // Afternoon
+        case goldenHourStart..<sunset:
+            return createGoldenHourColor(progress: (solarHour - goldenHourStart) / max(1, sunset - goldenHourStart)) // Golden hour
+        case sunset..<civilDusk:
+            return createSunsetColor(progress: (solarHour - sunset) / 0.5) // Sunset
+        case civilDusk..<nauticalDusk:
+            return createDuskColor(progress: (solarHour - civilDusk) / 0.5, intensity: 0.08) // Civil dusk
+        case nauticalDusk..<astronomicalDusk:
+            return createDuskColor(progress: (solarHour - nauticalDusk) / 0.5, intensity: 0.05) // Nautical dusk
+        case astronomicalDusk...:
+            return createNightColor(intensity: (solarHour - astronomicalDusk) < 2 ? 0.06 : 0.08) // Night
+        default:
+            return .clear
+        }
+    }
+    
+    /// Calculate approximate sunrise/sunset times for date (simplified - could use real solar calculation)
+    private func calculateSolarTimes(for date: Date) -> (sunrise: Double, sunset: Double) {
+        let calendar = Calendar.current
+        let dayOfYear = calendar.ordinality(of: .day, in: .year, for: date) ?? 180
+        
+        // Simplified solar calculation using sinusoidal approximation
+        let solarDeclination = 23.45 * sin((Double(dayOfYear) - 81) * .pi / 182.5)
+        let latitude = 40.0 // Default latitude (could be made location-aware)
+        
+        let hourAngle = acos(-tan(latitude * .pi / 180) * tan(solarDeclination * .pi / 180))
+        let solarNoon = 12.0
+        
+        let sunrise = solarNoon - (hourAngle * 12 / .pi)
+        let sunset = solarNoon + (hourAngle * 12 / .pi)
+        
+        // Clamp to reasonable bounds
+        return (
+            sunrise: max(5.0, min(8.0, sunrise)),
+            sunset: max(16.0, min(20.0, sunset))
+        )
+    }
+    
+    // MARK: - Color Creation Functions
+    
+    private func createNightColor(intensity: Double) -> Color {
+        Color(.sRGB, red: 0.05, green: 0.08, blue: 0.15, opacity: intensity)
+    }
+    
+    private func createDawnColor(progress: Double, intensity: Double) -> Color {
+        let red = 0.8 * progress
+        let green = 0.4 * progress
+        let blue = 0.6 * (1 - progress)
+        return Color(.sRGB, red: red, green: green, blue: blue, opacity: intensity)
+    }
+    
+    private func createSunriseColor(progress: Double) -> Color {
+        let red = 1.0 * (1 - progress * 0.3)
+        let green = 0.6 + (0.4 * progress)
+        let blue = 0.2 + (0.6 * progress)
+        return Color(.sRGB, red: red, green: green, blue: blue, opacity: 0.08)
+    }
+    
+    private func createMorningColor(progress: Double) -> Color {
+        let red = 1.0 - (0.2 * progress)
+        let green = 1.0
+        let blue = 0.8 + (0.2 * progress)
+        return Color(.sRGB, red: red, green: green, blue: blue, opacity: 0.03)
+    }
+    
+    private func createNoonColor() -> Color {
+        Color(.sRGB, red: 1.0, green: 1.0, blue: 0.9, opacity: 0.04)
+    }
+    
+    private func createAfternoonColor(progress: Double) -> Color {
+        let red = 1.0 - (0.1 * progress)
+        let green = 0.9 - (0.1 * progress)
+        let blue = 1.0
+        return Color(.sRGB, red: red, green: green, blue: blue, opacity: 0.02)
+    }
+    
+    private func createGoldenHourColor(progress: Double) -> Color {
+        let red = 1.0
+        let green = 0.8 - (0.2 * progress)
+        let blue = 0.5 - (0.3 * progress)
+        return Color(.sRGB, red: red, green: green, blue: blue, opacity: 0.06)
+    }
+    
+    private func createSunsetColor(progress: Double) -> Color {
+        let red = 1.0 - (0.3 * progress)
+        let green = 0.5 - (0.3 * progress)
+        let blue = 0.8 * progress
+        return Color(.sRGB, red: red, green: green, blue: blue, opacity: 0.05)
+    }
+    
+    private func createDuskColor(progress: Double, intensity: Double) -> Color {
+        let red = 0.6 * (1 - progress)
+        let green = 0.3 * (1 - progress)
+        let blue = 0.8
+        return Color(.sRGB, red: red, green: green, blue: blue, opacity: intensity)
+    }
+}
+
 // MARK: - Preview Extensions
 
 #if DEBUG

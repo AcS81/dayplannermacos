@@ -423,8 +423,10 @@ struct DayContext: Codable {
     let availableTime: TimeInterval
     let mood: GlassMood
     let weatherContext: String?
+    let pillarGuidance: [String] // New: guidance from principle pillars
+    let actionablePillars: [Pillar] // New: pillars that can create events
     
-    init(date: Date, existingBlocks: [TimeBlock], currentEnergy: EnergyType, preferredFlows: [FlowState], availableTime: TimeInterval, mood: GlassMood, weatherContext: String? = nil) {
+    init(date: Date, existingBlocks: [TimeBlock], currentEnergy: EnergyType, preferredFlows: [FlowState], availableTime: TimeInterval, mood: GlassMood, weatherContext: String? = nil, pillarGuidance: [String] = [], actionablePillars: [Pillar] = []) {
         self.date = date
         self.existingBlocks = existingBlocks
         self.currentEnergy = currentEnergy
@@ -432,6 +434,8 @@ struct DayContext: Codable {
         self.availableTime = availableTime
         self.mood = mood
         self.weatherContext = weatherContext
+        self.pillarGuidance = pillarGuidance
+        self.actionablePillars = actionablePillars
     }
     
     var summary: String {
@@ -445,6 +449,14 @@ struct DayContext: Codable {
         
         if let weather = weatherContext {
             summary += "\nWeather: \(weather)"
+        }
+        
+        if !pillarGuidance.isEmpty {
+            summary += "\nGuiding principles: \(pillarGuidance.joined(separator: "; "))"
+        }
+        
+        if !actionablePillars.isEmpty {
+            summary += "\nActionable pillars: \(actionablePillars.map(\.name).joined(separator: ", "))"
         }
         
         return summary
@@ -569,25 +581,29 @@ extension Day {
 
 // MARK: - PRD Required Models
 
-/// Pillar: ongoing soft-rule category (walk, eat, sleep), frequencies, min/max durations, and overlap rules
+/// Pillar: Core life principles that guide all AI decisions - can be actionable (events) or principle (values/thoughts)
 struct Pillar: Identifiable, Codable {
     let id: UUID
     var name: String
     var description: String
+    var type: PillarType // New: actionable vs principle
     var frequency: PillarFrequency
-    var minDuration: TimeInterval // in seconds
-    var maxDuration: TimeInterval
+    var minDuration: TimeInterval // in seconds (only for actionable pillars)
+    var maxDuration: TimeInterval // (only for actionable pillars)
     var preferredTimeWindows: [TimeWindow]
     var overlapRules: [OverlapRule]
     var quietHours: [TimeWindow] // When this pillar should not be suggested
-    var autoStageEnabled: Bool
-    var eventConsiderationEnabled: Bool // Whether this pillar generates events or just influences AI
+    var autoStageEnabled: Bool // For actionable pillars
+    var eventConsiderationEnabled: Bool // New: for principles that inform AI but don't create events
+    var wisdomText: String? // New: core wisdom/principles for AI guidance
     var color: CodableColor
+    var lastEventDate: Date? // Track when pillar events were last created
     
-    init(id: UUID = UUID(), name: String, description: String, frequency: PillarFrequency, minDuration: TimeInterval, maxDuration: TimeInterval, preferredTimeWindows: [TimeWindow], overlapRules: [OverlapRule], quietHours: [TimeWindow], autoStageEnabled: Bool = false, eventConsiderationEnabled: Bool = true, color: CodableColor = CodableColor(.blue)) {
+    init(id: UUID = UUID(), name: String, description: String, type: PillarType = .actionable, frequency: PillarFrequency, minDuration: TimeInterval = 1800, maxDuration: TimeInterval = 7200, preferredTimeWindows: [TimeWindow] = [], overlapRules: [OverlapRule] = [], quietHours: [TimeWindow] = [], autoStageEnabled: Bool = false, eventConsiderationEnabled: Bool = false, wisdomText: String? = nil, color: CodableColor = CodableColor(.blue)) {
         self.id = id
         self.name = name
         self.description = description
+        self.type = type
         self.frequency = frequency
         self.minDuration = minDuration
         self.maxDuration = maxDuration
@@ -596,7 +612,9 @@ struct Pillar: Identifiable, Codable {
         self.quietHours = quietHours
         self.autoStageEnabled = autoStageEnabled
         self.eventConsiderationEnabled = eventConsiderationEnabled
+        self.wisdomText = wisdomText
         self.color = color
+        self.lastEventDate = nil
     }
     
     var frequencyDescription: String {
@@ -605,6 +623,42 @@ struct Pillar: Identifiable, Codable {
         case .weekly(let count): return "\(count)x per week"
         case .monthly(let count): return "\(count)x per month"
         case .asNeeded: return "As needed"
+        }
+    }
+    
+    var isActionable: Bool {
+        return type == .actionable
+    }
+    
+    var isPrinciple: Bool {
+        return type == .principle
+    }
+    
+    /// Get the wisdom context for AI - combines description and wisdom text
+    var aiGuidanceText: String {
+        let base = description
+        if let wisdom = wisdomText, !wisdom.isEmpty {
+            return "\(base)\n\nCore principle: \(wisdom)"
+        }
+        return base
+    }
+}
+
+enum PillarType: String, Codable, CaseIterable {
+    case actionable = "Actionable" // Creates events/time blocks
+    case principle = "Principle"   // Guides AI decisions but doesn't create events
+    
+    var description: String {
+        switch self {
+        case .actionable: return "Creates scheduled activities"
+        case .principle: return "Guides AI decisions and suggestions"
+        }
+    }
+    
+    var icon: String {
+        switch self {
+        case .actionable: return "calendar.badge.plus"
+        case .principle: return "lightbulb"
         }
     }
 }
@@ -680,6 +734,19 @@ struct Goal: Identifiable, Codable {
     var isActive: Bool {
         state == .on
     }
+    
+    var needsBreakdown: Bool {
+        return groups.isEmpty && state != .off
+    }
+}
+
+// MARK: - Goal Breakdown Actions
+
+enum GoalBreakdownAction {
+    case createChain(Chain)
+    case createPillar(Pillar)
+    case createEvent(TimeBlock)
+    case updateGoal(Goal)
 }
 
 enum GoalState: String, Codable, CaseIterable {
@@ -846,8 +913,6 @@ extension Pillar {
                 quietHours: [
                     TimeWindow(startHour: 22, startMinute: 0, endHour: 6, endMinute: 0)
                 ],
-                autoStageEnabled: true,
-                eventConsiderationEnabled: true, // Generates actual events
                 color: CodableColor(.orange)
             ),
             Pillar(
@@ -863,22 +928,7 @@ extension Pillar {
                 quietHours: [
                     TimeWindow(startHour: 19, startMinute: 0, endHour: 9, endMinute: 0)
                 ],
-                autoStageEnabled: true,
-                eventConsiderationEnabled: true, // Generates actual events
                 color: CodableColor(.blue)
-            ),
-            Pillar(
-                name: "Mindfulness",
-                description: "Core principle: maintain awareness and presence throughout activities",
-                frequency: .daily,
-                minDuration: 300, // 5 minutes
-                maxDuration: 1800, // 30 minutes
-                preferredTimeWindows: [],
-                overlapRules: [],
-                quietHours: [],
-                autoStageEnabled: false,
-                eventConsiderationEnabled: false, // Principle only - affects AI but no events
-                color: CodableColor(.green)
             ),
             Pillar(
                 name: "Rest",
@@ -891,8 +941,6 @@ extension Pillar {
                 ],
                 overlapRules: [.mustFollow("Work")],
                 quietHours: [],
-                autoStageEnabled: true,
-                eventConsiderationEnabled: true, // Generates actual events
                 color: CodableColor(.purple)
             )
         ]
@@ -1005,7 +1053,11 @@ extension IntakeQuestion {
 
 // MARK: - Extensions for Enhanced UI
 
-extension TimeframeSelector {
+enum TimeframeSelector: String, CaseIterable {
+    case now = "Now"
+    case lastTwoWeeks = "Last 2 weeks"
+    case custom = "Custom"
+    
     /// Short title for compact display in the new split view
     var shortTitle: String {
         switch self {

@@ -170,12 +170,8 @@ class AppDataManager: ObservableObject {
     }
     
     private func schedulePillarSuggestions(for pillar: Pillar) {
-        // Only schedule actual events if eventConsiderationEnabled is true
-        guard pillar.eventConsiderationEnabled else {
-            // Principle-only pillars affect AI but don't generate events
-            recordPattern("principle:\(pillar.name.lowercased())")
-            return
-        }
+        // Only schedule suggestions for actionable pillars
+        guard pillar.isActionable && pillar.autoStageEnabled else { return }
         
         // Find available time slots that match the pillar's preferences
         let availableSlots = findAvailableSlots(for: pillar)
@@ -201,6 +197,28 @@ class AppDataManager: ObservableObject {
         if !availableSlots.isEmpty {
             setActionBarMessage("I found \(availableSlots.count) good time slot\(availableSlots.count == 1 ? "" : "s") for your \(pillar.name) pillar. Want to add them?")
         }
+    }
+    
+    /// Create enhanced context with pillar guidance for AI decisions
+    func createEnhancedContext(date: Date = Date()) -> DayContext {
+        let principleGuidance = appState.pillars
+            .filter { $0.isPrinciple }
+            .map { $0.aiGuidanceText }
+        
+        let actionablePillars = appState.pillars
+            .filter { $0.isActionable }
+        
+        return DayContext(
+            date: date,
+            existingBlocks: appState.currentDay.blocks,
+            currentEnergy: .daylight,
+            preferredFlows: [.water],
+            availableTime: 3600,
+            mood: appState.currentDay.mood,
+            weatherContext: weatherService.getWeatherContext(),
+            pillarGuidance: principleGuidance,
+            actionablePillars: actionablePillars
+        )
     }
     
     private func findAvailableSlots(for pillar: Pillar) -> [TimeSlot] {
