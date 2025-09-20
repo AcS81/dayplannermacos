@@ -170,6 +170,13 @@ class AppDataManager: ObservableObject {
     }
     
     private func schedulePillarSuggestions(for pillar: Pillar) {
+        // Only schedule actual events if eventConsiderationEnabled is true
+        guard pillar.eventConsiderationEnabled else {
+            // Principle-only pillars affect AI but don't generate events
+            recordPattern("principle:\(pillar.name.lowercased())")
+            return
+        }
+        
         // Find available time slots that match the pillar's preferences
         let availableSlots = findAvailableSlots(for: pillar)
         

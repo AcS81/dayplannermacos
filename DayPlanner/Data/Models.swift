@@ -581,9 +581,10 @@ struct Pillar: Identifiable, Codable {
     var overlapRules: [OverlapRule]
     var quietHours: [TimeWindow] // When this pillar should not be suggested
     var autoStageEnabled: Bool
+    var eventConsiderationEnabled: Bool // Whether this pillar generates events or just influences AI
     var color: CodableColor
     
-    init(id: UUID = UUID(), name: String, description: String, frequency: PillarFrequency, minDuration: TimeInterval, maxDuration: TimeInterval, preferredTimeWindows: [TimeWindow], overlapRules: [OverlapRule], quietHours: [TimeWindow], autoStageEnabled: Bool = false, color: CodableColor = CodableColor(.blue)) {
+    init(id: UUID = UUID(), name: String, description: String, frequency: PillarFrequency, minDuration: TimeInterval, maxDuration: TimeInterval, preferredTimeWindows: [TimeWindow], overlapRules: [OverlapRule], quietHours: [TimeWindow], autoStageEnabled: Bool = false, eventConsiderationEnabled: Bool = true, color: CodableColor = CodableColor(.blue)) {
         self.id = id
         self.name = name
         self.description = description
@@ -594,6 +595,7 @@ struct Pillar: Identifiable, Codable {
         self.overlapRules = overlapRules
         self.quietHours = quietHours
         self.autoStageEnabled = autoStageEnabled
+        self.eventConsiderationEnabled = eventConsiderationEnabled
         self.color = color
     }
     
@@ -844,6 +846,8 @@ extension Pillar {
                 quietHours: [
                     TimeWindow(startHour: 22, startMinute: 0, endHour: 6, endMinute: 0)
                 ],
+                autoStageEnabled: true,
+                eventConsiderationEnabled: true, // Generates actual events
                 color: CodableColor(.orange)
             ),
             Pillar(
@@ -859,7 +863,22 @@ extension Pillar {
                 quietHours: [
                     TimeWindow(startHour: 19, startMinute: 0, endHour: 9, endMinute: 0)
                 ],
+                autoStageEnabled: true,
+                eventConsiderationEnabled: true, // Generates actual events
                 color: CodableColor(.blue)
+            ),
+            Pillar(
+                name: "Mindfulness",
+                description: "Core principle: maintain awareness and presence throughout activities",
+                frequency: .daily,
+                minDuration: 300, // 5 minutes
+                maxDuration: 1800, // 30 minutes
+                preferredTimeWindows: [],
+                overlapRules: [],
+                quietHours: [],
+                autoStageEnabled: false,
+                eventConsiderationEnabled: false, // Principle only - affects AI but no events
+                color: CodableColor(.green)
             ),
             Pillar(
                 name: "Rest",
@@ -872,6 +891,8 @@ extension Pillar {
                 ],
                 overlapRules: [.mustFollow("Work")],
                 quietHours: [],
+                autoStageEnabled: true,
+                eventConsiderationEnabled: true, // Generates actual events
                 color: CodableColor(.purple)
             )
         ]
