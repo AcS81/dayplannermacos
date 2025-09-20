@@ -121,6 +121,12 @@ struct ActionBar: View {
                             }
                             .buttonStyle(.borderedProminent)
                         }
+                    } else if dataManager.appState.currentActionBarMessage != nil {
+                        // Show info icon when message exists but no staged items
+                        Image(systemName: "info.circle")
+                            .font(.caption)
+                            .foregroundStyle(.blue)
+                            .help("No actionable items to approve")
                     }
                 }
                 
@@ -1386,8 +1392,7 @@ struct UnifiedSplitView: View {
             // Left Panel - Calendar with expandable month view
             CalendarPanel(
                 selectedDate: $selectedDate,
-                showingMonthView: $showingMonthView,
-                onBackfillTap: { showingBackfill = true }
+                showingMonthView: $showingMonthView
             )
             .frame(minWidth: 500, idealWidth: 600)
             
@@ -1427,8 +1432,8 @@ struct CalendarPanel: View {
     @EnvironmentObject private var aiService: AIService
     @Binding var selectedDate: Date
     @Binding var showingMonthView: Bool
-    let onBackfillTap: () -> Void
     @State private var showingPillarDay = false
+    @State private var showingBackfillTemplates = false
     
     var body: some View {
         VStack(spacing: 0) {
@@ -1436,7 +1441,7 @@ struct CalendarPanel: View {
             CalendarPanelHeader(
                 selectedDate: $selectedDate,
                 showingMonthView: $showingMonthView,
-                onBackfillTap: onBackfillTap,
+                showingBackfillTemplates: $showingBackfillTemplates,
                 onPillarDayTap: { showingPillarDay = true }
             )
             
@@ -1449,6 +1454,17 @@ struct CalendarPanel: View {
                         removal: .opacity.combined(with: .scale(scale: 0.95)).combined(with: .move(edge: .top))
                     ))
                     .animation(.spring(response: 0.6, dampingFraction: 0.8), value: showingMonthView)
+            }
+            
+            // Backfill templates dropdown (expandable/collapsible)
+            if showingBackfillTemplates {
+                BackfillTemplatesView(selectedDate: selectedDate)
+                    .frame(height: 200)
+                    .transition(.asymmetric(
+                        insertion: .opacity.combined(with: .scale(scale: 0.95)).combined(with: .move(edge: .top)),
+                        removal: .opacity.combined(with: .scale(scale: 0.95)).combined(with: .move(edge: .top))
+                    ))
+                    .animation(.spring(response: 0.6, dampingFraction: 0.8), value: showingBackfillTemplates)
             }
             
             // Day view - enhanced with liquid glass styling
@@ -1554,7 +1570,7 @@ struct LiquidGlassSeparator: View {
 struct CalendarPanelHeader: View {
     @Binding var selectedDate: Date
     @Binding var showingMonthView: Bool
-    let onBackfillTap: () -> Void
+    @Binding var showingBackfillTemplates: Bool
     let onPillarDayTap: () -> Void
     
     private var dateFormatter: DateFormatter {
@@ -1638,7 +1654,9 @@ struct CalendarPanelHeader: View {
                     .help("Add missing pillar activities to today")
                     
                     Button("Backfill") {
-                        onBackfillTap()
+                        withAnimation(.spring(response: 0.6, dampingFraction: 0.8)) {
+                            showingBackfillTemplates.toggle()
+                        }
                     }
                     .buttonStyle(.borderedProminent)
                     .controlSize(.small)
@@ -2095,11 +2113,20 @@ struct PreciseEventCard: View {
                 
                 // Block content
                 VStack(alignment: .leading, spacing: 2) {
-                    Text(block.title)
-                        .font(.subheadline)
-                        .fontWeight(.medium)
-                        .foregroundStyle(.primary)
-                        .lineLimit(durationBasedLineLimit)
+                    HStack(spacing: 6) {
+                        if let emoji = block.emoji {
+                            Text(emoji)
+                                .font(.caption)
+                        }
+                        
+                        Text(block.title)
+                            .font(.subheadline)
+                            .fontWeight(.medium)
+                            .foregroundStyle(.primary)
+                            .lineLimit(durationBasedLineLimit)
+                        
+                        Spacer()
+                    }
                     
                     HStack(spacing: 4) {
                         Text(block.startTime.preciseTwoLineTime)
@@ -2116,27 +2143,12 @@ struct PreciseEventCard: View {
                         
                         Spacer()
                         
-                        // Inline chaining controls (show on hover)
+                        // Simplified hover info
                         if isHovering && !isDragging {
-                            HStack(spacing: 4) {
-                                // Chain before button
-                                Button(action: { addChainBefore() }) {
-                                    Image(systemName: "plus.circle")
-                                        .font(.caption)
-                                        .foregroundStyle(.orange)
-                                }
-                                .buttonStyle(.plain)
-                                .help("Chain activity before this")
-                                
-                                // Chain after button  
-                                Button(action: { addChainAfter() }) {
-                                    Image(systemName: "arrow.right.circle")
-                                        .font(.caption)
-                                        .foregroundStyle(.green)
-                                }
-                                .buttonStyle(.plain)
-                                .help("Chain activity after this")
-                            }
+                            Text("Tap for details")
+                                .font(.caption2)
+                                .foregroundStyle(.blue)
+                                .italic()
                         }
                         
                         // Info icon
@@ -2279,121 +2291,6 @@ struct PreciseEventCard: View {
                            of: newTime) ?? newTime
     }
     
-    // MARK: - Inline Chaining Functions
-    
-    private func addChainBefore() {
-        // Find a good activity to chain before this one
-        let beforeTime = calendar.date(byAdding: .minute, value: -30, to: block.startTime) ?? block.startTime
-        
-        // Check if there's enough space (5 minute buffer)
-        if hasSpaceBefore(at: beforeTime, duration: 30) {
-            let chainedBlock = TimeBlock(
-                title: "Prep for \(block.title)",
-                startTime: beforeTime,
-                duration: 1800, // 30 minutes
-                energy: block.energy,
-                flow: .crystal, // AI generated
-                explanation: "Chained before \(block.title)"
-            )
-            
-            dataManager.stageBlock(chainedBlock, explanation: "I added prep time before '\(block.title)'. Look good?")
-        } else {
-            // Find an alternative time
-            if let availableTime = findNextAvailableSlot(before: block.startTime, duration: 30) {
-                let chainedBlock = TimeBlock(
-                    title: "Prep for \(block.title)",
-                    startTime: availableTime,
-                    duration: 1800,
-                    energy: block.energy,
-                    flow: .crystal,
-                    explanation: "Chained prep time for \(block.title)"
-                )
-                
-                dataManager.stageBlock(chainedBlock, explanation: "Added prep at \(availableTime.timeString) - closest available slot.")
-            }
-        }
-    }
-    
-    private func addChainAfter() {
-        // Find a good activity to chain after this one
-        let afterTime = block.endTime.addingTimeInterval(300) // 5 minute buffer
-        
-        // Check if there's space for a 30-minute follow-up
-        if hasSpaceAfter(at: afterTime, duration: 30) {
-            let chainedBlock = TimeBlock(
-                title: "Follow-up: \(block.title)",
-                startTime: afterTime,
-                duration: 1800, // 30 minutes
-                energy: block.energy,
-                flow: .crystal,
-                explanation: "Chained after \(block.title)"
-            )
-            
-            dataManager.stageBlock(chainedBlock, explanation: "Added follow-up after '\(block.title)'. Should I keep it?")
-        } else {
-            // Find next available slot
-            if let availableTime = findNextAvailableSlot(after: afterTime, duration: 30) {
-                let chainedBlock = TimeBlock(
-                    title: "Follow-up: \(block.title)",
-                    startTime: availableTime,
-                    duration: 1800,
-                    energy: block.energy,
-                    flow: .crystal,
-                    explanation: "Chained follow-up for \(block.title)"
-                )
-                
-                dataManager.stageBlock(chainedBlock, explanation: "Added follow-up at \(availableTime.timeString) - next available time.")
-            }
-        }
-    }
-    
-    private func hasSpaceBefore(at time: Date, duration: Int) -> Bool {
-        let endTime = calendar.date(byAdding: .minute, value: duration, to: time) ?? time
-        let bufferTime = calendar.date(byAdding: .minute, value: 5, to: endTime) ?? endTime
-        
-        return !allBlocks.contains(where: { otherBlock in
-            let blockInterval = DateInterval(start: otherBlock.startTime, end: otherBlock.endTime)
-            let checkInterval = DateInterval(start: time, end: bufferTime)
-            return blockInterval.intersects(checkInterval)
-        })
-    }
-    
-    private func hasSpaceAfter(at time: Date, duration: Int) -> Bool {
-        let endTime = calendar.date(byAdding: .minute, value: duration, to: time) ?? time
-        
-        return !allBlocks.contains(where: { otherBlock in
-            let blockInterval = DateInterval(start: otherBlock.startTime, end: otherBlock.endTime)
-            let checkInterval = DateInterval(start: time, end: endTime)
-            return blockInterval.intersects(checkInterval)
-        })
-    }
-    
-    private func findNextAvailableSlot(before limitTime: Date, duration: Int) -> Date? {
-        let dayStart = calendar.startOfDay(for: selectedDate)
-        let searchStart = calendar.date(byAdding: .hour, value: 6, to: dayStart) ?? dayStart
-        
-        var currentTime = searchStart
-        while currentTime < limitTime {
-            if hasSpaceBefore(at: currentTime, duration: duration) {
-                return currentTime
-            }
-            currentTime = calendar.date(byAdding: .minute, value: 15, to: currentTime) ?? currentTime
-        }
-        return nil
-    }
-    
-    private func findNextAvailableSlot(after startTime: Date, duration: Int) -> Date? {
-        let dayEnd = calendar.date(bySettingHour: 22, minute: 0, second: 0, of: selectedDate) ?? selectedDate
-        
-        var currentTime = startTime
-        while currentTime < dayEnd {
-            if hasSpaceAfter(at: currentTime, duration: duration) {
-                return currentTime
-            }
-            currentTime = calendar.date(byAdding: .minute, value: 15, to: currentTime) ?? currentTime
-        }
-        return nil
-    }
 }
 
 // MARK: - Fixed Position Event Card (Proper Layout)
@@ -5163,14 +5060,22 @@ struct SuperchargedChainsSection: View {
                     .buttonStyle(.plain)
                     .help("AI chain suggestions")
                     
-                    // AI chain generator button
-                    Button(action: { generateUniqueAIChain() }) {
-                        Image(systemName: "plus.circle")
-                            .font(.title2)
-                            .foregroundStyle(.blue)
+                    // Generate contextual chain button
+                    Button(action: { generateAndShowContextualChain() }) {
+                        HStack(spacing: 4) {
+                            Image(systemName: "wand.and.stars")
+                                .font(.caption)
+                            Text("Generate")
+                                .font(.caption)
+                                .fontWeight(.medium)
+                        }
+                        .foregroundStyle(.green)
+                        .padding(.horizontal, 8)
+                        .padding(.vertical, 4)
+                        .background(.green.opacity(0.1), in: Capsule())
                     }
                     .buttonStyle(.plain)
-                    .help("Generate unique AI chain")
+                    .help("Generate most likely chain for current context")
                 }
             }
             
@@ -5178,7 +5083,7 @@ struct SuperchargedChainsSection: View {
             ScrollView(.horizontal, showsIndicators: false) {
                 HStack(spacing: 12) {
                     ForEach(chainTemplates, id: \.name) { template in
-                        EditableChainTemplateCard(
+                        DraggableChainTemplateCard(
                             template: template,
                             onSelect: { selectedTemplate in
                                 createChainFromTemplate(selectedTemplate)
@@ -5186,6 +5091,9 @@ struct SuperchargedChainsSection: View {
                             onEdit: { selectedTemplate in
                                 selectedChainTemplate = selectedTemplate
                                 showingTemplateEditor = true
+                            },
+                            onDrag: { selectedTemplate in
+                                createAndStageChainFromTemplate(selectedTemplate)
                             }
                         )
                     }
@@ -5193,39 +5101,20 @@ struct SuperchargedChainsSection: View {
                 .padding(.horizontal, 2)
             }
             
-            // Recent chains with enhanced controls
-            LazyVStack(spacing: 8) {
-                ForEach(dataManager.appState.recentChains.prefix(6)) { chain in
-                    SuperchargedChainCard(
-                        chain: chain,
-                        onApply: { 
-                            applyChainToToday(chain)
-                        },
-                        onEdit: { 
-                            // Edit chain functionality
-                        },
-                        onDuplicate: {
-                            duplicateChain(chain)
-                        }
-                    )
-                }
+            // Chain generation info
+            VStack(spacing: 12) {
+                Text("🔗 Templates are your foundation")
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
                 
-                if dataManager.appState.recentChains.isEmpty {
-                    VStack(spacing: 12) {
-                        Text("🔗 Build powerful sequences")
-                            .font(.subheadline)
-                            .foregroundStyle(.secondary)
-                        
-                        Button("Create First Chain") {
-                            generateUniqueAIChain()
-                        }
-                        .buttonStyle(.bordered)
-                    }
-                    .frame(maxWidth: .infinity)
-                    .padding()
-                    .background(.quaternary.opacity(0.3), in: RoundedRectangle(cornerRadius: 12))
-                }
+                Text("Drag templates to timeline or customize them. All new chains become templates.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .multilineTextAlignment(.center)
             }
+            .frame(maxWidth: .infinity)
+            .padding()
+            .background(.quaternary.opacity(0.3), in: RoundedRectangle(cornerRadius: 12))
         }
         .sheet(isPresented: $showingAISuggestions) {
             AIChainSuggestionsSheet(
@@ -5375,6 +5264,76 @@ struct SuperchargedChainsSection: View {
         let roundedMinute = ((minute / 15) + 1) * 15
         
         return calendar.date(byAdding: .minute, value: roundedMinute - minute, to: now) ?? now
+    }
+    
+    private func generateAndShowContextualChain() {
+        Task {
+            let context = dataManager.createEnhancedContext()
+            let currentHour = Calendar.current.component(.hour, from: Date())
+            
+            let prompt = """
+            Generate the single most likely activity chain for right now based on:
+            
+            Current time: \(currentHour):00
+            Context: \(context.summary)
+            
+            What would the user most likely want to do next given their patterns and current situation?
+            
+            Provide one 2-4 activity chain with realistic timing.
+            """
+            
+            do {
+                let response = try await aiService.processMessage(prompt, context: context)
+                let contextualChain = createTimeBasedUniqueChain() // Fallback to time-based
+                
+                await MainActor.run {
+                    // Add to templates area instead of user chains
+                    let startTime = findBestTimeForChain(contextualChain)
+                    dataManager.applyChain(contextualChain, startingAt: startTime)
+                    dataManager.setActionBarMessage("Generated contextual chain '\(contextualChain.name)' for current situation. Apply?")
+                }
+            } catch {
+                await MainActor.run {
+                    let fallbackChain = createTimeBasedUniqueChain()
+                    let startTime = findBestTimeForChain(fallbackChain)
+                    dataManager.applyChain(fallbackChain, startingAt: startTime)
+                    dataManager.setActionBarMessage("Generated '\(fallbackChain.name)' chain for this time period. Apply?")
+                }
+            }
+        }
+    }
+    
+    private func createAndStageChainFromTemplate(_ template: ChainTemplate) {
+        let chain = createChainFromTemplateHelper(template)
+        
+        // Stage the chain for immediate application
+        let startTime = findBestTimeForChain(chain)
+        dataManager.applyChain(chain, startingAt: startTime)
+        
+        dataManager.setActionBarMessage("Applied '\(template.name)' template as chain starting at \(startTime.timeString). Ready to commit?")
+    }
+    
+    private func createChainFromTemplateHelper(_ template: ChainTemplate) -> Chain {
+        let blocks = template.activities.enumerated().map { index, activity in
+            let duration = TimeInterval(template.totalDuration * 60 / template.activities.count)
+            return TimeBlock(
+                title: activity,
+                startTime: Date(),
+                duration: duration,
+                energy: template.energyFlow[safe: index] ?? .daylight,
+                flow: .crystal,
+                explanation: "From \(template.name) template",
+                emoji: template.icon
+            )
+        }
+        
+        return Chain(
+            id: UUID(),
+            name: template.name,
+            blocks: blocks,
+            flowPattern: .wave,
+            emoji: template.icon
+        )
     }
     
     private func generateUniqueAIChain() {
@@ -5557,14 +5516,17 @@ extension View {
     }
 }
 
-// MARK: - Editable Chain Template
+// MARK: - Draggable Chain Template
 
-struct EditableChainTemplateCard: View {
+struct DraggableChainTemplateCard: View {
     let template: ChainTemplate
     let onSelect: (ChainTemplate) -> Void
     let onEdit: (ChainTemplate) -> Void
+    let onDrag: (ChainTemplate) -> Void
     @State private var isPressed = false
     @State private var isHovering = false
+    @State private var isDragging = false
+    @State private var dragOffset: CGSize = .zero
     
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
@@ -5574,7 +5536,7 @@ struct EditableChainTemplateCard: View {
                 
                 Spacer()
                 
-                if isHovering {
+                if isHovering && !isDragging {
                     Button("Edit") {
                         onEdit(template)
                     }
@@ -5597,15 +5559,24 @@ struct EditableChainTemplateCard: View {
                 .font(.caption)
                 .foregroundStyle(.secondary)
                 .lineLimit(2)
+            
+            if isDragging {
+                Text("Drop on timeline")
+                    .font(.caption2)
+                    .foregroundStyle(.blue)
+                    .italic()
+            }
         }
         .padding(12)
         .frame(width: 140, height: 100)
         .background(
             RoundedRectangle(cornerRadius: 12)
-                .fill(.regularMaterial.opacity(0.8))
-                .shadow(color: .black.opacity(0.1), radius: isPressed ? 2 : 4, y: isPressed ? 1 : 2)
+                .fill(.regularMaterial.opacity(isDragging ? 0.9 : 0.8))
+                .shadow(color: .black.opacity(isDragging ? 0.3 : 0.1), radius: isDragging ? 8 : (isPressed ? 2 : 4), y: isDragging ? 4 : (isPressed ? 1 : 2))
         )
-        .scaleEffect(isPressed ? 0.95 : 1.0)
+        .scaleEffect(isDragging ? 0.95 : (isPressed ? 0.95 : 1.0))
+        .offset(dragOffset)
+        .opacity(isDragging ? 0.8 : 1.0)
         .onHover { hovering in
             withAnimation(.easeInOut(duration: 0.2)) {
                 isHovering = hovering
@@ -5614,10 +5585,30 @@ struct EditableChainTemplateCard: View {
         .onTapGesture {
             onSelect(template)
         }
+        .onDrag {
+            createDragProvider()
+        }
+        .gesture(
+            DragGesture()
+                .onChanged { value in
+                    isDragging = true
+                    dragOffset = value.translation
+                }
+                .onEnded { _ in
+                    isDragging = false
+                    dragOffset = .zero
+                    onDrag(template)
+                }
+        )
         .onPressGesture(
             onPress: { isPressed = true },
             onRelease: { isPressed = false }
         )
+    }
+    
+    private func createDragProvider() -> NSItemProvider {
+        let chainTitle = "\(template.icon) \(template.name)"
+        return NSItemProvider(object: chainTitle as NSString)
     }
 }
 
@@ -6065,46 +6056,251 @@ struct EmptyPillarsCard: View {
 
 struct ComprehensivePillarCreatorSheet: View {
     let onPillarCreated: (Pillar) -> Void
+    @EnvironmentObject private var dataManager: AppDataManager
+    @EnvironmentObject private var aiService: AIService
     @Environment(\.dismiss) private var dismiss
+    
     @State private var pillarName = ""
-    @State private var selectedType: PillarType = .actionable
+    @State private var pillarDescription = ""
+    @State private var wisdomText = ""
+    @State private var selectedFrequency: PillarFrequency = .daily
+    @State private var minDuration = 30
+    @State private var maxDuration = 120
+    @State private var isPrincipleOnly = false
+    @State private var autoStageEnabled = false
+    @State private var selectedColor: Color = .blue
+    @State private var selectedEmoji = "🏛️"
+    @State private var relatedGoalId: UUID?
+    @State private var isGeneratingAI = false
+    @State private var aiSuggestions = ""
     
     var body: some View {
         NavigationView {
-            VStack(spacing: 20) {
-                TextField("Pillar Name", text: $pillarName)
-                    .textFieldStyle(.roundedBorder)
-                
-                Picker("Type", selection: $selectedType) {
-                    ForEach(PillarType.allCases, id: \.self) { type in
-                        Text(type.rawValue).tag(type)
+            ScrollView {
+                VStack(spacing: 20) {
+                    // Basic info
+                    VStack(alignment: .leading, spacing: 12) {
+                        Text("Basic Information")
+                            .font(.headline)
+                            .fontWeight(.semibold)
+                        
+                        HStack(spacing: 12) {
+                            TextField("Pillar name", text: $pillarName)
+                                    .textFieldStyle(.roundedBorder)
+                                    .onChange(of: pillarName) { _, _ in
+                                        generateAISuggestions()
+                                }
+                            
+                            // Emoji picker
+                            TextField("🏛️", text: $selectedEmoji)
+                                    .textFieldStyle(.roundedBorder)
+                                .frame(width: 60)
+                        }
+                        
+                        TextField("Description", text: $pillarDescription, axis: .vertical)
+                            .textFieldStyle(.roundedBorder)
+                            .lineLimit(2...4)
+                        
+                        // Principle vs actionable toggle
+                        VStack(alignment: .leading, spacing: 8) {
+                            Toggle("Principle only (guides AI, doesn't create events)", isOn: $isPrincipleOnly)
+                                        .font(.subheadline)
+                            
+                            if isPrincipleOnly {
+                                TextField("Core wisdom/principle", text: $wisdomText, axis: .vertical)
+                                    .textFieldStyle(.roundedBorder)
+                                    .lineLimit(2...4)
+                                    .help("This wisdom guides all AI decisions")
+                            }
+                        }
                     }
+                    
+                    // Scheduling settings (only for actionable pillars)
+                    if !isPrincipleOnly {
+                        VStack(alignment: .leading, spacing: 12) {
+                            Text("Scheduling")
+                            .font(.headline)
+                            .fontWeight(.semibold)
+                                
+                                Picker("Frequency", selection: $selectedFrequency) {
+                                    Text("Daily").tag(PillarFrequency.daily)
+                                    Text("3x per week").tag(PillarFrequency.weekly(3))
+                                    Text("Weekly").tag(PillarFrequency.weekly(1))
+                                    Text("As needed").tag(PillarFrequency.asNeeded)
+                                }
+                                .pickerStyle(.segmented)
+                                
+                                HStack {
+                                    VStack(alignment: .leading, spacing: 4) {
+                                    Text("Duration: \(minDuration)-\(maxDuration) min")
+                                        .font(.subheadline)
+                                        
+                                    HStack {
+                                        Slider(value: Binding(
+                                            get: { Double(minDuration) },
+                                            set: { minDuration = Int($0) }
+                                        ), in: 15...120, step: 15)
+                                        Text("\(minDuration)m")
+                                            .frame(width: 35)
+                                    }
+                                    
+                                    HStack {
+                                        Slider(value: Binding(
+                                            get: { Double(maxDuration) },
+                                            set: { maxDuration = Int($0) }
+                                        ), in: 30...240, step: 15)
+                                        Text("\(maxDuration)m")
+                                            .frame(width: 35)
+                                    }
+                                }
+                            }
+                            
+                            Toggle("Auto-staging enabled", isOn: $autoStageEnabled)
+                                .help("AI automatically suggests time slots for this pillar")
+                        }
+                    }
+                    
+                    // Goal relation
+                    VStack(alignment: .leading, spacing: 8) {
+                        Text("Goal Connection")
+                                .font(.headline)
+                                .fontWeight(.semibold)
+                            
+                        Picker("Related goal", selection: $relatedGoalId) {
+                            Text("No goal connection").tag(nil as UUID?)
+                            ForEach(dataManager.appState.goals) { goal in
+                                Text(goal.title).tag(goal.id as UUID?)
+                            }
+                        }
+                        .pickerStyle(.menu)
+                    }
+                    
+                    // AI suggestions
+                    if !aiSuggestions.isEmpty {
+                        VStack(alignment: .leading, spacing: 8) {
+                            Text("AI Suggestions")
+                                .font(.headline)
+                                .fontWeight(.medium)
+                            
+                            Text(aiSuggestions)
+                                .font(.body)
+                                .foregroundStyle(.secondary)
+                                .padding()
+                                .background(.blue.opacity(0.1), in: RoundedRectangle(cornerRadius: 8))
+                        }
+                    }
+                    
+                    // Color picker
+                    ColorPicker("Pillar color", selection: $selectedColor)
                 }
-                .pickerStyle(.segmented)
-                
-                Spacer()
-                
-                Button("Create Pillar") {
-                    let newPillar = Pillar(
-                        name: pillarName,
-                        description: "Auto-generated pillar",
-                        type: selectedType,
-                        frequency: .daily
-                    )
-                    onPillarCreated(newPillar)
-                }
-                .buttonStyle(.borderedProminent)
-                .disabled(pillarName.isEmpty)
+                .padding(24)
             }
-            .padding(24)
             .navigationTitle("Create Pillar")
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("Cancel") { dismiss() }
                 }
+                
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("Create & Auto-populate") {
+                        createPillarWithAI()
+                    }
+                .disabled(pillarName.isEmpty)
+            }
             }
         }
-        .frame(width: 500, height: 400)
+        .frame(width: 600, height: 700)
+    }
+    
+    private func generateAISuggestions() {
+        guard !pillarName.isEmpty else { return }
+        
+        isGeneratingAI = true
+        
+        Task {
+            let prompt = """
+            User creating pillar: "\(pillarName)"
+            
+            Suggest optimal:
+            - Description (1 sentence)
+            - Frequency (daily/weekly/etc)
+            - Duration range
+            - Whether this should be principle-only or actionable
+            
+            Brief response.
+            """
+            
+            do {
+                let context = dataManager.createEnhancedContext()
+                let response = try await aiService.processMessage(prompt, context: context)
+                
+                await MainActor.run {
+                    aiSuggestions = response.text
+                    isGeneratingAI = false
+                }
+            } catch {
+                await MainActor.run {
+                    aiSuggestions = "This looks like a good pillar. Consider if it should create events or just guide decisions."
+                    isGeneratingAI = false
+                }
+            }
+        }
+    }
+    
+    private func createPillarWithAI() {
+        Task {
+            // First create basic pillar
+            var newPillar = Pillar(
+            name: pillarName,
+                description: pillarDescription.isEmpty ? "AI will enhance this" : pillarDescription,
+                type: isPrincipleOnly ? .principle : .actionable,
+            frequency: selectedFrequency,
+                minDuration: isPrincipleOnly ? 0 : TimeInterval(minDuration * 60),
+                maxDuration: isPrincipleOnly ? 0 : TimeInterval(maxDuration * 60),
+                autoStageEnabled: isPrincipleOnly ? false : autoStageEnabled,
+                eventConsiderationEnabled: true,
+                wisdomText: isPrincipleOnly ? wisdomText : nil,
+                color: CodableColor(selectedColor),
+                emoji: selectedEmoji,
+                relatedGoalId: relatedGoalId
+            )
+        
+            // Then enhance with AI
+            do {
+                let enhancedPillar = try await enhancePillarWithAI(newPillar)
+                
+                await MainActor.run {
+                    onPillarCreated(enhancedPillar)
+                }
+            } catch {
+                await MainActor.run {
+        onPillarCreated(newPillar)
+                }
+            }
+        }
+    }
+    
+    private func enhancePillarWithAI(_ pillar: Pillar) async throws -> Pillar {
+        let context = dataManager.createEnhancedContext()
+        let prompt = """
+        Enhance this pillar based on user patterns:
+        Name: \(pillar.name)
+        Type: \(pillar.type.rawValue)
+        
+        User context: \(context.summary)
+        
+        Provide enhanced description and if principle, core wisdom text.
+        """
+        
+        let response = try await aiService.processMessage(prompt, context: context)
+        
+        var enhanced = pillar
+        enhanced.description = response.text
+        if pillar.isPrinciple && enhanced.wisdomText?.isEmpty != false {
+            enhanced.wisdomText = "Live by: \(response.text)"
+        }
+        
+        return enhanced
     }
 }
 
@@ -6305,22 +6501,10 @@ struct EnhancedPillarCard: View {
     var body: some View {
         Button(action: { showingPillarDetail = true }) {
             VStack(spacing: 8) {
-                // Pillar icon with color
-                RoundedRectangle(cornerRadius: 6)
-                    .fill(
-                        LinearGradient(
-                            colors: [pillar.color.color.opacity(0.8), pillar.color.color.opacity(0.4)],
-                            startPoint: .topLeading,
-                            endPoint: .bottomTrailing
-                        )
-                    )
+                // Pillar emoji
+                Text(pillar.emoji)
+                    .font(.title2)
                     .frame(height: 24)
-                    .overlay(
-                        Text(pillar.name.prefix(1).uppercased())
-                            .font(.caption)
-                            .fontWeight(.bold)
-                            .foregroundStyle(.white)
-                    )
                 
                 Text(pillar.name)
                     .font(.caption)
@@ -6783,11 +6967,18 @@ struct EnhancedGoalCard: View {
             .help("Toggle goal state: \(goal.state.rawValue)")
             
             VStack(alignment: .leading, spacing: 4) {
-                Text(goal.title)
-                    .font(.subheadline)
-                    .fontWeight(.medium)
-                    .foregroundStyle(.primary)
-                    .lineLimit(2)
+                HStack(spacing: 6) {
+                    Text(goal.emoji)
+                        .font(.caption)
+                    
+                    Text(goal.title)
+                        .font(.subheadline)
+                        .fontWeight(.medium)
+                        .foregroundStyle(.primary)
+                        .lineLimit(2)
+                    
+                    Spacer()
+                }
                 
                 Text(goal.description)
                     .font(.caption)
@@ -6909,6 +7100,8 @@ struct EnhancedGoalCreatorSheet: View {
     @State private var goalDescription = ""
     @State private var importance = 3
     @State private var selectedState: GoalState = .draft
+    @State private var selectedEmoji = "🎯"
+    @State private var relatedPillarIds: [UUID] = []
     @State private var aiSuggestions = ""
     @State private var isGeneratingAI = false
     @State private var targetDate: Date?
@@ -6923,11 +7116,17 @@ struct EnhancedGoalCreatorSheet: View {
                         .fontWeight(.semibold)
                     
                     VStack(alignment: .leading, spacing: 12) {
-                        TextField("Goal title", text: $goalTitle)
-                            .textFieldStyle(.roundedBorder)
-                            .onChange(of: goalTitle) { _, _ in
-                                generateAISuggestions()
-                            }
+                        HStack(spacing: 12) {
+                            TextField("Goal title", text: $goalTitle)
+                                .textFieldStyle(.roundedBorder)
+                                .onChange(of: goalTitle) { _, _ in
+                                    generateAISuggestions()
+                                }
+                            
+                            TextField("🎯", text: $selectedEmoji)
+                                .textFieldStyle(.roundedBorder)
+                                .frame(width: 60)
+                        }
                         
                         TextField("Description (optional)", text: $goalDescription, axis: .vertical)
                             .textFieldStyle(.roundedBorder)
@@ -7057,7 +7256,9 @@ struct EnhancedGoalCreatorSheet: View {
             state: selectedState,
             importance: importance,
             groups: [],
-            targetDate: hasTargetDate ? targetDate : nil
+            targetDate: hasTargetDate ? targetDate : nil,
+            emoji: selectedEmoji,
+            relatedPillarIds: relatedPillarIds
         )
         
         onGoalCreated(newGoal)
@@ -7068,11 +7269,19 @@ struct AIGoalBreakdownSheet: View {
     let goal: Goal
     let onActionsGenerated: ([GoalBreakdownAction]) -> Void
     @EnvironmentObject private var aiService: AIService
+    @EnvironmentObject private var dataManager: AppDataManager
     @Environment(\.dismiss) private var dismiss
     
+    @State private var editedGoal: Goal
     @State private var breakdownActions: [GoalBreakdownAction] = []
     @State private var isGenerating = true
     @State private var analysisText = ""
+    
+    init(goal: Goal, onActionsGenerated: @escaping ([GoalBreakdownAction]) -> Void) {
+        self.goal = goal
+        self.onActionsGenerated = onActionsGenerated
+        self._editedGoal = State(initialValue: goal)
+    }
     
     var body: some View {
         NavigationView {
@@ -7081,10 +7290,33 @@ struct AIGoalBreakdownSheet: View {
                     .font(.title2)
                     .fontWeight(.semibold)
                 
+                // Goal editing section
+                VStack(alignment: .leading, spacing: 12) {
+                    Text("Goal Details")
+                        .font(.headline)
+                    
+                    HStack {
+                        TextField("Goal title", text: $editedGoal.title)
+                            .textFieldStyle(.roundedBorder)
+                        
+                        TextField("🎯", text: $editedGoal.emoji)
+                            .textFieldStyle(.roundedBorder)
+                            .frame(width: 60)
+                    }
+                    
+                    TextField("Description", text: $editedGoal.description, axis: .vertical)
+                        .textFieldStyle(.roundedBorder)
+                        .lineLimit(2...4)
+                        .onChange(of: editedGoal.description) { _, _ in
+                            // Regenerate breakdown when description changes
+                            regenerateBreakdown()
+                        }
+                }
+                
                 if isGenerating {
                     VStack(spacing: 12) {
                         ProgressView()
-                        Text("Analyzing '\(goal.title)' for breakdown...")
+                        Text("Analyzing '\(editedGoal.title)' for breakdown...")
                             .foregroundStyle(.secondary)
                     }
                     .frame(maxWidth: .infinity)
@@ -7125,8 +7357,10 @@ struct AIGoalBreakdownSheet: View {
                         
                         Spacer()
                         
-                        Button("Apply All") {
-                            onActionsGenerated(breakdownActions)
+                        Button("Apply All & Update Goal") {
+                            // Update the goal first
+                            let updatedActions = breakdownActions + [.updateGoal(editedGoal)]
+                            onActionsGenerated(updatedActions)
                         }
                         .buttonStyle(.borderedProminent)
                         .disabled(breakdownActions.isEmpty)
@@ -7182,6 +7416,13 @@ struct AIGoalBreakdownSheet: View {
             ]
             
             isGenerating = false
+        }
+    }
+    
+    private func regenerateBreakdown() {
+        isGenerating = true
+        Task {
+            await generateBreakdown()
         }
     }
 }
@@ -7471,7 +7712,11 @@ struct TopBarView: View {
         }
         .padding(.horizontal, 20)
         .padding(.vertical, 8)
-        .background(.ultraThinMaterial)
+        .background(.regularMaterial.opacity(0.8), in: RoundedRectangle(cornerRadius: 8))
+        .overlay(
+            RoundedRectangle(cornerRadius: 8)
+                .strokeBorder(.white.opacity(0.1), lineWidth: 1)
+        )
     }
 }
 
@@ -8756,6 +9001,163 @@ struct BackfillActionsBar: View {
     }
 }
 
+// MARK: - Backfill Templates View
+
+struct BackfillTemplatesView: View {
+    let selectedDate: Date
+    @EnvironmentObject private var dataManager: AppDataManager
+    @State private var templates: [BackfillTemplate] = []
+    
+    var body: some View {
+        VStack(spacing: 12) {
+            HStack {
+                Text("What likely happened on \(selectedDate.dayString)")
+                    .font(.headline)
+                    .fontWeight(.semibold)
+                
+                Spacer()
+                
+                Text("Drag to timeline")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+            
+            ScrollView(.horizontal, showsIndicators: false) {
+                HStack(spacing: 12) {
+                    ForEach(templates) { template in
+                        DraggableBackfillTemplate(template: template)
+                    }
+                }
+                .padding(.horizontal, 16)
+            }
+        }
+        .padding(16)
+        .background(.ultraThinMaterial.opacity(0.4), in: RoundedRectangle(cornerRadius: 12))
+        .overlay(
+            RoundedRectangle(cornerRadius: 12)
+                .strokeBorder(.white.opacity(0.1), lineWidth: 1)
+        )
+        .onAppear {
+            generateTemplates()
+        }
+    }
+    
+    private func generateTemplates() {
+        let dayOfWeek = Calendar.current.component(.weekday, from: selectedDate)
+        let isWeekend = dayOfWeek == 1 || dayOfWeek == 7
+        
+        if isWeekend {
+            templates = [
+                BackfillTemplate(title: "Sleep in", icon: "🛏️", duration: 3600, confidence: 0.9, energy: .moonlight, flow: .mist),
+                BackfillTemplate(title: "Breakfast", icon: "🥞", duration: 1800, confidence: 0.95, energy: .sunrise, flow: .mist),
+                BackfillTemplate(title: "Personal projects", icon: "🎨", duration: 7200, confidence: 0.8, energy: .daylight, flow: .water),
+                BackfillTemplate(title: "Errands", icon: "🛒", duration: 5400, confidence: 0.7, energy: .daylight, flow: .crystal),
+                BackfillTemplate(title: "Social time", icon: "👥", duration: 5400, confidence: 0.6, energy: .daylight, flow: .water),
+                BackfillTemplate(title: "Evening relax", icon: "📺", duration: 7200, confidence: 0.8, energy: .moonlight, flow: .mist)
+            ]
+        } else {
+            templates = [
+                BackfillTemplate(title: "Morning routine", icon: "☕", duration: 3600, confidence: 0.9, energy: .sunrise, flow: .crystal),
+                BackfillTemplate(title: "Work session", icon: "💼", duration: 14400, confidence: 0.85, energy: .daylight, flow: .crystal),
+                BackfillTemplate(title: "Lunch break", icon: "🍽️", duration: 3600, confidence: 0.9, energy: .daylight, flow: .mist),
+                BackfillTemplate(title: "Meetings", icon: "👥", duration: 3600, confidence: 0.7, energy: .daylight, flow: .water),
+                BackfillTemplate(title: "Commute", icon: "🚗", duration: 3600, confidence: 0.8, energy: .moonlight, flow: .mist),
+                BackfillTemplate(title: "Dinner", icon: "🍽️", duration: 2700, confidence: 0.9, energy: .moonlight, flow: .mist),
+                BackfillTemplate(title: "Evening wind-down", icon: "📚", duration: 5400, confidence: 0.7, energy: .moonlight, flow: .water)
+            ]
+        }
+    }
+}
+
+struct BackfillTemplate: Identifiable {
+    let id = UUID()
+    let title: String
+    let icon: String
+    let duration: TimeInterval
+    let confidence: Double
+    let energy: EnergyType
+    let flow: FlowState
+}
+
+struct DraggableBackfillTemplate: View {
+    let template: BackfillTemplate
+    @EnvironmentObject private var dataManager: AppDataManager
+    @State private var dragOffset: CGSize = .zero
+    @State private var isDragging = false
+    
+    var body: some View {
+        VStack(spacing: 8) {
+            Text(template.icon)
+                .font(.title)
+            
+            Text(template.title)
+                .font(.caption)
+                .fontWeight(.medium)
+                .multilineTextAlignment(.center)
+                .lineLimit(2)
+            
+            HStack(spacing: 4) {
+                Text("\(template.duration.minutes)m")
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
+                
+                Text("•")
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
+                
+                Text("\(Int(template.confidence * 100))%")
+                    .font(.caption2)
+                    .foregroundStyle(.green)
+            }
+        }
+        .padding(12)
+        .frame(width: 100, height: 80)
+        .background(
+            RoundedRectangle(cornerRadius: 10)
+                .fill(.regularMaterial.opacity(isDragging ? 0.9 : 0.7))
+                .shadow(color: .black.opacity(isDragging ? 0.2 : 0.1), radius: isDragging ? 8 : 3)
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 10)
+                .strokeBorder(.green.opacity(template.confidence), lineWidth: 2)
+        )
+        .scaleEffect(isDragging ? 0.95 : 1.0)
+        .offset(dragOffset)
+        .opacity(isDragging ? 0.8 : 1.0)
+        .onDrag {
+            createTimeBlockFromTemplate()
+        }
+        .gesture(
+            DragGesture()
+                .onChanged { value in
+                    isDragging = true
+                    dragOffset = value.translation
+                }
+                .onEnded { _ in
+                    isDragging = false
+                    dragOffset = .zero
+                    // Drop handled by onDrag provider
+                }
+        )
+    }
+    
+    private func createTimeBlockFromTemplate() -> NSItemProvider {
+        let timeBlock = TimeBlock(
+            title: template.title,
+            startTime: Date(),
+            duration: template.duration,
+            energy: template.energy,
+            flow: template.flow,
+            explanation: "Backfill template: \(Int(template.confidence * 100))% confidence"
+        )
+        
+        // Stage the block immediately when dragged
+        dataManager.stageBlock(timeBlock, explanation: "Backfill: \(template.title)")
+        
+        return NSItemProvider(object: timeBlock.title as NSString)
+    }
+}
+
 // MARK: - Pillar Day View
 
 struct PillarDayView: View {
@@ -8801,8 +9203,17 @@ struct PillarDayView: View {
                             
                             if !missingPillars.isEmpty {
                                 VStack(alignment: .leading, spacing: 12) {
-                                    Text("Missing Pillars")
-                                        .font(.headline)
+                                    HStack {
+                                        Text("⚠️ Overdue Pillars")
+                                            .font(.headline)
+                                            .foregroundStyle(.orange)
+                                        
+                                        Spacer()
+                                        
+                                        Text("Need attention")
+                                            .font(.caption)
+                                            .foregroundStyle(.secondary)
+                                    }
                                     
                                     ForEach(missingPillars) { pillar in
                                         MissingPillarCard(pillar: pillar) {
@@ -8814,11 +9225,20 @@ struct PillarDayView: View {
                             
                             if !suggestedEvents.isEmpty {
                                 VStack(alignment: .leading, spacing: 12) {
-                                    Text("Suggested Events")
-                                        .font(.headline)
+                                    HStack {
+                                        Text("📅 Ready to Schedule")
+                                            .font(.headline)
+                                            .foregroundStyle(.green)
+                                        
+                                        Spacer()
+                                        
+                                        Text("Drag to timeline or click Add")
+                                            .font(.caption)
+                                            .foregroundStyle(.secondary)
+                                    }
                                     
                                     ForEach(suggestedEvents) { event in
-                                        SuggestedEventCard(event: event) {
+                                        DraggableSuggestedEventCard(event: event) {
                                             stagePillarEvent(event)
                                         }
                                     }
@@ -8876,19 +9296,23 @@ struct PillarDayView: View {
                 
                 if needsEvent {
                     missing.append(pillar)
-                    
-                    // Find good time slot for this pillar
-                    if let timeSlot = findBestTimeSlot(for: pillar) {
-                        let suggestedEvent = TimeBlock(
-                            title: pillar.name,
-                            startTime: timeSlot.startTime,
-                            duration: pillar.minDuration,
-                            energy: .daylight,
-                            flow: .crystal,
-                            explanation: "Pillar day suggestion: overdue \(pillar.frequencyDescription) activity"
-                        )
-                        suggestions.append(suggestedEvent)
-                    }
+                }
+            }
+            
+            // Generate suggested events for missing pillars (separate from just listing them)
+            for pillar in missing {
+                if let timeSlot = findBestTimeSlot(for: pillar) {
+                    let suggestedEvent = TimeBlock(
+                        title: pillar.name,
+                        startTime: timeSlot.startTime,
+                        duration: pillar.minDuration,
+                        energy: .daylight,
+                        flow: .crystal,
+                        explanation: "Pillar day suggestion: overdue \(pillar.frequencyDescription) activity",
+                        relatedPillarId: pillar.id,
+                        emoji: pillar.emoji
+                    )
+                    suggestions.append(suggestedEvent)
                 }
             }
             
@@ -8998,9 +9422,8 @@ struct MissingPillarCard: View {
     
     var body: some View {
         HStack(spacing: 12) {
-            Circle()
-                .fill(pillar.color.color)
-                .frame(width: 12, height: 12)
+            Text(pillar.emoji)
+                .font(.title3)
             
             VStack(alignment: .leading, spacing: 4) {
                 Text(pillar.name)
@@ -9035,19 +9458,18 @@ struct MissingPillarCard: View {
     }
 }
 
-struct SuggestedEventCard: View {
+struct DraggableSuggestedEventCard: View {
     let event: TimeBlock
     let onAdd: () -> Void
+    @EnvironmentObject private var dataManager: AppDataManager
+    @State private var isDragging = false
+    @State private var dragOffset: CGSize = .zero
     
     var body: some View {
         HStack(spacing: 12) {
-            VStack(spacing: 2) {
-                Text(event.energy.rawValue)
-                    .font(.caption)
-                Text(event.flow.rawValue)
-                    .font(.caption2)
-            }
-            .opacity(0.8)
+            // Emoji from related pillar or event
+            Text(event.emoji ?? "📅")
+                .font(.title2)
             
             VStack(alignment: .leading, spacing: 4) {
                 Text(event.title)
@@ -9079,18 +9501,50 @@ struct SuggestedEventCard: View {
             
             Spacer()
             
-            Button("Add") {
-                onAdd()
+            if !isDragging {
+                Button("Add") {
+                    onAdd()
+                }
+                .buttonStyle(.borderedProminent)
+                .controlSize(.small)
+            } else {
+                Text("Drop on timeline")
+                    .font(.caption)
+                    .foregroundStyle(.blue)
+                    .italic()
             }
-            .buttonStyle(.borderedProminent)
-            .controlSize(.small)
         }
         .padding(12)
-        .background(.green.opacity(0.1), in: RoundedRectangle(cornerRadius: 8))
+        .background(.green.opacity(isDragging ? 0.2 : 0.1), in: RoundedRectangle(cornerRadius: 8))
         .overlay(
             RoundedRectangle(cornerRadius: 8)
-                .strokeBorder(.green.opacity(0.3), lineWidth: 1)
+                .strokeBorder(.green.opacity(isDragging ? 0.6 : 0.3), lineWidth: isDragging ? 2 : 1)
         )
+        .scaleEffect(isDragging ? 0.95 : 1.0)
+        .offset(dragOffset)
+        .opacity(isDragging ? 0.8 : 1.0)
+        .onDrag {
+            createEventDragProvider()
+        }
+        .gesture(
+            DragGesture()
+                .onChanged { value in
+                    isDragging = true
+                    dragOffset = value.translation
+                }
+                .onEnded { _ in
+                    isDragging = false
+                    dragOffset = .zero
+                    // Stage the event when drag ends
+                    onAdd()
+                }
+        )
+    }
+    
+    private func createEventDragProvider() -> NSItemProvider {
+        // Stage the event immediately when drag starts
+        dataManager.stageBlock(event, explanation: "Pillar event: \(event.title)")
+        return NSItemProvider(object: event.title as NSString)
     }
 }
 
@@ -10314,11 +10768,20 @@ struct SimpleTimeBlockView: View {
                     
                     // Block content
                     VStack(alignment: .leading, spacing: 2) {
-                        Text(block.title)
-                            .font(.subheadline)
-                            .fontWeight(.medium)
-                            .foregroundColor(.primary)
-                        .lineLimit(1)
+                        HStack(spacing: 6) {
+                            if let emoji = block.emoji {
+                                Text(emoji)
+                                    .font(.caption)
+                            }
+                            
+                            Text(block.title)
+                                .font(.subheadline)
+                                .fontWeight(.medium)
+                                .foregroundColor(.primary)
+                                .lineLimit(1)
+                            
+                            Spacer()
+                        }
                         
                                 HStack {
                                     Text(block.startTime.timeString)

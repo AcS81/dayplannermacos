@@ -24,6 +24,9 @@ struct TimeBlock: Identifiable, Codable, Equatable, Transferable {
     var isStaged: Bool = false // PRD requirement: staged until committed
     var stagedBy: String? // What AI suggestion created this
     var explanation: String? // One-line "Why this?" explanation
+    var relatedGoalId: UUID? // Link to related goal
+    var relatedPillarId: UUID? // Link to related pillar
+    var emoji: String? // Visual identifier (inherited from goal/pillar if related)
     
     // Computed properties
     var endTime: Date {
@@ -158,10 +161,13 @@ struct Chain: Identifiable, Codable {
     var lastCompletedAt: Date?
     var completionHistory: [Date] = []
     var routinePromptShown: Bool = false
+    var emoji: String // Visual identifier shared with related goals/pillars
+    var relatedGoalId: UUID? // Link to related goal
+    var relatedPillarId: UUID? // Link to related pillar
     
     // Custom Codable implementation to handle missing fields gracefully
     private enum CodingKeys: String, CodingKey {
-        case id, name, blocks, flowPattern, completionCount, isActive, createdAt, lastCompletedAt, completionHistory, routinePromptShown
+        case id, name, blocks, flowPattern, completionCount, isActive, createdAt, lastCompletedAt, completionHistory, routinePromptShown, emoji, relatedGoalId, relatedPillarId
     }
     
     init(from decoder: Decoder) throws {
@@ -179,6 +185,9 @@ struct Chain: Identifiable, Codable {
         // Handle missing fields gracefully with defaults
         completionHistory = try container.decodeIfPresent([Date].self, forKey: .completionHistory) ?? []
         routinePromptShown = try container.decodeIfPresent(Bool.self, forKey: .routinePromptShown) ?? false
+        emoji = try container.decodeIfPresent(String.self, forKey: .emoji) ?? "🔗"
+        relatedGoalId = try container.decodeIfPresent(UUID.self, forKey: .relatedGoalId)
+        relatedPillarId = try container.decodeIfPresent(UUID.self, forKey: .relatedPillarId)
     }
     
     func encode(to encoder: Encoder) throws {
@@ -194,9 +203,12 @@ struct Chain: Identifiable, Codable {
         try container.encodeIfPresent(lastCompletedAt, forKey: .lastCompletedAt)
         try container.encode(completionHistory, forKey: .completionHistory)
         try container.encode(routinePromptShown, forKey: .routinePromptShown)
+        try container.encode(emoji, forKey: .emoji)
+        try container.encodeIfPresent(relatedGoalId, forKey: .relatedGoalId)
+        try container.encodeIfPresent(relatedPillarId, forKey: .relatedPillarId)
     }
     
-    init(id: UUID = UUID(), name: String, blocks: [TimeBlock], flowPattern: FlowPattern, completionCount: Int = 0, isActive: Bool = true, createdAt: Date = Date(), lastCompletedAt: Date? = nil) {
+    init(id: UUID = UUID(), name: String, blocks: [TimeBlock], flowPattern: FlowPattern, completionCount: Int = 0, isActive: Bool = true, createdAt: Date = Date(), lastCompletedAt: Date? = nil, emoji: String = "🔗", relatedGoalId: UUID? = nil, relatedPillarId: UUID? = nil) {
         self.id = id
         self.name = name
         self.blocks = blocks
@@ -205,6 +217,9 @@ struct Chain: Identifiable, Codable {
         self.isActive = isActive
         self.createdAt = createdAt
         self.lastCompletedAt = lastCompletedAt
+        self.emoji = emoji
+        self.relatedGoalId = relatedGoalId
+        self.relatedPillarId = relatedPillarId
     }
     
     var canBePromotedToRoutine: Bool {
@@ -597,9 +612,11 @@ struct Pillar: Identifiable, Codable {
     var eventConsiderationEnabled: Bool // New: for principles that inform AI but don't create events
     var wisdomText: String? // New: core wisdom/principles for AI guidance
     var color: CodableColor
+    var emoji: String // Visual identifier shared with related goals/chains/events
+    var relatedGoalId: UUID? // Link to related goal
     var lastEventDate: Date? // Track when pillar events were last created
     
-    init(id: UUID = UUID(), name: String, description: String, type: PillarType = .actionable, frequency: PillarFrequency, minDuration: TimeInterval = 1800, maxDuration: TimeInterval = 7200, preferredTimeWindows: [TimeWindow] = [], overlapRules: [OverlapRule] = [], quietHours: [TimeWindow] = [], autoStageEnabled: Bool = false, eventConsiderationEnabled: Bool = false, wisdomText: String? = nil, color: CodableColor = CodableColor(.blue)) {
+    init(id: UUID = UUID(), name: String, description: String, type: PillarType = .actionable, frequency: PillarFrequency, minDuration: TimeInterval = 1800, maxDuration: TimeInterval = 7200, preferredTimeWindows: [TimeWindow] = [], overlapRules: [OverlapRule] = [], quietHours: [TimeWindow] = [], autoStageEnabled: Bool = false, eventConsiderationEnabled: Bool = false, wisdomText: String? = nil, color: CodableColor = CodableColor(.blue), emoji: String = "🏛️", relatedGoalId: UUID? = nil) {
         self.id = id
         self.name = name
         self.description = description
@@ -614,6 +631,8 @@ struct Pillar: Identifiable, Codable {
         self.eventConsiderationEnabled = eventConsiderationEnabled
         self.wisdomText = wisdomText
         self.color = color
+        self.emoji = emoji
+        self.relatedGoalId = relatedGoalId
         self.lastEventDate = nil
     }
     
@@ -718,8 +737,10 @@ struct Goal: Identifiable, Codable {
     var createdAt: Date
     var targetDate: Date?
     var progress: Double // 0.0 to 1.0
+    var emoji: String // Visual identifier shared with related pillars/chains/events
+    var relatedPillarIds: [UUID] // Links to supporting pillars
     
-    init(id: UUID = UUID(), title: String, description: String, state: GoalState, importance: Int, groups: [GoalGroup], createdAt: Date = Date(), targetDate: Date? = nil, progress: Double = 0.0) {
+    init(id: UUID = UUID(), title: String, description: String, state: GoalState, importance: Int, groups: [GoalGroup], createdAt: Date = Date(), targetDate: Date? = nil, progress: Double = 0.0, emoji: String = "🎯", relatedPillarIds: [UUID] = []) {
         self.id = id
         self.title = title
         self.description = description
@@ -729,6 +750,8 @@ struct Goal: Identifiable, Codable {
         self.createdAt = createdAt
         self.targetDate = targetDate
         self.progress = progress
+        self.emoji = emoji
+        self.relatedPillarIds = relatedPillarIds
     }
     
     var isActive: Bool {
