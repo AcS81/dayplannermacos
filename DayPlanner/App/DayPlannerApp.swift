@@ -1413,7 +1413,7 @@ struct UnifiedSplitView: View {
             .ignoresSafeArea()
         )
         .sheet(isPresented: $showingBackfill) {
-            BackfillView()
+            EnhancedBackfillView()
                 .environmentObject(dataManager)
                 .environmentObject(aiService)
         }
@@ -1484,17 +1484,19 @@ struct MindPanel: View {
             // Scrollable mind content
             ScrollView {
                 LazyVStack(spacing: 20) {
-                    // Enhanced chains section with flow glass
-                    EnhancedChainsSection()
+                    // Supercharged chains section with AI integration
+                    SuperchargedChainsSection()
                         .environmentObject(dataManager)
+                        .environmentObject(aiService)
                     
                     // Pillars section with crystal aesthetics
                     CrystalPillarsSection()
                         .environmentObject(dataManager)
                     
-                    // Goals section with mist effects
-                    MistGoalsSection()
+                    // Enhanced goals section with breakdown functionality
+                    EnhancedGoalsSection()
                         .environmentObject(dataManager)
+                        .environmentObject(aiService)
                     
                     // Dream builder with aurora gradients
                     AuroraDreamBuilderSection()
@@ -1816,6 +1818,10 @@ struct ProportionalTimelineView: View {
     private let dayStartHour = 6
     private let dayEndHour = 24
     
+    private var currentHour: Int {
+        calendar.component(.hour, from: Date())
+    }
+    
     var body: some View {
         HStack(alignment: .top, spacing: 0) {
             // Time labels column with precise minute markers
@@ -1826,8 +1832,13 @@ struct ProportionalTimelineView: View {
             )
             .frame(width: 80)
             
-            // Precise timeline canvas
+            // Precise timeline canvas with beautiful day/night gradients
             ZStack(alignment: .topLeading) {
+                // Beautiful day/night gradient background
+                TimeGradient(currentHour: currentHour)
+                    .opacity(0.4)
+                    .cornerRadius(8)
+                
                 // Background grid
                 TimelineCanvas(
                     selectedDate: selectedDate,
@@ -1871,9 +1882,11 @@ struct ProportionalTimelineView: View {
         formatter.timeStyle = .short
         
         switch hour {
-        case 6: return "🌅 \(formatter.string(from: date))"
-        case 18: return "🌅 \(formatter.string(from: date))"
-        case 0: return "🌙 \(formatter.string(from: date))"
+        case 6: return "🌅 \(formatter.string(from: date))"    // Sunrise
+        case 12: return "☀️ \(formatter.string(from: date))"   // Noon sun
+        case 18: return "🌇 \(formatter.string(from: date))"   // Sunset
+        case 21: return "🌙 \(formatter.string(from: date))"   // Evening moon
+        case 0: return "🌛 \(formatter.string(from: date))"    // Midnight crescent
         default: return formatter.string(from: date)
         }
     }
@@ -1885,12 +1898,18 @@ struct ProportionalTimelineView: View {
     
     private func hourBackgroundColor(for hour: Int) -> Color {
         switch hour {
-        case 6: return .orange.opacity(0.03)
-        case 7...17: return .blue.opacity(0.01) 
-        case 18: return .orange.opacity(0.03)
-        case 19...21: return .purple.opacity(0.02)
-        case 22...23, 0: return .indigo.opacity(0.03)
-        default: return .indigo.opacity(0.01)
+        case 6: return .orange.opacity(0.05)      // Dawn glow
+        case 7...8: return .yellow.opacity(0.02)  // Morning light
+        case 9...11: return .green.opacity(0.01)  // Morning freshness
+        case 12: return .yellow.opacity(0.03)     // High noon
+        case 13...17: return .blue.opacity(0.01)  // Afternoon sky
+        case 18: return .orange.opacity(0.04)     // Golden hour
+        case 19: return .red.opacity(0.02)        // Dusk
+        case 20...21: return .purple.opacity(0.03) // Evening twilight
+        case 22...23: return .indigo.opacity(0.04) // Night begins
+        case 0...2: return .indigo.opacity(0.05)   // Deep night
+        case 3...5: return .purple.opacity(0.02)   // Pre-dawn
+        default: return .clear
         }
     }
     
@@ -1956,9 +1975,11 @@ struct TimeLabelsColumn: View {
         formatter.timeStyle = .short
         
         switch hour {
-        case 6: return "🌅 \(formatter.string(from: date))"
-        case 18: return "🌅 \(formatter.string(from: date))"
-        case 0: return "🌙 \(formatter.string(from: date))"
+        case 6: return "🌅 \(formatter.string(from: date))"    // Sunrise
+        case 12: return "☀️ \(formatter.string(from: date))"   // Noon sun
+        case 18: return "🌇 \(formatter.string(from: date))"   // Sunset
+        case 21: return "🌙 \(formatter.string(from: date))"   // Evening moon
+        case 0: return "🌛 \(formatter.string(from: date))"    // Midnight crescent
         default: return formatter.string(from: date)
         }
     }
@@ -2061,9 +2082,12 @@ struct PreciseEventCard: View {
     let onDrop: (Date) -> Void
     
     @EnvironmentObject private var dataManager: AppDataManager
+    @EnvironmentObject private var aiService: AIService
     @State private var dragOffset: CGSize = .zero
     @State private var isDragging = false
     @State private var showingDetails = false
+    @State private var isHovering = false
+    @State private var showingChainOptions = false
     
     private let calendar = Calendar.current
     
@@ -2102,6 +2126,29 @@ struct PreciseEventCard: View {
                             .foregroundStyle(.secondary)
                         
                         Spacer()
+                        
+                        // Inline chaining controls (show on hover)
+                        if isHovering && !isDragging {
+                            HStack(spacing: 4) {
+                                // Chain before button
+                                Button(action: { addChainBefore() }) {
+                                    Image(systemName: "plus.circle")
+                                        .font(.caption)
+                                        .foregroundStyle(.orange)
+                                }
+                                .buttonStyle(.plain)
+                                .help("Chain activity before this")
+                                
+                                // Chain after button  
+                                Button(action: { addChainAfter() }) {
+                                    Image(systemName: "arrow.right.circle")
+                                        .font(.caption)
+                                        .foregroundStyle(.green)
+                                }
+                                .buttonStyle(.plain)
+                                .help("Chain activity after this")
+                            }
+                        }
                         
                         // Info icon
                         Image(systemName: "info.circle")
@@ -2147,6 +2194,11 @@ struct PreciseEventCard: View {
         .opacity(block.isStaged ? 0.5 : 1.0)
         .scaleEffect(isDragging ? 0.98 : 1.0)
         .offset(x: dragOffset.width, y: dragOffset.height + yPosition)
+        .onHover { hovering in
+            withAnimation(.easeInOut(duration: 0.2)) {
+                isHovering = hovering
+            }
+        }
         .highPriorityGesture(
             DragGesture(minimumDistance: 8, coordinateSpace: .global)
                 .onChanged { value in
@@ -2236,6 +2288,122 @@ struct PreciseEventCard: View {
                            minute: roundedMinute, 
                            second: 0, 
                            of: newTime) ?? newTime
+    }
+    
+    // MARK: - Inline Chaining Functions
+    
+    private func addChainBefore() {
+        // Find a good activity to chain before this one
+        let beforeTime = calendar.date(byAdding: .minute, value: -30, to: block.startTime) ?? block.startTime
+        
+        // Check if there's enough space (5 minute buffer)
+        if hasSpaceBefore(at: beforeTime, duration: 30) {
+            let chainedBlock = TimeBlock(
+                title: "Prep for \(block.title)",
+                startTime: beforeTime,
+                duration: 1800, // 30 minutes
+                energy: block.energy,
+                flow: .crystal, // AI generated
+                explanation: "Chained before \(block.title)"
+            )
+            
+            dataManager.stageBlock(chainedBlock, explanation: "I added prep time before '\(block.title)'. Look good?")
+        } else {
+            // Find an alternative time
+            if let availableTime = findNextAvailableSlot(before: block.startTime, duration: 30) {
+                let chainedBlock = TimeBlock(
+                    title: "Prep for \(block.title)",
+                    startTime: availableTime,
+                    duration: 1800,
+                    energy: block.energy,
+                    flow: .crystal,
+                    explanation: "Chained prep time for \(block.title)"
+                )
+                
+                dataManager.stageBlock(chainedBlock, explanation: "Added prep at \(availableTime.timeString) - closest available slot.")
+            }
+        }
+    }
+    
+    private func addChainAfter() {
+        // Find a good activity to chain after this one
+        let afterTime = block.endTime.addingTimeInterval(300) // 5 minute buffer
+        
+        // Check if there's space for a 30-minute follow-up
+        if hasSpaceAfter(at: afterTime, duration: 30) {
+            let chainedBlock = TimeBlock(
+                title: "Follow-up: \(block.title)",
+                startTime: afterTime,
+                duration: 1800, // 30 minutes
+                energy: block.energy,
+                flow: .crystal,
+                explanation: "Chained after \(block.title)"
+            )
+            
+            dataManager.stageBlock(chainedBlock, explanation: "Added follow-up after '\(block.title)'. Should I keep it?")
+        } else {
+            // Find next available slot
+            if let availableTime = findNextAvailableSlot(after: afterTime, duration: 30) {
+                let chainedBlock = TimeBlock(
+                    title: "Follow-up: \(block.title)",
+                    startTime: availableTime,
+                    duration: 1800,
+                    energy: block.energy,
+                    flow: .crystal,
+                    explanation: "Chained follow-up for \(block.title)"
+                )
+                
+                dataManager.stageBlock(chainedBlock, explanation: "Added follow-up at \(availableTime.timeString) - next available time.")
+            }
+        }
+    }
+    
+    private func hasSpaceBefore(at time: Date, duration: Int) -> Bool {
+        let endTime = calendar.date(byAdding: .minute, value: duration, to: time) ?? time
+        let bufferTime = calendar.date(byAdding: .minute, value: 5, to: endTime) ?? endTime
+        
+        return !allBlocks.contains(where: { otherBlock in
+            let blockInterval = DateInterval(start: otherBlock.startTime, end: otherBlock.endTime)
+            let checkInterval = DateInterval(start: time, end: bufferTime)
+            return blockInterval.intersects(checkInterval)
+        })
+    }
+    
+    private func hasSpaceAfter(at time: Date, duration: Int) -> Bool {
+        let endTime = calendar.date(byAdding: .minute, value: duration, to: time) ?? time
+        
+        return !allBlocks.contains(where: { otherBlock in
+            let blockInterval = DateInterval(start: otherBlock.startTime, end: otherBlock.endTime)
+            let checkInterval = DateInterval(start: time, end: endTime)
+            return blockInterval.intersects(checkInterval)
+        })
+    }
+    
+    private func findNextAvailableSlot(before limitTime: Date, duration: Int) -> Date? {
+        let dayStart = calendar.startOfDay(for: selectedDate)
+        let searchStart = calendar.date(byAdding: .hour, value: 6, to: dayStart) ?? dayStart
+        
+        var currentTime = searchStart
+        while currentTime < limitTime {
+            if hasSpaceBefore(at: currentTime, duration: duration) {
+                return currentTime
+            }
+            currentTime = calendar.date(byAdding: .minute, value: 15, to: currentTime) ?? currentTime
+        }
+        return nil
+    }
+    
+    private func findNextAvailableSlot(after startTime: Date, duration: Int) -> Date? {
+        let dayEnd = calendar.date(bySettingHour: 22, minute: 0, second: 0, of: selectedDate) ?? selectedDate
+        
+        var currentTime = startTime
+        while currentTime < dayEnd {
+            if hasSpaceAfter(at: currentTime, duration: duration) {
+                return currentTime
+            }
+            currentTime = calendar.date(byAdding: .minute, value: 15, to: currentTime) ?? currentTime
+        }
+        return nil
     }
 }
 
@@ -4986,40 +5154,517 @@ struct CalendarDropDelegate: DropDelegate {
 
 // MARK: - Enhanced Mind Sections
 
-struct EnhancedChainsSection: View {
+struct SuperchargedChainsSection: View {
     @EnvironmentObject private var dataManager: AppDataManager
+    @EnvironmentObject private var aiService: AIService
     @State private var showingChainCreator = false
+    @State private var showingAISuggestions = false
+    @State private var selectedChainTemplate: ChainTemplate?
+    @State private var aiSuggestedChains: [Chain] = []
     
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
-            SectionHeader(
-                title: "Chains",
-                subtitle: "Flow sequences",
-                systemImage: "link.circle",
-                gradient: LinearGradient(colors: [.blue, .cyan], startPoint: .leading, endPoint: .trailing),
-                onAction: { showingChainCreator = true }
-            )
+            HStack {
+                SectionHeader(
+                    title: "Chains",
+                    subtitle: "Smart flow sequences",
+                    systemImage: "link.circle",
+                    gradient: LinearGradient(colors: [.blue, .cyan], startPoint: .leading, endPoint: .trailing)
+                )
+                
+                Spacer()
+                
+                HStack(spacing: 8) {
+                    // AI suggestions button
+                    Button(action: { 
+                        generateAIChainSuggestions()
+                        showingAISuggestions = true 
+                    }) {
+                        Image(systemName: "sparkles.circle")
+                            .font(.title3)
+                            .foregroundStyle(.purple)
+                    }
+                    .buttonStyle(.plain)
+                    .help("AI chain suggestions")
+                    
+                    // Create chain button
+                    Button(action: { showingChainCreator = true }) {
+                        Image(systemName: "plus.circle")
+                            .font(.title2)
+                            .foregroundStyle(.blue)
+                    }
+                    .buttonStyle(.plain)
+                    .help("Create custom chain")
+                }
+            }
             
+            // Quick chain templates
+            ScrollView(.horizontal, showsIndicators: false) {
+                HStack(spacing: 12) {
+                    ForEach(chainTemplates, id: \.name) { template in
+                        ChainTemplateCard(
+                            template: template,
+                            onSelect: { selectedTemplate in
+                                createChainFromTemplate(selectedTemplate)
+                            }
+                        )
+                    }
+                }
+                .padding(.horizontal, 2)
+            }
+            
+            // Recent chains with enhanced controls
             LazyVStack(spacing: 8) {
-                ForEach(dataManager.appState.recentChains.prefix(5)) { chain in
-                    EnhancedChainCard(chain: chain)
+                ForEach(dataManager.appState.recentChains.prefix(6)) { chain in
+                    SuperchargedChainCard(
+                        chain: chain,
+                        onApply: { 
+                            applyChainToToday(chain)
+                        },
+                        onEdit: { 
+                            // Edit chain functionality
+                        },
+                        onDuplicate: {
+                            duplicateChain(chain)
+                        }
+                    )
                 }
                 
                 if dataManager.appState.recentChains.isEmpty {
-                    EmptyStateCard(
-                        icon: "🔗",
-                        title: "No chains yet",
-                        subtitle: "Create flow sequences"
-                    )
+                    VStack(spacing: 12) {
+                        Text("🔗 Build powerful sequences")
+                            .font(.subheadline)
+                            .foregroundStyle(.secondary)
+                        
+                        Button("Create First Chain") {
+                            showingChainCreator = true
+                        }
+                        .buttonStyle(.bordered)
+                    }
+                    .frame(maxWidth: .infinity)
+                    .padding()
+                    .background(.quaternary.opacity(0.3), in: RoundedRectangle(cornerRadius: 12))
                 }
             }
         }
         .sheet(isPresented: $showingChainCreator) {
-            ChainCreatorView { chain in
-                dataManager.addChain(chain)
-                showingChainCreator = false
+            AdvancedChainCreatorSheet { newChain in
+                dataManager.addChain(newChain)
+            }
+            .environmentObject(aiService)
+        }
+        .sheet(isPresented: $showingAISuggestions) {
+            AIChainSuggestionsSheet(
+                suggestions: aiSuggestedChains,
+                onApply: { chain in
+                    dataManager.addChain(chain)
+                    applyChainToToday(chain)
+                }
+            )
+        }
+    }
+    
+    // MARK: - Chain Templates
+    
+    private var chainTemplates: [ChainTemplate] {
+        [
+            ChainTemplate(
+                name: "Morning Routine",
+                icon: "🌅",
+                activities: ["Wake up routine", "Exercise", "Breakfast", "Plan day"],
+                totalDuration: 120, // 2 hours
+                energyFlow: [.sunrise, .sunrise, .daylight, .daylight]
+            ),
+            ChainTemplate(
+                name: "Deep Work",
+                icon: "🎯", 
+                activities: ["Setup workspace", "Focus session", "Break", "Review"],
+                totalDuration: 90, // 1.5 hours
+                energyFlow: [.daylight, .daylight, .moonlight, .daylight]
+            ),
+            ChainTemplate(
+                name: "Evening Wind-down",
+                icon: "🌙",
+                activities: ["Dinner", "Reflection", "Reading", "Sleep prep"],
+                totalDuration: 150, // 2.5 hours  
+                energyFlow: [.daylight, .moonlight, .moonlight, .moonlight]
+            ),
+            ChainTemplate(
+                name: "Creative Flow",
+                icon: "🎨",
+                activities: ["Inspiration gathering", "Brainstorm", "Create", "Refine"],
+                totalDuration: 180, // 3 hours
+                energyFlow: [.daylight, .sunrise, .sunrise, .daylight]
+            )
+        ]
+    }
+    
+    // MARK: - Actions
+    
+    private func generateAIChainSuggestions() {
+        // Generate AI-powered chain suggestions based on user patterns
+        let morningChain = Chain(
+            id: UUID(),
+            name: "Optimized Morning",
+            blocks: [
+                TimeBlock(title: "Hydrate & Stretch", startTime: Date(), duration: 900, energy: .sunrise, flow: .water),
+                TimeBlock(title: "Priority Review", startTime: Date(), duration: 1200, energy: .sunrise, flow: .crystal),
+                TimeBlock(title: "Deep Work Block", startTime: Date(), duration: 2700, energy: .daylight, flow: .crystal)
+            ],
+            flowPattern: .waterfall,
+            completionCount: 0,
+            isActive: true,
+            createdAt: Date()
+        )
+        
+        let focusChain = Chain(
+            id: UUID(),
+            name: "Peak Performance",
+            blocks: [
+                TimeBlock(title: "Environment prep", startTime: Date(), duration: 600, energy: .daylight, flow: .crystal),
+                TimeBlock(title: "Intensive work", startTime: Date(), duration: 3600, energy: .daylight, flow: .crystal),
+                TimeBlock(title: "Recovery break", startTime: Date(), duration: 900, energy: .moonlight, flow: .mist)
+            ],
+            flowPattern: .spiral,
+            completionCount: 0,
+            isActive: true,
+            createdAt: Date()
+        )
+        
+        aiSuggestedChains = [morningChain, focusChain]
+    }
+    
+    private func createChainFromTemplate(_ template: ChainTemplate) {
+        let blocks = template.activities.enumerated().map { index, activity in
+            let duration = TimeInterval(template.totalDuration * 60 / template.activities.count)
+            return TimeBlock(
+                title: activity,
+                startTime: Date(),
+                duration: duration,
+                energy: template.energyFlow[index],
+                flow: .crystal,
+                explanation: "From \(template.name) template"
+            )
+        }
+        
+        let newChain = Chain(
+            id: UUID(),
+            name: template.name,
+            blocks: blocks,
+            flowPattern: .wave,
+            completionCount: 0,
+            isActive: true,
+            createdAt: Date()
+        )
+        
+        dataManager.addChain(newChain)
+        dataManager.setActionBarMessage("Created '\(template.name)' chain. Apply it to your schedule?")
+    }
+    
+    private func applyChainToToday(_ chain: Chain) {
+        let startTime = findBestTimeForChain(chain)
+        dataManager.applyChain(chain, startingAt: startTime)
+    }
+    
+    private func duplicateChain(_ chain: Chain) {
+        let duplicatedChain = Chain(
+            id: UUID(),
+            name: "\(chain.name) (Copy)",
+            blocks: chain.blocks,
+            flowPattern: chain.flowPattern,
+            completionCount: 0,
+            isActive: true,
+            createdAt: Date()
+        )
+        dataManager.addChain(duplicatedChain)
+    }
+    
+    private func findBestTimeForChain(_ chain: Chain) -> Date {
+        // AI-powered time finding based on chain duration and current schedule
+        let now = Date()
+        let calendar = Calendar.current
+        
+        // Start with current time rounded to next 15-minute interval
+        let minute = calendar.component(.minute, from: now)
+        let roundedMinute = ((minute / 15) + 1) * 15
+        
+        return calendar.date(byAdding: .minute, value: roundedMinute - minute, to: now) ?? now
+    }
+}
+
+// MARK: - Chain UI Components
+
+struct ChainTemplateCard: View {
+    let template: ChainTemplate
+    let onSelect: (ChainTemplate) -> Void
+    @State private var isPressed = false
+    
+    var body: some View {
+        Button(action: { onSelect(template) }) {
+            VStack(alignment: .leading, spacing: 8) {
+                HStack {
+                    Text(template.icon)
+                        .font(.title2)
+                    
+                    Spacer()
+                    
+                    Text("\(template.totalDuration)m")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+                
+                Text(template.name)
+                    .font(.subheadline)
+                    .fontWeight(.medium)
+                    .foregroundStyle(.primary)
+                    .lineLimit(1)
+                
+                Text(template.description)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .lineLimit(2)
+            }
+            .padding(12)
+            .frame(width: 120, height: 90)
+            .background(
+                RoundedRectangle(cornerRadius: 12)
+                    .fill(.regularMaterial.opacity(0.8))
+                    .shadow(color: .black.opacity(0.1), radius: isPressed ? 2 : 4, y: isPressed ? 1 : 2)
+            )
+            .scaleEffect(isPressed ? 0.95 : 1.0)
+            .onPressGesture(
+                onPress: { isPressed = true },
+                onRelease: { isPressed = false }
+            )
+        }
+        .buttonStyle(.plain)
+    }
+}
+
+extension View {
+    func onPressGesture(onPress: @escaping () -> Void, onRelease: @escaping () -> Void) -> some View {
+        self
+            .scaleEffect(1.0)
+            .onLongPressGesture(minimumDuration: 0) {
+                // Long press action
+            } onPressingChanged: { pressing in
+                if pressing {
+                    onPress()
+                } else {
+                    onRelease()
+                }
+            }
+    }
+}
+
+struct SuperchargedChainCard: View {
+    let chain: Chain
+    let onApply: () -> Void
+    let onEdit: () -> Void
+    let onDuplicate: () -> Void
+    @State private var isHovered = false
+    
+    var body: some View {
+        HStack(spacing: 12) {
+            VStack(alignment: .leading, spacing: 4) {
+                Text(chain.name)
+                    .font(.subheadline)
+                    .fontWeight(.medium)
+                    .foregroundStyle(.primary)
+                
+                Text("\(chain.blocks.count) activities • \(chain.totalDurationMinutes)min")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                
+                Text("Flow: \(chain.flowPattern.emoji)")
+                    .font(.caption)
+                    .foregroundStyle(.tertiary)
+                    .lineLimit(2)
+            }
+            
+            Spacer()
+            
+            if isHovered {
+                HStack(spacing: 8) {
+                    Button(action: onApply) {
+                        Image(systemName: "play.circle")
+                            .font(.title3)
+                            .foregroundStyle(.green)
+                    }
+                    .buttonStyle(.plain)
+                    .help("Apply chain")
+                    
+                    Button(action: onDuplicate) {
+                        Image(systemName: "doc.on.doc")
+                            .font(.title3)
+                            .foregroundStyle(.blue)
+                    }
+                    .buttonStyle(.plain)
+                    .help("Duplicate chain")
+                    
+                    Button(action: onEdit) {
+                        Image(systemName: "pencil.circle")
+                            .font(.title3)
+                            .foregroundStyle(.orange)
+                    }
+                    .buttonStyle(.plain)
+                    .help("Edit chain")
+                }
+            } else {
+                Button(action: onApply) {
+                    Text("Apply")
+                        .font(.caption)
+                        .padding(.horizontal, 12)
+                        .padding(.vertical, 6)
+                }
+                .buttonStyle(.bordered)
+                .controlSize(.small)
             }
         }
+        .padding(12)
+        .background(
+            RoundedRectangle(cornerRadius: 10)
+                .fill(.regularMaterial.opacity(0.6))
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 10)
+                .strokeBorder(.gray.opacity(0.2), lineWidth: 1)
+        )
+        .onHover { hovering in
+            withAnimation(.easeInOut(duration: 0.2)) {
+                isHovered = hovering
+            }
+        }
+    }
+}
+
+struct AdvancedChainCreatorSheet: View {
+    let onSave: (Chain) -> Void
+    @Environment(\.dismiss) private var dismiss
+    @State private var chainName = ""
+    @State private var activities: [String] = [""]
+    
+    var body: some View {
+        NavigationView {
+            VStack(spacing: 20) {
+                TextField("Chain name", text: $chainName)
+                    .textFieldStyle(.roundedBorder)
+                
+                Text("Activities")
+                    .font(.headline)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                
+                ForEach(activities.indices, id: \.self) { index in
+                    TextField("Activity \(index + 1)", text: $activities[index])
+                        .textFieldStyle(.roundedBorder)
+                }
+                
+                Button("Add Activity") {
+                    activities.append("")
+                }
+                .buttonStyle(.bordered)
+                
+                Spacer()
+                
+                Button("Create Chain") {
+                    let blocks: [TimeBlock] = activities.enumerated().compactMap { index, activity in
+                        guard !activity.isEmpty else { return nil }
+                        return TimeBlock(
+                            title: activity,
+                            startTime: Date(),
+                            duration: 1800, // 30 minutes default
+                            energy: .daylight,
+                            flow: .crystal
+                        )
+                    }
+                    
+                    let newChain = Chain(
+                        id: UUID(),
+                        name: chainName.isEmpty ? "New Chain" : chainName,
+                        blocks: blocks,
+                        flowPattern: .ripple,
+                        completionCount: 0,
+                        isActive: true,
+                        createdAt: Date()
+                    )
+                    
+                    onSave(newChain)
+                    dismiss()
+                }
+                .buttonStyle(.borderedProminent)
+                .disabled(chainName.isEmpty || activities.allSatisfy { $0.isEmpty })
+            }
+            .padding()
+            .navigationTitle("Create Chain")
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Cancel") {
+                        dismiss()
+                    }
+                }
+            }
+        }
+        .frame(width: 500, height: 600)
+    }
+}
+
+struct AIChainSuggestionsSheet: View {
+    let suggestions: [Chain]
+    let onApply: (Chain) -> Void
+    @Environment(\.dismiss) private var dismiss
+    
+    var body: some View {
+        NavigationView {
+            VStack(alignment: .leading, spacing: 20) {
+                Text("AI Chain Suggestions")
+                    .font(.title2)
+                    .fontWeight(.semibold)
+                
+                Text("Based on your patterns and preferences")
+                    .font(.body)
+                    .foregroundStyle(.secondary)
+                
+                LazyVStack(spacing: 12) {
+                    ForEach(suggestions, id: \.id) { chain in
+                        HStack {
+                            VStack(alignment: .leading, spacing: 4) {
+                                Text(chain.name)
+                                    .font(.headline)
+                                
+                                Text("AI-optimized flow pattern: \(chain.flowPattern.emoji)")
+                                    .font(.body)
+                                    .foregroundStyle(.secondary)
+                                
+                                Text("\(chain.blocks.count) activities • \(chain.totalDurationMinutes)min")
+                                    .font(.caption)
+                                    .foregroundStyle(.tertiary)
+                            }
+                            
+                            Spacer()
+                            
+                            Button("Apply") {
+                                onApply(chain)
+                                dismiss()
+                            }
+                            .buttonStyle(.borderedProminent)
+                        }
+                        .padding()
+                        .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 12))
+                    }
+                }
+                
+                Spacer()
+            }
+            .padding()
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Done") {
+                        dismiss()
+                    }
+                }
+            }
+        }
+        .frame(width: 600, height: 500)
     }
 }
 
@@ -5152,7 +5797,7 @@ struct ComprehensivePillarCreatorSheet: View {
                             .font(.headline)
                             .fontWeight(.semibold)
                         
-                        VStack(alignment: .leading, spacing: 12) {
+        VStack(alignment: .leading, spacing: 12) {
                             VStack(alignment: .leading, spacing: 6) {
                                 Text("Name")
                                     .font(.subheadline)
@@ -5672,24 +6317,49 @@ struct EnhancedPillarCard: View {
     }
 }
 
-struct MistGoalsSection: View {
+struct EnhancedGoalsSection: View {
     @EnvironmentObject private var dataManager: AppDataManager
+    @EnvironmentObject private var aiService: AIService
+    @State private var showingGoalCreator = false
+    @State private var showingGoalBreakdown = false
+    @State private var selectedGoal: Goal?
     
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
+            HStack {
             SectionHeader(
                 title: "Goals",
-                subtitle: "Aspirations & targets", 
+                    subtitle: "Smart breakdown & tracking", 
                 systemImage: "target.circle",
                 gradient: LinearGradient(colors: [.green, .mint], startPoint: .leading, endPoint: .trailing)
             )
             
-            LazyVStack(spacing: 6) {
-                ForEach(dataManager.appState.goals.prefix(3)) { goal in
+                Spacer()
+                
+                Button(action: { showingGoalCreator = true }) {
+                    Image(systemName: "plus.circle")
+                        .font(.title2)
+                        .foregroundStyle(.green)
+                }
+                .buttonStyle(.plain)
+                .help("Create new goal with AI breakdown")
+            }
+            
+            LazyVStack(spacing: 8) {
+                ForEach(dataManager.appState.goals.prefix(4)) { goal in
                     GoalMistCard(goal: goal)
+                }
+                
+                if dataManager.appState.goals.isEmpty {
+                    Text("No goals yet")
+                        .font(.subheadline)
+                        .foregroundStyle(.secondary)
+                        .frame(maxWidth: .infinity, alignment: .center)
+                        .padding()
                 }
             }
         }
+        // TODO: Add goal creation and breakdown sheets
     }
 }
 
@@ -6121,7 +6791,7 @@ struct CalendarTabView: View {
                 .frame(width: 300)
         }
         .sheet(isPresented: $showingBackfill) {
-            BackfillView()
+            EnhancedBackfillView()
                 .environmentObject(dataManager)
                 .environmentObject(aiService)
         }
@@ -6547,7 +7217,7 @@ struct RescheduleCard: View {
 
 // MARK: - Backfill View
 
-struct BackfillView: View {
+struct EnhancedBackfillView: View {
     @EnvironmentObject private var dataManager: AppDataManager
     @EnvironmentObject private var aiService: AIService
     @Environment(\.dismiss) private var dismiss
@@ -6557,65 +7227,266 @@ struct BackfillView: View {
     @State private var isGeneratingBackfill = false
     @State private var backfillSuggestions: [TimeBlock] = []
     @State private var stagedBackfillBlocks: [TimeBlock] = []
+    @State private var selectedViewMode: BackfillViewMode = .hybrid
+    @State private var manualInputText = ""
+    @State private var showingManualInput = false
+    @State private var reconstructionQuality: Int = 80
     
     var body: some View {
-        NavigationView {
-            VStack(spacing: 0) {
-                // Timeframe selector
-                BackfillTimeframeSelector(
-                    selectedTimeframe: $selectedTimeframe,
-                    selectedDate: $selectedDate
-                )
-                
-                Divider()
-                
-                // Backfill workspace
-                HStack(spacing: 0) {
-                    // Timeline (similar to day view)
-                    BackfillTimeline(
+        VStack(spacing: 0) {
+            // Enhanced header with more controls
+            EnhancedBackfillHeader(
+                selectedTimeframe: $selectedTimeframe,
+                selectedDate: $selectedDate,
+                selectedViewMode: $selectedViewMode,
+                reconstructionQuality: $reconstructionQuality,
+                isGenerating: isGeneratingBackfill,
+                onGenerateBackfill: generateBackfillSuggestions,
+                onToggleManualInput: { showingManualInput.toggle() }
+            )
+            
+            Divider()
+            
+            // Main workspace with more real estate
+            HSplitView {
+                // Left: Large timeline workspace (70% of space)
+                VStack(spacing: 0) {
+                    EnhancedBackfillTimeline(
                         date: selectedDate,
                         suggestions: backfillSuggestions,
                         stagedBlocks: stagedBackfillBlocks,
+                        viewMode: selectedViewMode,
                         onBlockMove: { block, newTime in
                             moveBackfillBlock(block, to: newTime)
                         },
                         onBlockRemove: { block in
                             removeBackfillBlock(block)
+                        },
+                        onBlockEdit: { block in
+                            editBackfillBlock(block)
                         }
                     )
+                }
+                .frame(minWidth: 600)
+                
+                // Right: Enhanced control panel (30% of space)
+                VStack(spacing: 0) {
+                    // AI suggestions section
+                    VStack(alignment: .leading, spacing: 12) {
+                        HStack {
+                            Label("AI Reconstruction", systemImage: "sparkles")
+                                .font(.headline)
+                            
+                            Spacer()
+                            
+                            Text("\(reconstructionQuality)% confidence")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                        }
+                        
+                        ScrollView {
+                            LazyVStack(spacing: 8) {
+                                ForEach(backfillSuggestions.prefix(8)) { suggestion in
+                                    CompactSuggestionCard(
+                                        suggestion: suggestion,
+                                        onApply: { applySuggestion(suggestion) },
+                                        onEdit: { editSuggestion(suggestion) }
+                                    )
+                                }
+                            }
+                        }
+                        .frame(maxHeight: 300)
+                    }
+                    .padding()
+                    .background(.regularMaterial.opacity(0.6), in: RoundedRectangle(cornerRadius: 12))
                     
                     Divider()
+                        .padding(.vertical, 8)
                     
-                    // AI suggestions panel
-                    BackfillSuggestionsPanel(
-                        isGenerating: isGeneratingBackfill,
-                        suggestions: backfillSuggestions,
-                        onGenerateSuggestions: generateBackfillSuggestions,
-                        onApplySuggestion: applySuggestion
-                    )
-                    .frame(width: 300)
-                }
-                
-                // Bottom actions
-                BackfillActionsBar(
-                    hasChanges: !stagedBackfillBlocks.isEmpty,
-                    onCommit: commitBackfill,
-                    onDiscard: discardBackfill
-                )
-            }
-            .navigationTitle("Backfill - Reconstruct Your Day")
-            .toolbar {
-                ToolbarItem(placement: .confirmationAction) {
-                    Button("Done") {
-                        dismiss()
+                    // Manual input section (enhanced)
+                    VStack(alignment: .leading, spacing: 12) {
+                        HStack {
+                            Label("Manual Entry", systemImage: "pencil")
+                                .font(.headline)
+                            
+                            Spacer()
+                            
+                            Button("Quick Add") {
+                                showQuickAddSheet()
+                            }
+                            .buttonStyle(.bordered)
+                            .controlSize(.small)
+                        }
+                        
+                        // Quick manual entry
+                        TextField("Describe what happened...", text: $manualInputText, axis: .vertical)
+                            .textFieldStyle(.roundedBorder)
+                            .lineLimit(3...6)
+                        
+                        HStack {
+                            Button("Parse & Add") {
+                                parseManualInput()
+                            }
+                            .buttonStyle(.borderedProminent)
+                            .disabled(manualInputText.isEmpty)
+                            
+                            Spacer()
+                            
+                            Button("Clear") {
+                                manualInputText = ""
+                            }
+                            .buttonStyle(.bordered)
+                        }
+                        
+                        // Quick time block templates
+                        LazyVGrid(columns: Array(repeating: GridItem(.flexible()), count: 2), spacing: 8) {
+                            ForEach(quickTemplates, id: \.title) { template in
+                                Button(action: { applyTemplate(template) }) {
+                                    VStack(spacing: 4) {
+                                        Text(template.icon)
+                                            .font(.title2)
+                                        Text(template.title)
+                                            .font(.caption2)
+                                            .lineLimit(1)
+                                    }
+                                    .frame(maxWidth: .infinity)
+                                    .padding(8)
+                                    .background(.quaternary.opacity(0.5), in: RoundedRectangle(cornerRadius: 8))
+                                }
+                                .buttonStyle(.plain)
+                            }
+                        }
                     }
+                    .padding()
+                    .background(.thickMaterial.opacity(0.4), in: RoundedRectangle(cornerRadius: 12))
+                    
+                    Spacer()
+                    
+                    // Enhanced action buttons
+                    VStack(spacing: 8) {
+                        HStack {
+                            Text("\(stagedBackfillBlocks.count) events staged")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                            
+                            Spacer()
+                            
+                            Text("Total: \(stagedTotalHours, specifier: "%.1f")h")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                        }
+                        
+                        HStack(spacing: 12) {
+                            Button("Discard") {
+                                discardBackfill()
+                            }
+                            .buttonStyle(.bordered)
+                            
+                            Button("Commit \(stagedBackfillBlocks.count) Events") {
+                                commitBackfill()
+                            }
+                            .buttonStyle(.borderedProminent)
+                            .disabled(stagedBackfillBlocks.isEmpty)
+                        }
+                        
+                        Button("Export to Calendar") {
+                            exportToCalendar()
+                        }
+                        .buttonStyle(.bordered)
+                        .controlSize(.small)
+                    }
+                    .padding()
+                    .background(.ultraThickMaterial.opacity(0.6), in: RoundedRectangle(cornerRadius: 12))
                 }
+                .frame(minWidth: 350, idealWidth: 400)
+                .padding()
             }
         }
-        .frame(width: 800, height: 700)
+        .frame(minWidth: 1000, minHeight: 700)
         .onAppear {
             generateBackfillSuggestions()
         }
+    }
+    
+    // MARK: - Computed Properties
+    
+    private var stagedTotalHours: Double {
+        let totalSeconds = stagedBackfillBlocks.reduce(0) { $0 + $1.duration }
+        return totalSeconds / 3600
+    }
+    
+    private var quickTemplates: [QuickTemplate] {
+        [
+            QuickTemplate(title: "Work", icon: "💼", duration: 8*3600, energy: .daylight, flow: .crystal),
+            QuickTemplate(title: "Meeting", icon: "👥", duration: 3600, energy: .daylight, flow: .water),
+            QuickTemplate(title: "Lunch", icon: "🍽️", duration: 1800, energy: .daylight, flow: .mist),
+            QuickTemplate(title: "Break", icon: "☕", duration: 900, energy: .moonlight, flow: .mist),
+            QuickTemplate(title: "Travel", icon: "🚗", duration: 1800, energy: .moonlight, flow: .mist),
+            QuickTemplate(title: "Exercise", icon: "💪", duration: 3600, energy: .sunrise, flow: .water)
+        ]
+    }
+    
+    // MARK: - Actions
+    
+    private func parseManualInput() {
+        // Parse natural language input and create time blocks
+        let input = manualInputText.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !input.isEmpty else { return }
+        
+        // Simple parsing logic - in real implementation would use AI
+        let components = input.components(separatedBy: ",")
+        
+        for (index, component) in components.enumerated() {
+            let title = component.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !title.isEmpty else { continue }
+            
+            let startHour = 9 + index * 2 // Spread throughout day
+            let startTime = Calendar.current.date(bySettingHour: startHour, minute: 0, second: 0, of: selectedDate) ?? selectedDate
+            
+            let newBlock = TimeBlock(
+                title: title,
+                startTime: startTime,
+                duration: 3600, // 1 hour default
+                energy: .daylight,
+                flow: .crystal,
+                explanation: "Added manually"
+            )
+            
+            stagedBackfillBlocks.append(newBlock)
+        }
+        
+        manualInputText = ""
+    }
+    
+    private func applyTemplate(_ template: QuickTemplate) {
+        let startTime = Date() // Would be smarter about placement in real implementation
+        
+        let newBlock = TimeBlock(
+            title: template.title,
+            startTime: startTime,
+            duration: template.duration,
+            energy: template.energy,
+            flow: template.flow,
+            explanation: "From \(template.title) template"
+        )
+        
+        stagedBackfillBlocks.append(newBlock)
+    }
+    
+    private func showQuickAddSheet() {
+        // Would show a detailed manual entry sheet
+    }
+    
+    private func editSuggestion(_ suggestion: TimeBlock) {
+        // Would show edit sheet for suggestion
+    }
+    
+    private func editBackfillBlock(_ block: TimeBlock) {
+        // Would show edit sheet for staged block
+    }
+    
+    private func exportToCalendar() {
+        // Export staged blocks to system calendar
     }
     
     // MARK: - Backfill Actions
@@ -11723,6 +12594,114 @@ struct DreamBuilderView: View {
             }
         }
         .frame(width: 500, height: 600)
+    }
+}
+
+// MARK: - Backfill UI Components
+
+struct EnhancedBackfillHeader: View {
+    @Binding var selectedTimeframe: BackfillTimeframe
+    @Binding var selectedDate: Date
+    @Binding var selectedViewMode: BackfillViewMode
+    @Binding var reconstructionQuality: Int
+    let isGenerating: Bool
+    let onGenerateBackfill: () -> Void
+    let onToggleManualInput: () -> Void
+    
+    var body: some View {
+        HStack {
+            Text("Reconstruct Your Day")
+                .font(.title2)
+                .fontWeight(.semibold)
+            
+            Spacer()
+            
+            DatePicker("Date", selection: $selectedDate, displayedComponents: .date)
+                .datePickerStyle(.compact)
+            
+            Picker("View", selection: $selectedViewMode) {
+                ForEach(BackfillViewMode.allCases, id: \.self) { mode in
+                    Label(mode.rawValue, systemImage: mode.icon).tag(mode)
+                }
+            }
+            .pickerStyle(.segmented)
+            .frame(width: 200)
+            
+            Button("Generate AI") {
+                onGenerateBackfill()
+            }
+            .buttonStyle(.borderedProminent)
+            .disabled(isGenerating)
+        }
+        .padding()
+    }
+}
+
+struct EnhancedBackfillTimeline: View {
+    let date: Date
+    let suggestions: [TimeBlock]
+    let stagedBlocks: [TimeBlock]
+    let viewMode: BackfillViewMode
+    let onBlockMove: (TimeBlock, Date) -> Void
+    let onBlockRemove: (TimeBlock) -> Void
+    let onBlockEdit: (TimeBlock) -> Void
+    
+    var body: some View {
+        ScrollView {
+            LazyVStack(spacing: 12) {
+                ForEach(suggestions + stagedBlocks, id: \.id) { block in
+                    HStack {
+                        VStack(alignment: .leading) {
+                            Text(block.title)
+                                .font(.subheadline)
+                                .fontWeight(.medium)
+                            
+                            Text(block.startTime.formatted(.dateTime.hour().minute()) + " • \(block.durationMinutes)min")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                        }
+                        
+                        Spacer()
+                        
+                        Button("Edit") { onBlockEdit(block) }
+                            .buttonStyle(.bordered)
+                            .controlSize(.small)
+                    }
+                    .padding()
+                    .background(.regularMaterial.opacity(0.6), in: RoundedRectangle(cornerRadius: 10))
+                }
+            }
+            .padding()
+        }
+    }
+}
+
+struct CompactSuggestionCard: View {
+    let suggestion: TimeBlock
+    let onApply: () -> Void
+    let onEdit: () -> Void
+    
+    var body: some View {
+        HStack(spacing: 8) {
+            VStack(alignment: .leading, spacing: 2) {
+                Text(suggestion.title)
+                    .font(.caption)
+                    .fontWeight(.medium)
+                    .lineLimit(1)
+                
+                Text(suggestion.startTime.formatted(.dateTime.hour().minute()))
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
+            }
+            
+            Spacer()
+            
+            Button("Add") { onApply() }
+                .buttonStyle(.bordered)
+                .controlSize(.mini)
+        }
+        .padding(8)
+        .background(.quaternary.opacity(0.3), in: RoundedRectangle(cornerRadius: 6))
     }
 }
 

@@ -641,6 +641,50 @@ class AppDataManager: ObservableObject {
         ]
     }
     
+    // MARK: - Goal Operations
+    
+    func addGoal(_ goal: Goal) {
+        appState.goals.append(goal)
+        save()
+    }
+    
+    func updateGoal(_ goal: Goal) {
+        if let index = appState.goals.firstIndex(where: { $0.id == goal.id }) {
+            appState.goals[index] = goal
+        }
+        save()
+    }
+    
+    func removeGoal(id: UUID) {
+        appState.goals.removeAll { $0.id == id }
+        save()
+    }
+    
+    func toggleTaskCompletion(goalId: UUID, taskId: UUID) {
+        if let goalIndex = appState.goals.firstIndex(where: { $0.id == goalId }) {
+            for groupIndex in 0..<appState.goals[goalIndex].groups.count {
+                if let taskIndex = appState.goals[goalIndex].groups[groupIndex].tasks.firstIndex(where: { $0.id == taskId }) {
+                    appState.goals[goalIndex].groups[groupIndex].tasks[taskIndex].isCompleted.toggle()
+                    
+                    // Update goal progress based on completed tasks
+                    updateGoalProgress(goalId: goalId)
+                    break
+                }
+            }
+        }
+        save()
+    }
+    
+    private func updateGoalProgress(goalId: UUID) {
+        if let goalIndex = appState.goals.firstIndex(where: { $0.id == goalId }) {
+            let goal = appState.goals[goalIndex]
+            let allTasks = goal.groups.flatMap { $0.tasks }
+            let completedTasks = allTasks.filter { $0.isCompleted }
+            
+            appState.goals[goalIndex].progress = allTasks.isEmpty ? 0.0 : Double(completedTasks.count) / Double(allTasks.count)
+        }
+    }
+    
 }
 
 // MARK: - Preview Helper

@@ -1006,3 +1006,42 @@ extension FlowPattern {
         }
     }
 }
+
+// MARK: - Chain Templates
+
+/// Chain templates for quick creation
+struct ChainTemplate {
+    let name: String
+    let icon: String
+    let activities: [String]
+    let totalDuration: Int // in minutes
+    let energyFlow: [EnergyType]
+    
+    var description: String {
+        "\(activities.count) activities • \(totalDuration)min"
+    }
+}
+
+// MARK: - Backfill Support
+
+enum BackfillViewMode: String, CaseIterable {
+    case timeline = "Timeline"
+    case hybrid = "Hybrid"
+    case list = "List"
+    
+    var icon: String {
+        switch self {
+        case .timeline: return "clock"
+        case .hybrid: return "squares.below.rectangle"
+        case .list: return "list.bullet"
+        }
+    }
+}
+
+struct QuickTemplate {
+    let title: String
+    let icon: String
+    let duration: TimeInterval
+    let energy: EnergyType
+    let flow: FlowState
+}
