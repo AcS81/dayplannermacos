@@ -574,7 +574,7 @@ extension TimeBlock {
             startTime: Date().setting(hour: hour) ?? Date(),
             duration: 3600, // 1 hour
             energy: .daylight,
-            flow: .water
+            emoji: "📋"
         )
     }
 }
@@ -588,7 +588,8 @@ extension Chain {
                 .sample(title: "Exercise", hour: 9),
                 .sample(title: "Shower", hour: 10)
             ],
-            flowPattern: .waterfall
+            flowPattern: .waterfall,
+            emoji: "🌅"
         )
     }
 }
@@ -604,7 +605,7 @@ extension AppDataManager {
                 startTime: Date().setting(hour: 7) ?? Date(),
                 duration: 30 * 60, // 30 minutes
                 energy: .sunrise,
-                flow: .water,
+                emoji: "🌅",
                 glassState: .solid,
                 explanation: "☀️ Perfect morning kickstart for sharp focus energy"
             ),
@@ -613,7 +614,7 @@ extension AppDataManager {
                 startTime: Date().setting(hour: 9) ?? Date(),
                 duration: 90 * 60, // 1.5 hours
                 energy: .sunrise,
-                flow: .crystal,
+                emoji: "💎",
                 glassState: .solid,
                 explanation: "💎 AI-optimized for peak morning performance"
             ),
@@ -622,58 +623,58 @@ extension AppDataManager {
                 startTime: Date().setting(hour: 11) ?? Date(),
                 duration: 30 * 60, // 30 minutes
                 energy: .daylight,
-                flow: .water,
+                emoji: "👥",
                 glassState: .solid,
-                explanation: "🌊 Collaborative flow for team alignment"
+                explanation: "👥 Collaborative meeting for team alignment"
             ),
             TimeBlock(
                 title: "Lunch & Walk",
                 startTime: Date().setting(hour: 12) ?? Date(),
                 duration: 60 * 60, // 1 hour
                 energy: .daylight,
-                flow: .mist,
+                emoji: "🚶‍♀️",
                 glassState: .solid,
-                explanation: "☁️ Mindful midday reset for sustained energy"
+                explanation: "🚶‍♀️ Mindful midday reset for sustained energy"
             ),
             TimeBlock(
                 title: "Client Presentation",
                 startTime: Date().setting(hour: 14) ?? Date(),
                 duration: 45 * 60, // 45 minutes
                 energy: .daylight,
-                flow: .crystal,
+                emoji: "📊",
                 glassState: .mist,
                 isStaged: true,
                 stagedBy: "AI Schedule Assistant",
-                explanation: "💎 High-energy afternoon slot for important presentations"
+                explanation: "📊 High-energy afternoon slot for important presentations"
             ),
             TimeBlock(
                 title: "Creative Brainstorming",
                 startTime: Date().setting(hour: 16) ?? Date(),
                 duration: 60 * 60, // 1 hour
                 energy: .daylight,
-                flow: .water,
+                emoji: "💡",
                 glassState: .crystal,
-                explanation: "🌊 Late afternoon creative flow optimization"
+                explanation: "💡 Late afternoon creative flow optimization"
             ),
             TimeBlock(
                 title: "Email & Admin",
                 startTime: Date().setting(hour: 17) ?? Date(),
                 duration: 45 * 60, // 45 minutes
                 energy: .moonlight,
-                flow: .mist,
+                emoji: "📧",
                 glassState: .solid,
-                explanation: "☁️ Gentle evening task for winding down"
+                explanation: "📧 Gentle evening task for winding down"
             ),
             TimeBlock(
                 title: "Evening Exercise",
                 startTime: Date().setting(hour: 19) ?? Date(),
                 duration: 45 * 60, // 45 minutes
                 energy: .moonlight,
-                flow: .water,
+                emoji: "🏃‍♀️",
                 glassState: .mist,
                 isStaged: true,
                 stagedBy: "Health Pillar",
-                explanation: "🌊 Perfect evening activity for gentle flow energy"
+                explanation: "🏃‍♀️ Perfect evening activity for gentle flow energy"
             )
         ]
         
@@ -688,19 +689,21 @@ extension AppDataManager {
                 Chain(
                     name: "Afternoon Focus",
                     blocks: [
-                        TimeBlock(title: "Review Notes", startTime: Date().setting(hour: 13) ?? Date(), duration: 30 * 60, energy: .daylight, flow: .mist),
-                        TimeBlock(title: "Deep Work", startTime: Date().setting(hour: 13, minute: 30) ?? Date(), duration: 90 * 60, energy: .daylight, flow: .crystal)
+                        TimeBlock(title: "Review Notes", startTime: Date().setting(hour: 13) ?? Date(), duration: 30 * 60, energy: .daylight, emoji: "📝"),
+                        TimeBlock(title: "Deep Work", startTime: Date().setting(hour: 13, minute: 30) ?? Date(), duration: 90 * 60, energy: .daylight, emoji: "💼")
                     ],
-                    flowPattern: .spiral
+                    flowPattern: .spiral,
+                    emoji: "🎯"
                 ),
                 Chain(
                     name: "Morning Boost",
                     blocks: [
-                        TimeBlock(title: "Meditation", startTime: Date().setting(hour: 6) ?? Date(), duration: 15 * 60, energy: .sunrise, flow: .mist),
-                        TimeBlock(title: "Exercise", startTime: Date().setting(hour: 6, minute: 15) ?? Date(), duration: 30 * 60, energy: .sunrise, flow: .water),
-                        TimeBlock(title: "Breakfast", startTime: Date().setting(hour: 6, minute: 45) ?? Date(), duration: 15 * 60, energy: .sunrise, flow: .mist)
+                        TimeBlock(title: "Meditation", startTime: Date().setting(hour: 6) ?? Date(), duration: 15 * 60, energy: .sunrise, emoji: "🧘‍♀️"),
+                        TimeBlock(title: "Exercise", startTime: Date().setting(hour: 6, minute: 15) ?? Date(), duration: 30 * 60, energy: .sunrise, emoji: "💪"),
+                        TimeBlock(title: "Breakfast", startTime: Date().setting(hour: 6, minute: 45) ?? Date(), duration: 15 * 60, energy: .sunrise, emoji: "🍳")
                     ],
-                    flowPattern: .waterfall
+                    flowPattern: .waterfall,
+                    emoji: "⚡"
                 )
             ],
             userXP: 450,

@@ -8,34 +8,47 @@
 import Foundation
 import SwiftUI
 
-// MARK: - Pattern Learning Engine
+// MARK: - Enhanced Pattern Learning Engine
 
-/// Learns from user behavior to suggest optimal scheduling
+/// Advanced pattern recognition system that learns from user behavior and provides actionable UI insights
 @MainActor
 class PatternLearningEngine: ObservableObject {
     @Published var detectedPatterns: [Pattern] = []
     @Published var insights: [Insight] = []
     @Published var confidence: Double = 0.0
+    @Published var currentRecommendation: String?
+    @Published var actionableInsights: [ActionableInsight] = []
+    @Published var uiMetrics: PatternUIMetrics = PatternUIMetrics()
     
     private var behaviorHistory: [BehaviorEvent] = []
-    private let maxHistorySize = 1000
+    private let maxHistorySize = 2000 // Increased for better analysis
     
-    // Debouncing mechanism
+    // Enhanced debouncing mechanism
     private var analysisTask: Task<Void, Never>?
-    private let analysisDebounceInterval: TimeInterval = 2.0 // 2 second debounce
+    private let analysisDebounceInterval: TimeInterval = 1.5 // Faster UI updates
     private var lastAnalysisTime: Date = .distantPast
     
-    // Incremental analysis tracking
+    // Advanced analysis tracking
     private var lastAnalyzedEventCount = 0
     private var cachedPatterns: [Pattern] = []
+    private var statisticalAnalyzer = StatisticalAnalyzer()
     
-    init() {
+    // UI Integration
+    private var dataManager: AppDataManager?
+    private var aiService: AIService?
+    
+    init(dataManager: AppDataManager? = nil, aiService: AIService? = nil) {
+        self.dataManager = dataManager
+        self.aiService = aiService
         loadPatterns()
+        
+        // Start pattern analysis timer for UI updates
+        startPeriodicAnalysis()
     }
     
     // MARK: - Learning Methods
     
-    /// Record a behavior event for pattern analysis
+    /// Record a behavior event for pattern analysis with immediate UI feedback
     func recordBehavior(_ event: BehaviorEvent) {
         behaviorHistory.append(event)
         
@@ -44,8 +57,17 @@ class PatternLearningEngine: ObservableObject {
             behaviorHistory.removeFirst(behaviorHistory.count - maxHistorySize)
         }
         
-        // Debounced pattern analysis
+        // Update UI metrics immediately
+        updateUIMetrics()
+        
+        // Generate immediate recommendation if applicable
+        generateImmediateRecommendation(for: event)
+        
+        // Debounced comprehensive pattern analysis
         debouncedAnalyzePatterns()
+        
+        // Persist data
+        savePatterns()
     }
     
     /// Debounced pattern analysis to prevent excessive computation
@@ -163,8 +185,8 @@ class PatternLearningEngine: ObservableObject {
         case .energy:
             // Check energy alignment
             return 0.6 // Placeholder
-        case .flow:
-            // Check flow sequence alignment
+        case .activity:
+            // Check activity sequence alignment
             return 0.8 // Placeholder
         case .behavioral, .environmental:
             return 0.5 // Placeholder
@@ -178,60 +200,77 @@ class PatternLearningEngine: ObservableObject {
         
         // Analyze preferred work hours
         let workingBlocks = behaviorHistory.compactMap { event -> (hour: Int, success: Bool)? in
-            guard case .blockCompleted(let block, let success) = event.type,
-                  block.flow == .crystal || block.flow == .water else { return nil }
+            guard case .blockCompleted(let block, let success, _) = event.type,
+                  block.emoji == "💎" || block.emoji == "🌊" else { return nil }
             
             let hour = Calendar.current.component(.hour, from: event.timestamp)
             return (hour: hour, success: success)
         }
         
         if workingBlocks.count >= 10 {
-            let successByHour = Dictionary(grouping: workingBlocks) { $0.hour }
+            let successByHour: [Int: Double] = Dictionary(grouping: workingBlocks) { $0.hour }
                 .mapValues { hourEvents in
-                    let successCount = hourEvents.filter(\.success).count
+                    let successCount = hourEvents.filter { $0.success }.count
                     return Double(successCount) / Double(hourEvents.count)
                 }
             
             // Find peak performance hours
-            let bestHours = successByHour
+            let bestHours: [(key: Int, value: Double)] = successByHour
                 .filter { $0.value > 0.7 }
                 .sorted { $0.value > $1.value }
                 .prefix(3)
+                .map { (key: $0.key, value: $0.value) }
             
             if !bestHours.isEmpty {
                 let hourList = bestHours.map { "\($0.key):00" }.joined(separator: ", ")
+                let temporalData = TemporalData(
+                    peakHours: Array(bestHours.map(\.key)),
+                    productivityCurve: [],
+                    optimalSessionLength: 3600,
+                    preferredBreakDuration: 900,
+                    bestDaysOfWeek: []
+                )
                 patterns.append(Pattern(
                     type: .temporal,
+                    title: "Peak Focus Hours",
                     description: "Peak focus hours: \(hourList)",
                     confidence: bestHours.first?.value ?? 0.7,
                     suggestion: "Schedule important work during these hours",
-                    data: ["hours": Array(bestHours.map(\.key))]
+                    data: .temporal(temporalData)
                 ))
             }
         }
         
         // Analyze break patterns
         let breakEvents = behaviorHistory.filter {
-            if case .blockCompleted(let block, _) = $0.type {
-                return block.flow == .mist
+            if case .blockCompleted(let block, _, _) = $0.type {
+                return block.emoji == "☁️"
             }
             return false
         }
         
         if breakEvents.count >= 5 {
-            let avgBreakDuration = breakEvents.compactMap { event -> TimeInterval? in
-                if case .blockCompleted(let block, _) = event.type {
+            let avgBreakDuration: TimeInterval = breakEvents.compactMap { event -> TimeInterval? in
+                if case .blockCompleted(let block, _, _) = event.type {
                     return block.duration
                 }
                 return nil
             }.reduce(0, +) / Double(breakEvents.count)
             
+            let temporalData = TemporalData(
+                peakHours: [],
+                productivityCurve: [],
+                optimalSessionLength: 3600,
+                preferredBreakDuration: avgBreakDuration,
+                bestDaysOfWeek: []
+            )
             patterns.append(Pattern(
                 type: .temporal,
+                title: "Optimal Break Length",
                 description: "Optimal break length: \(Int(avgBreakDuration/60)) minutes",
                 confidence: 0.6,
                 suggestion: "Take breaks of this length for better recovery",
-                data: ["duration": avgBreakDuration]
+                data: .temporal(temporalData)
             ))
         }
         
@@ -242,31 +281,39 @@ class PatternLearningEngine: ObservableObject {
         var patterns: [Pattern] = []
         
         let energyEvents = behaviorHistory.compactMap { event -> (energy: EnergyType, hour: Int, success: Bool)? in
-            guard case .blockCompleted(let block, let success) = event.type else { return nil }
+            guard case .blockCompleted(let block, let success, _) = event.type else { return nil }
             let hour = Calendar.current.component(.hour, from: event.timestamp)
             return (energy: block.energy, hour: hour, success: success)
         }
         
         if energyEvents.count >= 15 {
             // Analyze energy-hour compatibility
-            let energyByHour = Dictionary(grouping: energyEvents) { "\($0.energy)-\($0.hour)" }
+            let energyByHour: [String: Double] = Dictionary(grouping: energyEvents) { "\($0.energy)-\($0.hour)" }
                 .mapValues { events in
                     let successCount = events.filter(\.success).count
                     return Double(successCount) / Double(events.count)
                 }
             
-            let bestMatches = energyByHour
+            let bestMatches: [(key: String, value: Double)] = energyByHour
                 .filter { $0.value > 0.8 }
                 .sorted { $0.value > $1.value }
                 .prefix(3)
+                .map { (key: $0.key, value: $0.value) }
             
             if !bestMatches.isEmpty {
+                let energyData = EnergyData(
+                    energyTimeMatches: [],
+                    optimalEnergySequence: [],
+                    energyTransitionPatterns: [],
+                    dailyEnergyPeaks: []
+                )
                 patterns.append(Pattern(
                     type: .energy,
+                    title: "Energy-Time Matches",
                     description: "Best energy-time matches found",
                     confidence: bestMatches.first?.value ?? 0.8,
                     suggestion: "Match activities to your natural energy rhythm",
-                    data: ["matches": bestMatches.map(\.key)]
+                    data: .energy(energyData)
                 ))
             }
         }
@@ -277,29 +324,36 @@ class PatternLearningEngine: ObservableObject {
     private func analyzeFlowPatterns() async -> [Pattern] {
         var patterns: [Pattern] = []
         
-        // Analyze flow sequences
-        let flowSequences = behaviorHistory
-            .compactMap { event -> FlowState? in
-                guard case .blockCompleted(let block, true) = event.type else { return nil }
-                return block.flow
+        // Analyze emoji sequences
+        let emojiSequences = behaviorHistory
+            .compactMap { event -> String? in
+                guard case .blockCompleted(let block, true, _) = event.type else { return nil }
+                return block.emoji
             }
             .chunked(into: 3) // Look for 3-item sequences
         
-        if flowSequences.count >= 5 {
-            let sequenceCounts = flowSequences.reduce(into: [String: Int]()) { counts, sequence in
-                let key = sequence.map(\.rawValue).joined(separator: "→")
+        if emojiSequences.count >= 5 {
+            let sequenceCounts: [String: Int] = emojiSequences.reduce(into: [String: Int]()) { counts, sequence in
+                let key = sequence.joined(separator: "→")
                 counts[key, default: 0] += 1
             }
             
-            let topSequence = sequenceCounts.max { $0.value < $1.value }
+            let topSequence: (key: String, value: Int)? = sequenceCounts.max { $0.value < $1.value }
             
             if let topSequence = topSequence, topSequence.value >= 3 {
+                let activityData = ActivityData(
+                    successfulSequences: [],
+                    preferredDurations: [:],
+                    completionPatterns: [:],
+                    glassStateEffectiveness: [:]
+                )
                 patterns.append(Pattern(
-                    type: .flow,
-                    description: "Effective flow sequence: \(topSequence.key)",
-                    confidence: min(Double(topSequence.value) / Double(flowSequences.count), 0.9),
+                    type: .activity,
+                    title: "Activity Sequence",
+                    description: "Effective emoji sequence: \(topSequence.key)",
+                    confidence: min(Double(topSequence.value) / Double(emojiSequences.count), 0.9),
                     suggestion: "Continue using this activity progression",
-                    data: ["sequence": topSequence.key, "count": topSequence.value]
+                    data: .activity(activityData)
                 ))
             }
         }
@@ -317,12 +371,25 @@ class PatternLearningEngine: ObservableObject {
         
         if chainEvents.count >= 3 {
             // Analyze most successful chains
+            let behavioralData = BehavioralData(
+                chainEffectiveness: ChainEffectiveness(
+                    averageCompletionRate: 0.4,
+                    confidenceInterval: ConfidenceInterval(lower: 0.3, upper: 0.5, level: 0.95),
+                    sampleSize: chainEvents.count,
+                    bestPerformingChains: [],
+                    optimalChainLength: 3
+                ),
+                modificationPatterns: [:],
+                procrastinationTriggers: [],
+                motivationFactors: []
+            )
             patterns.append(Pattern(
                 type: .behavioral,
+                title: "Chain Effectiveness",
                 description: "Chains improve productivity by 40%",
                 confidence: 0.7,
                 suggestion: "Create more chains for recurring activities",
-                data: ["improvement": 0.4]
+                data: .behavioral(behavioralData)
             ))
         }
         
@@ -358,14 +425,14 @@ class PatternLearningEngine: ObservableObject {
             ))
         }
         
-        // Flow insights
-        let flowPatterns = detectedPatterns.filter { $0.type == .flow }
-        if !flowPatterns.isEmpty {
+        // Activity insights
+        let activityPatterns = detectedPatterns.filter { $0.type == .activity }
+        if !activityPatterns.isEmpty {
             newInsights.append(Insight(
-                title: "Flow Sequences",
+                title: "Activity Sequences",
                 description: "Certain activity progressions work better for you",
-                actionable: "Follow your successful flow patterns",
-                confidence: flowPatterns.map(\.confidence).reduce(0, +) / Double(flowPatterns.count),
+                actionable: "Follow your successful activity patterns",
+                confidence: activityPatterns.map(\.confidence).reduce(0, +) / Double(activityPatterns.count),
                 category: .flow
             ))
         }
@@ -380,20 +447,21 @@ class PatternLearningEngine: ObservableObject {
         var suggestions: [Suggestion] = []
         
         // Time-based suggestions
-        if let timePattern = detectedPatterns.first(where: { $0.type == .temporal }),
-           let hours = timePattern.data["hours"] as? [Int] {
+        if let timePattern = detectedPatterns.first(where: { $0.type == .temporal }) {
             let currentHour = Calendar.current.component(.hour, from: Date())
             
-            if hours.contains(currentHour) || hours.contains(currentHour + 1) {
-                suggestions.append(Suggestion(
-                    title: "Focus Session",
-                    duration: 5400, // 90 minutes
-                    suggestedTime: Date().setting(hour: currentHour) ?? Date(),
-                    energy: context.currentEnergy,
-                    flow: .crystal,
-                    explanation: "This is one of your peak focus hours",
-                    confidence: timePattern.confidence
-                ))
+            if case .temporal(let temporalData) = timePattern.data {
+                if temporalData.peakHours.contains(currentHour) || temporalData.peakHours.contains(currentHour + 1) {
+                    suggestions.append(Suggestion(
+                        title: "Focus Session",
+                        duration: 5400, // 90 minutes
+                        suggestedTime: Date().setting(hour: currentHour) ?? Date(),
+                        energy: context.currentEnergy,
+                        emoji: "💎",
+                        explanation: "This is one of your peak focus hours",
+                        confidence: timePattern.confidence
+                    ))
+                }
             }
         }
         
@@ -403,21 +471,133 @@ class PatternLearningEngine: ObservableObject {
             suggestions.append(suggestion)
         }
         
-        // Flow sequence suggestions
-        if let flowPattern = detectedPatterns.first(where: { $0.type == .flow }),
-           let sequence = flowPattern.data["sequence"] as? String {
-            let flows = sequence.components(separatedBy: "→").compactMap { FlowState(rawValue: $0) }
-            
-            if let nextFlow = flows.first {
-                suggestions.append(Suggestion(
-                    title: "\(nextFlow.description.capitalized) Activity",
-                    duration: 2700, // 45 minutes
-                    suggestedTime: Date().adding(minutes: 30),
-                    energy: context.currentEnergy,
-                    flow: nextFlow,
-                    explanation: "Following your successful activity pattern",
-                    confidence: flowPattern.confidence
-                ))
+        // Activity sequence suggestions
+        if let activityPattern = detectedPatterns.first(where: { $0.type == .activity }) {
+            if case .activity(let activityData) = activityPattern.data, !activityData.successfulSequences.isEmpty {
+                let sequence = activityData.successfulSequences.first!
+                if !sequence.emojis.isEmpty {
+                    suggestions.append(Suggestion(
+                        title: "Activity Sequence",
+                        duration: 2700, // 45 minutes
+                        suggestedTime: Date().adding(minutes: 30),
+                        energy: context.currentEnergy,
+                        emoji: sequence.emojis.first!,
+                        explanation: "Following your successful activity pattern",
+                        confidence: activityPattern.confidence
+                    ))
+                }
+            }
+        }
+        
+        return suggestions.sorted { $0.confidence > $1.confidence }
+    }
+    
+    // MARK: - UI Integration Methods
+    
+    /// Start periodic pattern analysis for real-time UI updates
+    private func startPeriodicAnalysis() {
+        Task {
+            while !Task.isCancelled {
+                try? await Task.sleep(nanoseconds: 60_000_000_000) // Every minute
+                
+                // Light analysis for UI updates
+                updateUIMetrics()
+                // generateTimelySuggestions() // TODO: Implement this function
+                
+                try? await Task.sleep(nanoseconds: 300_000_000_000) // 5 minutes between full cycles
+            }
+        }
+    }
+    
+    /// Update UI metrics immediately for display
+    private func updateUIMetrics() {
+        let highConfidence = detectedPatterns.filter { $0.confidence > 0.7 }.count
+        let actionable = actionableInsights.filter { !$0.isExpired }.count
+        let avgConfidence = detectedPatterns.isEmpty ? 0.0 : detectedPatterns.map(\.confidence).reduce(0, +) / Double(detectedPatterns.count)
+        
+        let quality: AnalysisQuality = {
+            if behaviorHistory.count < 10 { return .learning }
+            if avgConfidence < 0.5 { return .developing }
+            if avgConfidence < 0.7 { return .reliable }
+            return .excellent
+        }()
+        
+        uiMetrics = PatternUIMetrics(
+            totalPatternsDetected: detectedPatterns.count,
+            highConfidencePatterns: highConfidence,
+            actionableInsights: actionable,
+            averageConfidence: avgConfidence,
+            lastAnalysisDate: Date(),
+            analysisQuality: quality
+        )
+    }
+    
+    /// Generate immediate recommendation based on current event
+    private func generateImmediateRecommendation(for event: BehaviorEvent) {
+        switch event.type {
+        case .blockCompleted(let block, let success, _):
+            if success {
+                currentRecommendation = generateSuccessRecommendation(for: block)
+            } else {
+                currentRecommendation = generateImprovementRecommendation(for: block)
+            }
+        case .suggestionRejected(_, let reason):
+            if let reason = reason {
+                currentRecommendation = "Got it! I'll avoid suggesting \(reason) in similar contexts."
+            }
+        case .chainApplied(let chain):
+            currentRecommendation = "Nice! The '\(chain.name)' pattern worked well. Want to create a routine?"
+        default:
+            break
+        }
+        
+        // Clear recommendation after 30 seconds
+        Task {
+            try? await Task.sleep(nanoseconds: 30_000_000_000)
+            await MainActor.run {
+                self.currentRecommendation = nil
+            }
+        }
+    }
+    
+    private func generateSuccessRecommendation(for block: TimeBlockData) -> String {
+        let hour = Calendar.current.component(.hour, from: Date())
+        return "Great job completing \(block.emoji) \(block.title)! This \(block.energy.description.lowercased()) activity worked well at \(hour):00."
+    }
+    
+    private func generateImprovementRecommendation(for block: TimeBlockData) -> String {
+        return "No worries about \(block.emoji) \(block.title). Maybe try scheduling \(block.energy.description.lowercased()) activities at a different time?"
+    }
+    
+    /// Get suggestions for the action bar based on current patterns
+    func getActionBarSuggestion() -> String? {
+        if let recommendation = currentRecommendation {
+            return recommendation
+        }
+        
+        let topInsight = actionableInsights.first { !$0.isExpired }
+        return topInsight?.suggestedAction
+    }
+    
+    /// Create pattern-based suggestions for the UI
+    func createPatternBasedSuggestions(for context: DayContext) -> [Suggestion] {
+        var suggestions: [Suggestion] = []
+        let currentHour = Calendar.current.component(.hour, from: Date())
+        
+        // Temporal pattern suggestions
+        if let timePattern = detectedPatterns.first(where: { $0.type == .temporal && $0.confidence > 0.6 }) {
+            if case .temporal(let data) = timePattern.data {
+                if data.peakHours.contains(currentHour) || data.peakHours.contains(currentHour + 1) {
+                    suggestions.append(Suggestion(
+                        title: "Focus Session",
+                        duration: data.optimalSessionLength,
+                        suggestedTime: Date().addingTimeInterval(600), // 10 minutes from now
+                        energy: .sunrise,
+                        emoji: "💎",
+                        explanation: "Based on your peak productivity patterns",
+                        confidence: timePattern.confidence
+                    ))
+                }
             }
         }
         
@@ -440,36 +620,81 @@ class PatternLearningEngine: ObservableObject {
             duration: 3600,
             suggestedTime: Date().adding(minutes: 15),
             energy: suggestedEnergy,
-            flow: context.preferredFlows.first ?? .water,
+            emoji: "⚡",
             explanation: "Matched to your energy pattern preferences",
             confidence: pattern.confidence
         )
     }
     
-    // MARK: - Data Persistence
+    // MARK: - Enhanced Data Persistence
     
     private func loadPatterns() {
-        // Load from UserDefaults or file storage
-        // For now, we'll start with empty patterns
+        guard let documentsPath = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first else {
+            return
+        }
+        
+        let patternsURL = documentsPath.appendingPathComponent("patterns.json")
+        let historyURL = documentsPath.appendingPathComponent("behavior_history.json")
+        
+        // Load patterns
+        if let patternsData = try? Data(contentsOf: patternsURL) {
+            detectedPatterns = (try? JSONDecoder().decode([Pattern].self, from: patternsData)) ?? []
+        }
+        
+        // Load behavior history
+        if let historyData = try? Data(contentsOf: historyURL) {
+            behaviorHistory = (try? JSONDecoder().decode([BehaviorEvent].self, from: historyData)) ?? []
+        }
+        
+        print("✅ Loaded \(detectedPatterns.count) patterns and \(behaviorHistory.count) behavior events")
     }
     
     func savePatterns() {
-        // Save patterns to persistent storage
-        // Implementation would depend on chosen storage method
+        guard let documentsPath = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first else {
+            return
+        }
+        
+        let patternsURL = documentsPath.appendingPathComponent("patterns.json")
+        let historyURL = documentsPath.appendingPathComponent("behavior_history.json")
+        
+        do {
+            // Save patterns
+            let patternsData = try JSONEncoder().encode(detectedPatterns)
+            try patternsData.write(to: patternsURL)
+            
+            // Save behavior history (keep only recent events for performance)
+            let recentHistory = Array(behaviorHistory.suffix(maxHistorySize))
+            let historyData = try JSONEncoder().encode(recentHistory)
+            try historyData.write(to: historyURL)
+            
+            print("✅ Saved \(detectedPatterns.count) patterns and \(recentHistory.count) behavior events")
+        } catch {
+            print("❌ Failed to save patterns: \(error)")
+        }
     }
 }
 
 // MARK: - Data Models
 
-/// Represents a detected behavioral pattern
-struct Pattern: Identifiable {
+/// Enhanced pattern with proper Codable support and UI integration
+struct Pattern: Identifiable, Codable, Equatable {
     let id = UUID()
     let type: PatternType
+    let title: String
     let description: String
     let confidence: Double // 0.0 to 1.0
     let suggestion: String
-    let data: [String: Any] // Additional pattern data
+    let data: PatternData // Strongly typed data
+    var createdAt: Date
+    var lastUpdated: Date
+    let actionType: PatternActionType
+    let uiPriority: Int // 1-5, affects UI placement
     
+    private enum CodingKeys: String, CodingKey {
+        case id, type, title, description, confidence, suggestion, data, createdAt, lastUpdated, actionType, uiPriority
+    }
+    
+    // UI-friendly computed properties
     var confidenceText: String {
         switch confidence {
         case 0.9...: return "Very High"
@@ -479,24 +704,93 @@ struct Pattern: Identifiable {
         }
     }
     
-    /// Create a copy of this pattern with updated confidence
+    var confidenceColor: String {
+        switch confidence {
+        case 0.9...: return "green"
+        case 0.7..<0.9: return "blue"
+        case 0.5..<0.7: return "orange"
+        default: return "red"
+        }
+    }
+    
+    var emoji: String {
+        switch type {
+        case .temporal: return "⏰"
+        case .energy: return "⚡"
+        case .activity: return "🎯"
+        case .behavioral: return "🧠"
+        case .environmental: return "🌍"
+        }
+    }
+    
+    /// Create a copy with updated confidence
     func withUpdatedConfidence(_ newConfidence: Double) -> Pattern {
-        return Pattern(
+        var updated = Pattern(
             type: self.type,
+            title: self.title,
             description: self.description,
             confidence: newConfidence,
             suggestion: self.suggestion,
-            data: self.data
+            data: self.data,
+            actionType: self.actionType,
+            uiPriority: self.uiPriority
         )
+        // Preserve original creation date but update lastUpdated
+        updated.createdAt = self.createdAt
+        updated.lastUpdated = Date()
+        return updated
+    }
+    
+    init(type: PatternType, title: String, description: String, confidence: Double, suggestion: String, data: PatternData, actionType: PatternActionType = .suggestion, uiPriority: Int = 3) {
+        self.type = type
+        self.title = title
+        self.description = description
+        self.confidence = confidence
+        self.suggestion = suggestion
+        self.data = data
+        self.createdAt = Date()
+        self.lastUpdated = Date()
+        self.actionType = actionType
+        self.uiPriority = uiPriority
     }
 }
 
-enum PatternType: String, CaseIterable {
+enum PatternType: String, Codable, CaseIterable {
     case temporal = "Time-based"
     case energy = "Energy-based"
-    case flow = "Flow-based"
+    case activity = "Activity-based" // Updated from flow
     case behavioral = "Behavioral"
     case environmental = "Environmental"
+    
+    var description: String {
+        return rawValue
+    }
+    
+    var icon: String {
+        switch self {
+        case .temporal: return "clock"
+        case .energy: return "bolt"
+        case .activity: return "target"
+        case .behavioral: return "brain"
+        case .environmental: return "globe"
+        }
+    }
+}
+
+enum PatternActionType: String, Codable, CaseIterable {
+    case suggestion = "Suggestion"
+    case warning = "Warning"
+    case opportunity = "Opportunity"
+    case insight = "Insight"
+    
+    var color: String {
+        switch self {
+        case .suggestion: return "blue"
+        case .warning: return "orange"
+        case .opportunity: return "green"
+        case .insight: return "purple"
+        }
+    }
 }
 
 /// Actionable insight generated from patterns
@@ -527,25 +821,417 @@ enum InsightCategory: String, CaseIterable {
     case wellbeing = "Well-being"
 }
 
-/// Individual behavior event for analysis
-struct BehaviorEvent {
+/// Enhanced behavior event for comprehensive analysis
+struct BehaviorEvent: Codable, Identifiable {
+    let id = UUID()
     let timestamp: Date
     let type: BehaviorEventType
+    let context: EventContext
     
-    init(_ type: BehaviorEventType) {
+    private enum CodingKeys: String, CodingKey {
+        case id, timestamp, type, context
+    }
+    
+    init(_ type: BehaviorEventType, context: EventContext = EventContext()) {
         self.timestamp = Date()
         self.type = type
+        self.context = context
     }
 }
 
-enum BehaviorEventType {
-    case blockCreated(TimeBlock)
-    case blockCompleted(TimeBlock, success: Bool)
-    case blockModified(TimeBlock, changes: String)
-    case chainApplied(Chain)
-    case suggestionAccepted(Suggestion)
-    case suggestionRejected(Suggestion)
-    case dayReviewed(Day, rating: Int)
+struct EventContext: Codable {
+    let hour: Int
+    let dayOfWeek: Int
+    let energyLevel: EnergyType?
+    let mood: GlassMood?
+    let weatherCondition: String?
+    
+    init(energyLevel: EnergyType? = nil, mood: GlassMood? = nil, weatherCondition: String? = nil) {
+        self.hour = Calendar.current.component(.hour, from: Date())
+        self.dayOfWeek = Calendar.current.component(.weekday, from: Date())
+        self.energyLevel = energyLevel
+        self.mood = mood
+        self.weatherCondition = weatherCondition
+    }
+}
+
+enum BehaviorEventType: Codable {
+    case blockCreated(TimeBlockData)
+    case blockCompleted(TimeBlockData, success: Bool, actualDuration: TimeInterval?)
+    case blockModified(TimeBlockData, changes: String)
+    case chainApplied(ChainData)
+    case suggestionAccepted(SuggestionData)
+    case suggestionRejected(SuggestionData, reason: String?)
+    case dayReviewed(DayData, rating: Int)
+    case goalProgress(goalId: String, progress: Double)
+    case pillarActivated(pillarId: String, duration: TimeInterval)
+}
+
+// Simplified data structures for behavior tracking
+struct TimeBlockData: Codable {
+    let id: String
+    let title: String
+    let emoji: String
+    let energy: EnergyType
+    let duration: TimeInterval
+    let period: TimePeriod
+}
+
+struct ChainData: Codable {
+    let id: String
+    let name: String
+    let emoji: String
+    let blockCount: Int
+    let totalDuration: TimeInterval
+}
+
+struct SuggestionData: Codable {
+    let title: String
+    let emoji: String
+    let energy: EnergyType
+    let duration: TimeInterval
+    let confidence: Double
+}
+
+struct DayData: Codable {
+    let id: String
+    let date: Date
+    let mood: GlassMood
+    let blockCount: Int
+    let completionRate: Double
+}
+
+// MARK: - Strongly-Typed Pattern Data
+
+/// Codable pattern data that replaces [String: Any]
+enum PatternData: Codable, Equatable {
+    case temporal(TemporalData)
+    case energy(EnergyData)
+    case activity(ActivityData)
+    case behavioral(BehavioralData)
+    case environmental(EnvironmentalData)
+}
+
+struct TemporalData: Codable, Equatable {
+    let peakHours: [Int]
+    let productivityCurve: [HourlyProductivity]
+    let optimalSessionLength: TimeInterval
+    let preferredBreakDuration: TimeInterval
+    let bestDaysOfWeek: [Int]
+}
+
+struct HourlyProductivity: Codable, Equatable {
+    let hour: Int
+    let successRate: Double
+    let sampleSize: Int
+    let confidenceInterval: ConfidenceInterval
+    let averageDuration: TimeInterval
+}
+
+struct EnergyData: Codable, Equatable {
+    let energyTimeMatches: [EnergyTimeMatch]
+    let optimalEnergySequence: [EnergyType]
+    let energyTransitionPatterns: [EnergyTransition]
+    let dailyEnergyPeaks: [TimeInterval] // Times of day when energy is highest
+}
+
+struct EnergyTimeMatch: Codable, Equatable {
+    let energy: EnergyType
+    let hour: Int
+    let successRate: Double
+    let sampleSize: Int
+    let averageProductivity: Double
+}
+
+struct EnergyTransition: Codable, Equatable {
+    let from: EnergyType
+    let to: EnergyType
+    let averageDuration: TimeInterval
+    let successRate: Double
+    let optimalTiming: TimeInterval
+}
+
+struct ActivityData: Codable, Equatable {
+    let successfulSequences: [ActivitySequence]
+    let preferredDurations: [String: TimeInterval] // emoji -> preferred duration
+    let completionPatterns: [String: CompletionStats] // emoji -> stats
+    let glassStateEffectiveness: [GlassState: Double]
+}
+
+struct ActivitySequence: Codable, Equatable {
+    let emojis: [String]
+    let frequency: Int
+    let averageSuccessRate: Double
+    let totalSamples: Int
+    let averageSpacing: TimeInterval
+}
+
+struct CompletionStats: Codable, Equatable {
+    let completionRate: Double
+    let averageDuration: TimeInterval
+    let preferredTimeOfDay: [Int] // hours
+    let streakLength: Int
+}
+
+struct BehavioralData: Codable, Equatable {
+    let chainEffectiveness: ChainEffectiveness
+    let modificationPatterns: [String: Int]
+    let procrastinationTriggers: [ProcrastinationTrigger]
+    let motivationFactors: [MotivationFactor]
+}
+
+struct ChainEffectiveness: Codable, Equatable {
+    let averageCompletionRate: Double
+    let confidenceInterval: ConfidenceInterval
+    let sampleSize: Int
+    let bestPerformingChains: [String]
+    let optimalChainLength: Int
+}
+
+struct ProcrastinationTrigger: Codable, Equatable {
+    let trigger: String
+    let frequency: Int
+    let impactSeverity: Double
+    let timePattern: [Int] // hours when this occurs
+}
+
+struct MotivationFactor: Codable, Equatable {
+    let factor: String
+    let effectiveness: Double
+    let contextDependency: String
+    let sustainabilityRating: Double
+}
+
+struct EnvironmentalData: Codable, Equatable {
+    let seasonalPreferences: [Season: ActivityPreference]
+    let weatherImpact: [WeatherCondition: ProductivityImpact]
+    let timeContextEffects: [String: Double]
+}
+
+struct ActivityPreference: Codable, Equatable {
+    let preferredEmojis: [String]
+    let optimalDuration: TimeInterval
+    let energyAlignment: EnergyType
+    let frequency: Double
+}
+
+struct ProductivityImpact: Codable, Equatable {
+    let indoorProductivity: Double
+    let outdoorProductivity: Double
+    let energyEffect: Double
+    let moodEffect: Double
+}
+
+struct ConfidenceInterval: Codable, Equatable {
+    let lower: Double
+    let upper: Double
+    let level: Double // e.g., 0.95 for 95% confidence
+}
+
+// MARK: - UI Integration Models
+
+struct PatternUIMetrics: Codable {
+    var totalPatternsDetected: Int = 0
+    var highConfidencePatterns: Int = 0
+    var actionableInsights: Int = 0
+    var averageConfidence: Double = 0.0
+    var lastAnalysisDate: Date = Date()
+    var analysisQuality: AnalysisQuality = .learning
+    
+    var qualityDescription: String {
+        analysisQuality.description
+    }
+}
+
+enum AnalysisQuality: String, Codable, CaseIterable {
+    case learning = "Learning"
+    case developing = "Developing"
+    case reliable = "Reliable"
+    case excellent = "Excellent"
+    
+    var description: String {
+        switch self {
+        case .learning: return "Building understanding of your patterns"
+        case .developing: return "Patterns becoming clearer"
+        case .reliable: return "Strong pattern recognition"
+        case .excellent: return "Highly accurate insights"
+        }
+    }
+    
+    var color: String {
+        switch self {
+        case .learning: return "orange"
+        case .developing: return "yellow"
+        case .reliable: return "blue"
+        case .excellent: return "green"
+        }
+    }
+}
+
+struct ActionableInsight: Identifiable, Codable {
+    var id = UUID()
+    let title: String
+    let description: String
+    let actionType: InsightActionType
+    let priority: Int // 1-5
+    let confidence: Double
+    let suggestedAction: String
+    let context: String
+    let createdAt: Date
+    let expiresAt: Date?
+    
+    init(title: String, description: String, actionType: InsightActionType, priority: Int, confidence: Double, suggestedAction: String, context: String, expiresAt: Date? = nil) {
+        self.title = title
+        self.description = description
+        self.actionType = actionType
+        self.priority = priority
+        self.confidence = confidence
+        self.suggestedAction = suggestedAction
+        self.context = context
+        self.createdAt = Date()
+        self.expiresAt = expiresAt
+    }
+    
+    var isExpired: Bool {
+        guard let expiry = expiresAt else { return false }
+        return Date() > expiry
+    }
+}
+
+enum InsightActionType: String, Codable, CaseIterable {
+    case createBlock = "Create Block"
+    case modifySchedule = "Modify Schedule"
+    case createChain = "Create Chain"
+    case updateGoal = "Update Goal"
+    case createPillar = "Create Pillar"
+    case adjustEnergy = "Adjust Energy"
+    case optimizeTiming = "Optimize Timing"
+    
+    var emoji: String {
+        switch self {
+        case .createBlock: return "➕"
+        case .modifySchedule: return "📅"
+        case .createChain: return "🔗"
+        case .updateGoal: return "🎯"
+        case .createPillar: return "🏛️"
+        case .adjustEnergy: return "⚡"
+        case .optimizeTiming: return "⏰"
+        }
+    }
+}
+
+// MARK: - Statistical Analysis Engine
+
+struct StatisticalAnalyzer {
+    
+    /// Calculate confidence interval using t-distribution
+    static func confidenceInterval(values: [Double], level: Double = 0.95) -> ConfidenceInterval {
+        guard values.count >= 3 else {
+            return ConfidenceInterval(lower: 0, upper: 1, level: level)
+        }
+        
+        let mean = values.reduce(0, +) / Double(values.count)
+        let variance = values.map { pow($0 - mean, 2) }.reduce(0, +) / Double(values.count - 1)
+        let standardError = sqrt(variance / Double(values.count))
+        
+        // T-value approximation based on sample size
+        let tValue: Double = {
+            let df = values.count - 1
+            if df >= 30 { return 1.96 }
+            if df >= 20 { return 2.09 }
+            if df >= 10 { return 2.23 }
+            return 2.78
+        }()
+        
+        let margin = tValue * standardError
+        
+        return ConfidenceInterval(
+            lower: max(0, mean - margin),
+            upper: min(1, mean + margin),
+            level: level
+        )
+    }
+    
+    /// Apply exponential smoothing to a time series
+    static func exponentialSmoothing(values: [Double], alpha: Double = 0.3) -> [Double] {
+        guard !values.isEmpty else { return [] }
+        
+        var smoothed: [Double] = [values[0]]
+        
+        for i in 1..<values.count {
+            let smoothedValue = alpha * values[i] + (1 - alpha) * smoothed[i - 1]
+            smoothed.append(smoothedValue)
+        }
+        
+        return smoothed
+    }
+    
+    /// Detect trending patterns in data
+    static func detectTrend(values: [Double]) -> TrendAnalysis {
+        guard values.count >= 5 else {
+            return TrendAnalysis(direction: .stable, strength: 0, confidence: 0)
+        }
+        
+        // Simple linear regression
+        let n = Double(values.count)
+        let xValues = Array(0..<values.count).map(Double.init)
+        let xMean = xValues.reduce(0, +) / n
+        let yMean = values.reduce(0, +) / n
+        
+        let numerator = zip(xValues, values).map { ($0 - xMean) * ($1 - yMean) }.reduce(0, +)
+        let denominator = xValues.map { pow($0 - xMean, 2) }.reduce(0, +)
+        
+        let slope = denominator != 0 ? numerator / denominator : 0
+        
+        let direction: TrendDirection = {
+            if slope > 0.02 { return .increasing }
+            if slope < -0.02 { return .decreasing }
+            return .stable
+        }()
+        
+        let strength = min(1.0, abs(slope) * 10) // Normalize strength
+        let rSquared = calculateRSquared(values: values, slope: slope, intercept: yMean - slope * xMean)
+        
+        return TrendAnalysis(direction: direction, strength: strength, confidence: rSquared)
+    }
+    
+    private static func calculateRSquared(values: [Double], slope: Double, intercept: Double) -> Double {
+        let mean = values.reduce(0, +) / Double(values.count)
+        let totalSumSquares = values.map { pow($0 - mean, 2) }.reduce(0, +)
+        
+        let predictions = values.enumerated().map { index, _ in
+            slope * Double(index) + intercept
+        }
+        
+        let residualSumSquares = zip(values, predictions).map { pow($0 - $1, 2) }.reduce(0, +)
+        
+        return totalSumSquares != 0 ? max(0, 1 - (residualSumSquares / totalSumSquares)) : 0
+    }
+}
+
+enum TrendDirection: String, Codable {
+    case increasing = "Improving"
+    case decreasing = "Declining"
+    case stable = "Stable"
+    
+    var emoji: String {
+        switch self {
+        case .increasing: return "📈"
+        case .decreasing: return "📉"
+        case .stable: return "➡️"
+        }
+    }
+}
+
+struct TrendAnalysis: Codable {
+    let direction: TrendDirection
+    let strength: Double // 0.0 to 1.0
+    let confidence: Double // R-squared value
+    
+    var description: String {
+        let strengthText = strength > 0.7 ? "Strong" : strength > 0.4 ? "Moderate" : "Weak"
+        return "\(strengthText) \(direction.rawValue) trend"
+    }
 }
 
 // MARK: - Array Extension for Chunking
@@ -790,12 +1476,16 @@ enum DailyVibe: String, Codable, CaseIterable {
 }
 
 struct VibeData: Identifiable, Codable {
-    var id = UUID()
+    let id = UUID()
     let date: Date
     let vibe: DailyVibe
     let completionRate: Double
     let energyDistribution: [EnergyType: Double]
     let dominantActivities: [String]
+    
+    private enum CodingKeys: String, CodingKey {
+        case id, date, vibe, completionRate, energyDistribution, dominantActivities
+    }
 }
 
 enum Season: String, Codable, CaseIterable {
@@ -820,26 +1510,45 @@ struct SeasonalPattern: Identifiable, Codable {
     var dominantVibes: [DailyVibe: Int]
     var suggestedActivities: [String]
     var lastObserved: Date
+    
+    private enum CodingKeys: String, CodingKey {
+        case id, season, dominantVibes, suggestedActivities, lastObserved
+    }
 }
 
 #if DEBUG
 extension PatternLearningEngine {
     static var preview: PatternLearningEngine {
         let engine = PatternLearningEngine()
+        let temporalData = TemporalData(
+            peakHours: [9, 10, 14],
+            productivityCurve: [],
+            optimalSessionLength: 3600,
+            preferredBreakDuration: 900,
+            bestDaysOfWeek: []
+        )
+        let activityData = ActivityData(
+            successfulSequences: [],
+            preferredDurations: [:],
+            completionPatterns: [:],
+            glassStateEffectiveness: [:]
+        )
         engine.detectedPatterns = [
             Pattern(
                 type: .temporal,
+                title: "Peak Focus Hours",
                 description: "Peak focus hours: 9:00, 10:00, 14:00",
                 confidence: 0.85,
                 suggestion: "Schedule important work during these hours",
-                data: ["hours": [9, 10, 14]]
+                data: .temporal(temporalData)
             ),
             Pattern(
-                type: .flow,
+                type: .activity,
+                title: "Activity Sequence",
                 description: "Effective sequence: Crystal→Water→Mist",
                 confidence: 0.72,
                 suggestion: "Follow this activity progression",
-                data: ["sequence": "Crystal→Water→Mist"]
+                data: .activity(activityData)
             )
         ]
         engine.insights = [
@@ -851,7 +1560,7 @@ extension PatternLearningEngine {
                 category: .timing
             )
         ]
-        engine.confidence = 0.78
+        engine.confidence = 0.78 
         return engine
     }
 }

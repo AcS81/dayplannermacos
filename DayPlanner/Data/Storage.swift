@@ -159,7 +159,13 @@ class AppDataManager: ObservableObject {
     
     func updatePillar(_ pillar: Pillar) {
         if let index = appState.pillars.firstIndex(where: { $0.id == pillar.id }) {
+            let oldPillar = appState.pillars[index]
             appState.pillars[index] = pillar
+            
+            // If emoji changed, propagate to related items
+            if oldPillar.emoji != pillar.emoji {
+                propagateEmojiFromPillar(pillar)
+            }
             save()
         }
     }
@@ -185,7 +191,7 @@ class AppDataManager: ObservableObject {
                     startTime: slot.startTime,
                     duration: duration,
                     energy: .daylight, // Default, could be enhanced
-                    flow: .crystal, // Default for pillar activities
+                    emoji: "💎", // Default for pillar activities
                     explanation: "Auto-suggested based on \(pillar.name) pillar"
                 )
                 
@@ -212,7 +218,7 @@ class AppDataManager: ObservableObject {
             date: date,
             existingBlocks: appState.currentDay.blocks,
             currentEnergy: .daylight,
-            preferredFlows: [.water],
+            preferredEmojis: ["🌊"],
             availableTime: 3600,
             mood: appState.currentDay.mood,
             weatherContext: weatherService.getWeatherContext(),
@@ -374,7 +380,7 @@ class AppDataManager: ObservableObject {
                 startTime: currentTime,
                 duration: chainBlock.duration,
                 energy: chainBlock.energy,
-                flow: chainBlock.flow,
+                emoji: chainBlock.emoji,
                 glassState: .mist, // Start as suggestion
                 isStaged: true,
                 stagedBy: "Chain Application",
@@ -437,7 +443,7 @@ class AppDataManager: ObservableObject {
     func applySuggestion(_ suggestion: Suggestion) {
         let block = suggestion.toTimeBlock()
         stageBlock(block, explanation: suggestion.explanation, stagedBy: "Suggestion")
-        setActionBarMessage("I suggest: \(suggestion.title) for \(suggestion.duration.minutes) minutes. This would help with your \(suggestion.flow.rawValue) energy flow.")
+        setActionBarMessage("I suggest: \(suggestion.title) for \(suggestion.duration.minutes) minutes. \(suggestion.emoji) This aligns with your current energy pattern.")
     }
     
     // MARK: - Legacy Staging Support (deprecated - use stageBlock instead)
@@ -526,7 +532,7 @@ class AppDataManager: ObservableObject {
                 date: appState.currentDay.date,
                 existingBlocks: appState.currentDay.blocks,
                 currentEnergy: .daylight,
-                preferredFlows: [.water],
+                preferredEmojis: ["🌊"],
                 availableTime: 0,
                 mood: appState.currentDay.mood,
                 weatherContext: weatherService.getWeatherContext()
@@ -675,7 +681,13 @@ class AppDataManager: ObservableObject {
     
     func updateGoal(_ goal: Goal) {
         if let index = appState.goals.firstIndex(where: { $0.id == goal.id }) {
+            let oldGoal = appState.goals[index]
             appState.goals[index] = goal
+            
+            // If emoji changed, propagate to related items
+            if oldGoal.emoji != goal.emoji {
+                propagateEmojiFromGoal(goal)
+            }
         }
         save()
     }
@@ -708,6 +720,167 @@ class AppDataManager: ObservableObject {
             
             appState.goals[goalIndex].progress = allTasks.isEmpty ? 0.0 : Double(completedTasks.count) / Double(allTasks.count)
         }
+    }
+    
+    // MARK: - Emoji Propagation & Relationship Management
+    
+    /// Propagate emoji changes from a goal to all related items
+    func propagateEmojiFromGoal(_ goal: Goal) {
+        // Update related chains
+        for i in 0..<appState.recentChains.count {
+            if appState.recentChains[i].relatedGoalId == goal.id {
+                appState.recentChains[i].emoji = goal.emoji
+            }
+        }
+        
+        // Update related time blocks
+        for i in 0..<appState.currentDay.blocks.count {
+            if appState.currentDay.blocks[i].relatedGoalId == goal.id {
+                appState.currentDay.blocks[i].emoji = goal.emoji
+            }
+        }
+        
+        // Update staged blocks
+        for i in 0..<appState.stagedBlocks.count {
+            if appState.stagedBlocks[i].relatedGoalId == goal.id {
+                appState.stagedBlocks[i].emoji = goal.emoji
+            }
+        }
+        
+        // Update related pillars
+        for i in 0..<appState.pillars.count {
+            if appState.pillars[i].relatedGoalId == goal.id {
+                appState.pillars[i].emoji = goal.emoji
+            }
+        }
+    }
+    
+    /// Propagate emoji changes from a pillar to all related items
+    func propagateEmojiFromPillar(_ pillar: Pillar) {
+        // Update related chains
+        for i in 0..<appState.recentChains.count {
+            if appState.recentChains[i].relatedPillarId == pillar.id {
+                appState.recentChains[i].emoji = pillar.emoji
+            }
+        }
+        
+        // Update related time blocks
+        for i in 0..<appState.currentDay.blocks.count {
+            if appState.currentDay.blocks[i].relatedPillarId == pillar.id {
+                appState.currentDay.blocks[i].emoji = pillar.emoji
+            }
+        }
+        
+        // Update staged blocks
+        for i in 0..<appState.stagedBlocks.count {
+            if appState.stagedBlocks[i].relatedPillarId == pillar.id {
+                appState.stagedBlocks[i].emoji = pillar.emoji
+            }
+        }
+        
+        // Update related goals
+        for i in 0..<appState.goals.count {
+            if appState.goals[i].relatedPillarIds.contains(pillar.id) {
+                appState.goals[i].emoji = pillar.emoji
+            }
+        }
+    }
+    
+    /// Create a time block with proper emoji inheritance from related goals/pillars
+    func createTimeBlockWithInheritedEmoji(title: String, startTime: Date, duration: TimeInterval, energy: EnergyType, relatedGoalId: UUID? = nil, relatedPillarId: UUID? = nil) -> TimeBlock {
+        
+        // Determine emoji from relationships
+        var emoji = "📋" // default
+        
+        if let goalId = relatedGoalId, let goal = appState.goals.first(where: { $0.id == goalId }) {
+            emoji = goal.emoji
+        } else if let pillarId = relatedPillarId, let pillar = appState.pillars.first(where: { $0.id == pillarId }) {
+            emoji = pillar.emoji
+        }
+        
+        return TimeBlock(
+            title: title,
+            startTime: startTime,
+            duration: duration,
+            energy: energy,
+            emoji: emoji,
+            relatedGoalId: relatedGoalId,
+            relatedPillarId: relatedPillarId
+        )
+    }
+    
+    /// Create a chain with proper emoji inheritance from related goals/pillars
+    func createChainWithInheritedEmoji(name: String, blocks: [TimeBlock], flowPattern: FlowPattern, relatedGoalId: UUID? = nil, relatedPillarId: UUID? = nil) -> Chain {
+        
+        // Determine emoji from relationships
+        var emoji = "🔗" // default
+        
+        if let goalId = relatedGoalId, let goal = appState.goals.first(where: { $0.id == goalId }) {
+            emoji = goal.emoji
+        } else if let pillarId = relatedPillarId, let pillar = appState.pillars.first(where: { $0.id == pillarId }) {
+            emoji = pillar.emoji
+        }
+        
+        return Chain(
+            name: name,
+            blocks: blocks,
+            flowPattern: flowPattern,
+            emoji: emoji,
+            relatedGoalId: relatedGoalId,
+            relatedPillarId: relatedPillarId
+        )
+    }
+    
+    /// Link a time block to a goal and inherit its emoji
+    func linkTimeBlockToGoal(_ blockId: UUID, goalId: UUID) {
+        // Update current day blocks
+        if let blockIndex = appState.currentDay.blocks.firstIndex(where: { $0.id == blockId }) {
+            appState.currentDay.blocks[blockIndex].relatedGoalId = goalId
+            if let goal = appState.goals.first(where: { $0.id == goalId }) {
+                appState.currentDay.blocks[blockIndex].emoji = goal.emoji
+            }
+        }
+        
+        // Update staged blocks
+        if let stagedIndex = appState.stagedBlocks.firstIndex(where: { $0.id == blockId }) {
+            appState.stagedBlocks[stagedIndex].relatedGoalId = goalId
+            if let goal = appState.goals.first(where: { $0.id == goalId }) {
+                appState.stagedBlocks[stagedIndex].emoji = goal.emoji
+            }
+        }
+        
+        save()
+    }
+    
+    /// Link a time block to a pillar and inherit its emoji
+    func linkTimeBlockToPillar(_ blockId: UUID, pillarId: UUID) {
+        // Update current day blocks
+        if let blockIndex = appState.currentDay.blocks.firstIndex(where: { $0.id == blockId }) {
+            appState.currentDay.blocks[blockIndex].relatedPillarId = pillarId
+            if let pillar = appState.pillars.first(where: { $0.id == pillarId }) {
+                appState.currentDay.blocks[blockIndex].emoji = pillar.emoji
+            }
+        }
+        
+        // Update staged blocks
+        if let stagedIndex = appState.stagedBlocks.firstIndex(where: { $0.id == blockId }) {
+            appState.stagedBlocks[stagedIndex].relatedPillarId = pillarId
+            if let pillar = appState.pillars.first(where: { $0.id == pillarId }) {
+                appState.stagedBlocks[stagedIndex].emoji = pillar.emoji
+            }
+        }
+        
+        save()
+    }
+    
+    /// Get all items related to a specific emoji (for consistency checking)
+    func getItemsWithEmoji(_ emoji: String) -> (goals: [Goal], pillars: [Pillar], chains: [Chain], blocks: [TimeBlock]) {
+        let goals = appState.goals.filter { $0.emoji == emoji }
+        let pillars = appState.pillars.filter { $0.emoji == emoji }
+        let chains = appState.recentChains.filter { $0.emoji == emoji }
+        let blocks = appState.currentDay.blocks.filter { $0.emoji == emoji }
+        
+        return (goals: goals, pillars: pillars, chains: chains, blocks: blocks)
     }
     
 }
@@ -785,7 +958,7 @@ class EventKitService: ObservableObject {
         event.title = timeBlock.title
         event.startDate = timeBlock.startTime
         event.endDate = timeBlock.endTime
-        event.notes = "Created by DayPlanner\nEnergy: \(timeBlock.energy.description)\nFlow: \(timeBlock.flow.description)"
+        event.notes = "Created by DayPlanner\nEnergy: \(timeBlock.energy.description)\nCategory: \(timeBlock.emoji)"
         
         // Use default calendar
         event.calendar = eventStore.defaultCalendarForNewEvents

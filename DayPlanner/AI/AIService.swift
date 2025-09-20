@@ -252,6 +252,15 @@ class AIService: ObservableObject {
         return response.suggestions
     }
     
+    /// Generate chain suggestions based on event context and available gaps
+    func generateChains(prompt: String, eventContext: TimeBlock, availableGapBefore: TimeInterval, availableGapAfter: TimeInterval) async throws -> [Chain] {
+        isProcessing = true
+        defer { isProcessing = false }
+        
+        let completion = try await generateCompletion(prompt: prompt)
+        return try parseChainResponse(completion)
+    }
+    
     // MARK: - Private Methods
     
     private func buildPrompt(message: String, context: DayContext) -> String {
@@ -289,7 +298,7 @@ class AIService: ObservableObject {
                     "explanation": "Brief reason why this aligns with their principles and current context",
                     "duration": 60,
                     "energy": "sunrise|daylight|moonlight",
-                    "flow": "crystal|water|mist",
+                    "emoji": "📋|💼|🎯|💡|🏃‍♀️|🍽️|etc",
                     "confidence": 0.8
                 }
             ]
@@ -368,7 +377,7 @@ class AIService: ObservableObject {
                     duration: TimeInterval(suggestionJSON.duration * 60), // Convert minutes to seconds
                     suggestedTime: Date(), // Will be set when applied
                     energy: EnergyType(rawValue: suggestionJSON.energy) ?? .daylight,
-                    flow: FlowState(rawValue: suggestionJSON.flow) ?? .water,
+                    emoji: suggestionJSON.emoji,
                     explanation: suggestionJSON.explanation,
                     confidence: suggestionJSON.confidence
                 )
@@ -385,6 +394,68 @@ class AIService: ObservableObject {
                 text: cleanContent,
                 suggestions: []
             )
+        }
+    }
+    
+    private func parseChainResponse(_ content: String) throws -> [Chain] {
+        // Clean up the response - sometimes models add markdown formatting
+        let cleanContent = content
+            .replacingOccurrences(of: "```json", with: "")
+            .replacingOccurrences(of: "```", with: "")
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        
+        guard let data = cleanContent.data(using: .utf8) else {
+            throw AIError.invalidResponse
+        }
+        
+        do {
+            let chainJSONArray = try JSONSerialization.jsonObject(with: data) as? [[String: Any]]
+            var chains: [Chain] = []
+            
+            for chainJSON in chainJSONArray ?? [] {
+                guard let name = chainJSON["name"] as? String,
+                      let emoji = chainJSON["emoji"] as? String,
+                      let blocksJSON = chainJSON["blocks"] as? [[String: Any]] else {
+                    continue
+                }
+                
+                let _ = chainJSON["description"] as? String
+                var blocks: [TimeBlock] = []
+                
+                for blockJSON in blocksJSON {
+                    guard let title = blockJSON["title"] as? String,
+                          let duration = blockJSON["duration"] as? TimeInterval,
+                          let energyLevel = blockJSON["energyLevel"] as? Int,
+                          let blockEmoji = blockJSON["emoji"] as? String else {
+                        continue
+                    }
+                    
+                    // Map energyLevel to EnergyType
+                    let energy: EnergyType = energyLevel >= 8 ? .daylight : 
+                                           energyLevel >= 5 ? .sunrise : .moonlight
+                    
+                    let timeBlock = TimeBlock(
+                        title: title,
+                        startTime: Date(),
+                        duration: duration,
+                        energy: energy,
+                        emoji: blockEmoji
+                    )
+                    blocks.append(timeBlock)
+                }
+                
+                let chain = Chain(
+                    name: name,
+                    blocks: blocks,
+                    flowPattern: .waterfall,
+                    emoji: emoji
+                )
+                chains.append(chain)
+            }
+            
+            return chains
+        } catch {
+            throw AIError.invalidResponse
         }
     }
 }
@@ -406,7 +477,7 @@ private struct SuggestionJSON: Codable {
     let explanation: String
     let duration: Int // in minutes
     let energy: String
-    let flow: String
+    let emoji: String
     let confidence: Double
 }
 
@@ -443,7 +514,7 @@ extension AIService {
                 duration: 1800, // 30 minutes
                 suggestedTime: Date().setting(hour: 8) ?? Date(),
                 energy: .sunrise,
-                flow: .mist,
+                emoji: "☕",
                 explanation: "Start your day mindfully",
                 confidence: 0.9
             ),
@@ -452,7 +523,7 @@ extension AIService {
                 duration: 5400, // 90 minutes  
                 suggestedTime: Date().setting(hour: 9) ?? Date(),
                 energy: .sunrise,
-                flow: .crystal,
+                emoji: "💼",
                 explanation: "Take advantage of morning focus",
                 confidence: 0.8
             )
@@ -474,7 +545,7 @@ extension AIService {
                     date: Date(),
                     existingBlocks: [],
                     currentEnergy: .daylight,
-                    preferredFlows: [.water],
+                    preferredEmojis: ["🌊"],
                     availableTime: 3600,
                     mood: .crystal
                 )

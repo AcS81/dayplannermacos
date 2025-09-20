@@ -489,62 +489,9 @@ struct ChainDetailView: View {
         NavigationView {
             ScrollView {
                 VStack(alignment: .leading, spacing: 16) {
-                    // Chain info
-                    VStack(alignment: .leading, spacing: 8) {
-                        Text("Chain Details")
-                            .font(.headline)
-                        
-                        HStack {
-                            Label("Duration", systemImage: "clock")
-                            Spacer()
-                            Text("\(chain.totalDurationMinutes) minutes")
-                        }
-                        
-                        HStack {
-                            Label("Activities", systemImage: "link")
-                            Spacer()
-                            Text("\(chain.blocks.count)")
-                        }
-                        
-                        HStack {
-                            Label("Pattern", systemImage: "waveform")
-                            Spacer()
-                            Text(chain.flowPattern.description)
-                        }
-                    }
-                    
+                    chainInfoSection
                     Divider()
-                    
-                    // Activities list
-                    VStack(alignment: .leading, spacing: 8) {
-                        Text("Activities")
-                            .font(.headline)
-                        
-                        ForEach(Array(chain.blocks.enumerated()), id: \.element.id) { index, block in
-                            HStack {
-                                Text("\(index + 1)")
-                                    .font(.caption)
-                                    .foregroundColor(.secondary)
-                                    .frame(width: 20)
-                                
-                                VStack(alignment: .leading, spacing: 2) {
-                                    Text(block.title)
-                                        .font(.subheadline)
-                                    Text("\(block.durationMinutes) min")
-                                        .font(.caption)
-                                        .foregroundColor(.secondary)
-                                }
-                                
-                                Spacer()
-                                
-                                HStack(spacing: 4) {
-                                    Text(block.energy.rawValue)
-                                    Text(block.flow.rawValue)
-                                }
-                            }
-                            .padding(.vertical, 4)
-                        }
-                    }
+                    activitiesSection
                 }
                 .padding(24)
             }
@@ -558,6 +505,67 @@ struct ChainDetailView: View {
             }
         }
         .frame(width: 500, height: 600)
+    }
+    
+    private var chainInfoSection: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text("Chain Details")
+                .font(.headline)
+            
+            HStack {
+                Label("Duration", systemImage: "clock")
+                Spacer()
+                Text("\(chain.totalDurationMinutes) minutes")
+            }
+            
+            HStack {
+                Label("Activities", systemImage: "link")
+                Spacer()
+                Text("\(chain.blocks.count)")
+            }
+            
+            HStack {
+                Label("Pattern", systemImage: "waveform")
+                Spacer()
+                Text(chain.flowPattern.description)
+            }
+        }
+    }
+    
+    private var activitiesSection: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text("Activities")
+                .font(.headline)
+            
+            ForEach(Array(chain.blocks.enumerated()), id: \.element.id) { index, block in
+                activityRow(index: index, block: block)
+            }
+        }
+    }
+    
+    private func activityRow(index: Int, block: TimeBlock) -> some View {
+        HStack {
+            Text("\(index + 1)")
+                .font(.caption)
+                .foregroundColor(.secondary)
+                .frame(width: 20)
+            
+            VStack(alignment: .leading, spacing: 2) {
+                Text(block.title)
+                    .font(.subheadline)
+                Text("\(block.durationMinutes) min")
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+            }
+            
+            Spacer()
+            
+            HStack(spacing: 4) {
+                Text(block.energy.rawValue)
+                Text(block.emoji)
+            }
+        }
+        .padding(.vertical, 4)
     }
 }
 

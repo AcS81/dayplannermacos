@@ -18,7 +18,7 @@ struct TimeBlock: Identifiable, Codable, Equatable, Transferable {
     var startTime: Date
     var duration: TimeInterval // in seconds
     var energy: EnergyType
-    var flow: FlowState
+    var emoji: String // Visual identifier - replaces old flow system
     var glassState: GlassState = .solid
     var position: CGPoint = .zero // for drag interactions
     var isStaged: Bool = false // PRD requirement: staged until committed
@@ -26,7 +26,6 @@ struct TimeBlock: Identifiable, Codable, Equatable, Transferable {
     var explanation: String? // One-line "Why this?" explanation
     var relatedGoalId: UUID? // Link to related goal
     var relatedPillarId: UUID? // Link to related pillar
-    var emoji: String? // Visual identifier (inherited from goal/pillar if related)
     
     // Computed properties
     var endTime: Date {
@@ -48,6 +47,77 @@ struct TimeBlock: Identifiable, Codable, Equatable, Transferable {
         default:
             return .evening
         }
+    }
+    
+    // MARK: - Initializers
+    
+    init(id: UUID = UUID(), title: String, startTime: Date, duration: TimeInterval, energy: EnergyType, emoji: String, glassState: GlassState = .solid, position: CGPoint = .zero, isStaged: Bool = false, stagedBy: String? = nil, explanation: String? = nil, relatedGoalId: UUID? = nil, relatedPillarId: UUID? = nil) {
+        self.id = id
+        self.title = title
+        self.startTime = startTime
+        self.duration = duration
+        self.energy = energy
+        self.emoji = emoji
+        self.glassState = glassState
+        self.position = position
+        self.isStaged = isStaged
+        self.stagedBy = stagedBy
+        self.explanation = explanation
+        self.relatedGoalId = relatedGoalId
+        self.relatedPillarId = relatedPillarId
+    }
+    
+    // MARK: - Backward Compatibility & Migration
+    
+    private enum CodingKeys: String, CodingKey {
+        case id, title, startTime, duration, energy, emoji, glassState, position, isStaged, stagedBy, explanation, relatedGoalId, relatedPillarId
+        case flow // Old system - for backward compatibility
+    }
+    
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        
+        id = try container.decodeIfPresent(UUID.self, forKey: .id) ?? UUID()
+        title = try container.decode(String.self, forKey: .title)
+        startTime = try container.decode(Date.self, forKey: .startTime)
+        duration = try container.decode(TimeInterval.self, forKey: .duration)
+        energy = try container.decode(EnergyType.self, forKey: .energy)
+        glassState = try container.decodeIfPresent(GlassState.self, forKey: .glassState) ?? .solid
+        position = try container.decodeIfPresent(CGPoint.self, forKey: .position) ?? .zero
+        isStaged = try container.decodeIfPresent(Bool.self, forKey: .isStaged) ?? false
+        stagedBy = try container.decodeIfPresent(String.self, forKey: .stagedBy)
+        explanation = try container.decodeIfPresent(String.self, forKey: .explanation)
+        relatedGoalId = try container.decodeIfPresent(UUID.self, forKey: .relatedGoalId)
+        relatedPillarId = try container.decodeIfPresent(UUID.self, forKey: .relatedPillarId)
+        
+        // Handle migration from old flow system to emoji system
+        if let existingEmoji = try container.decodeIfPresent(String.self, forKey: .emoji), !existingEmoji.isEmpty {
+            emoji = existingEmoji
+        } else if let oldFlow = try container.decodeIfPresent(FlowState.self, forKey: .flow) {
+            // Migrate from old flow system
+            emoji = oldFlow.rawValue
+        } else {
+            // Default emoji for very old data
+            emoji = "📋"
+        }
+    }
+    
+    func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        
+        try container.encode(id, forKey: .id)
+        try container.encode(title, forKey: .title)
+        try container.encode(startTime, forKey: .startTime)
+        try container.encode(duration, forKey: .duration)
+        try container.encode(energy, forKey: .energy)
+        try container.encode(emoji, forKey: .emoji)
+        try container.encode(glassState, forKey: .glassState)
+        try container.encode(position, forKey: .position)
+        try container.encode(isStaged, forKey: .isStaged)
+        try container.encodeIfPresent(stagedBy, forKey: .stagedBy)
+        try container.encodeIfPresent(explanation, forKey: .explanation)
+        try container.encodeIfPresent(relatedGoalId, forKey: .relatedGoalId)
+        try container.encodeIfPresent(relatedPillarId, forKey: .relatedPillarId)
     }
     
     // MARK: - Transferable Conformance
@@ -402,17 +472,17 @@ struct Suggestion: Identifiable, Codable {
     var duration: TimeInterval
     var suggestedTime: Date
     var energy: EnergyType
-    var flow: FlowState
+    var emoji: String
     var explanation: String
     var confidence: Double // 0.0 to 1.0
     
-    init(id: UUID = UUID(), title: String, duration: TimeInterval, suggestedTime: Date, energy: EnergyType, flow: FlowState, explanation: String, confidence: Double) {
+    init(id: UUID = UUID(), title: String, duration: TimeInterval, suggestedTime: Date, energy: EnergyType, emoji: String, explanation: String, confidence: Double) {
         self.id = id
         self.title = title
         self.duration = duration
         self.suggestedTime = suggestedTime
         self.energy = energy
-        self.flow = flow
+        self.emoji = emoji
         self.explanation = explanation
         self.confidence = confidence
     }
@@ -423,7 +493,7 @@ struct Suggestion: Identifiable, Codable {
             startTime: suggestedTime,
             duration: duration,
             energy: energy,
-            flow: flow,
+            emoji: emoji,
             glassState: .crystal
         )
     }
@@ -434,18 +504,18 @@ struct DayContext: Codable {
     let date: Date
     let existingBlocks: [TimeBlock]
     let currentEnergy: EnergyType
-    let preferredFlows: [FlowState]
+    let preferredEmojis: [String]
     let availableTime: TimeInterval
     let mood: GlassMood
     let weatherContext: String?
     let pillarGuidance: [String] // New: guidance from principle pillars
     let actionablePillars: [Pillar] // New: pillars that can create events
     
-    init(date: Date, existingBlocks: [TimeBlock], currentEnergy: EnergyType, preferredFlows: [FlowState], availableTime: TimeInterval, mood: GlassMood, weatherContext: String? = nil, pillarGuidance: [String] = [], actionablePillars: [Pillar] = []) {
+    init(date: Date, existingBlocks: [TimeBlock], currentEnergy: EnergyType, preferredEmojis: [String], availableTime: TimeInterval, mood: GlassMood, weatherContext: String? = nil, pillarGuidance: [String] = [], actionablePillars: [Pillar] = []) {
         self.date = date
         self.existingBlocks = existingBlocks
         self.currentEnergy = currentEnergy
-        self.preferredFlows = preferredFlows
+        self.preferredEmojis = preferredEmojis
         self.availableTime = availableTime
         self.mood = mood
         self.weatherContext = weatherContext
@@ -534,7 +604,7 @@ struct UserPreferences: Codable {
     var preferredEndTime: Date = Calendar.current.date(bySettingHour: 22, minute: 0, second: 0, of: Date()) ?? Date()
     var defaultBlockDuration: TimeInterval = 3600 // 1 hour
     var favoriteEnergy: EnergyType = .daylight
-    var favoriteFlow: FlowState = .water
+    var favoriteEmoji: String = "📋"
     var enableVoice: Bool = true
     var enableAnimations: Bool = true
     
@@ -1139,5 +1209,5 @@ struct QuickTemplate {
     let icon: String
     let duration: TimeInterval
     let energy: EnergyType
-    let flow: FlowState
+    let emoji: String
 }

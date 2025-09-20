@@ -50,7 +50,7 @@ struct DayPlannerApp: App {
                         startTime: now,
                         duration: 3600, // 1 hour
                         energy: .daylight,
-                        flow: .water
+                        emoji: "📋"
                     )
                     // Note: Would need to access dataManager here in a real implementation
                 }
@@ -1277,7 +1277,7 @@ struct ChainEditView: View {
                             startTime: Date(),
                             duration: 30 * 60,
                             energy: .daylight,
-                            flow: .water
+                            emoji: "📋"
                         )
                         blocks.append(newBlock)
                     }
@@ -1447,7 +1447,7 @@ struct CalendarPanel: View {
             
             // Month view (expandable/collapsible)
             if showingMonthView {
-                MonthViewExpanded(selectedDate: $selectedDate)
+                MonthViewExpanded(selectedDate: $selectedDate, dataManager: dataManager)
                     .frame(height: 280)
                     .transition(.asymmetric(
                         insertion: .opacity.combined(with: .scale(scale: 0.95)).combined(with: .move(edge: .top)),
@@ -2105,7 +2105,7 @@ struct PreciseEventCard: View {
                 VStack(spacing: 1) {
                     Text(block.energy.rawValue)
                         .font(.caption)
-                    Text(block.flow.rawValue)
+                    Text(block.emoji)
                         .font(.caption2)
                 }
                 .opacity(0.8)
@@ -2114,8 +2114,8 @@ struct PreciseEventCard: View {
                 // Block content
                 VStack(alignment: .leading, spacing: 2) {
                     HStack(spacing: 6) {
-                        if let emoji = block.emoji {
-                            Text(emoji)
+                        if !block.emoji.isEmpty {
+                            Text(block.emoji)
                                 .font(.caption)
                         }
                         
@@ -2180,7 +2180,7 @@ struct PreciseEventCard: View {
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(
             RoundedRectangle(cornerRadius: 8)
-                .fill(block.flow.material.opacity(0.85))
+                .fill(.regularMaterial.opacity(0.85))
                 .overlay(
                     RoundedRectangle(cornerRadius: 8)
                         .strokeBorder(
@@ -2326,7 +2326,7 @@ struct FixedPositionEventCard: View {
                     VStack(spacing: 2) {
                         Text(block.energy.rawValue)
                             .font(.caption)
-                        Text(block.flow.rawValue)
+                        Text(block.emoji)
                             .font(.caption)
                     }
                     .opacity(0.8)
@@ -2384,7 +2384,7 @@ struct FixedPositionEventCard: View {
             .frame(maxWidth: .infinity)
             .background(
                 RoundedRectangle(cornerRadius: 8)
-                    .fill(block.flow.material.opacity(0.9))
+                    .fill(.regularMaterial.opacity(0.9))
                     .overlay(
                         RoundedRectangle(cornerRadius: 8)
                             .strokeBorder(
@@ -2652,7 +2652,7 @@ struct FixedEventDetailsSheet: View {
                     startTime: Date(),
                     duration: chainDuration,
                     energy: block.energy,
-                    flow: block.flow
+                    emoji: block.emoji
                 )
             ],
             flowPattern: .waterfall
@@ -2833,7 +2833,7 @@ struct NoFlashEventDetailsSheet: View {
                     startTime: Date(),
                     duration: chainDuration,
                     energy: block.energy,
-                    flow: block.flow
+                    emoji: block.emoji
                 )
             ],
             flowPattern: .waterfall
@@ -2903,9 +2903,9 @@ struct StaticEventDetailsTab: View {
                     }
                     .pickerStyle(.menu)
                     
-                    Picker("Flow", selection: $block.flow) {
-                        ForEach(FlowState.allCases, id: \.self) { flow in
-                            Text("\(flow.rawValue) \(flow.description)").tag(flow)
+                    Picker("Emoji", selection: $block.emoji) {
+                        ForEach(["📋", "💎", "🌊", "☁️", "🎯", "💪", "🧠", "🎨"], id: \.self) { emoji in
+                            Text(emoji).tag(emoji)
                         }
                     }
                     .pickerStyle(.menu)
@@ -3238,7 +3238,7 @@ struct CleanEventCard: View {
                 VStack(spacing: 1) {
                     Text(block.energy.rawValue)
                         .font(.caption)
-                    Text(block.flow.rawValue)
+                    Text(block.emoji)
                         .font(.caption2)
                 }
                 .opacity(0.8)
@@ -3289,7 +3289,7 @@ struct CleanEventCard: View {
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(
             RoundedRectangle(cornerRadius: 8)
-                .fill(block.flow.material.opacity(0.8))
+                .fill(.regularMaterial.opacity(0.8))
                 .overlay(
                     RoundedRectangle(cornerRadius: 8)
                         .strokeBorder(
@@ -3572,7 +3572,7 @@ struct EnhancedTimeBlockCard: View {
                 VStack(spacing: 2) {
                     Text(block.energy.rawValue)
                         .font(.title3)
-                    Text(block.flow.rawValue)
+                    Text(block.emoji)
                         .font(.caption)
                 }
                 .opacity(0.8)
@@ -3625,7 +3625,7 @@ struct EnhancedTimeBlockCard: View {
             .padding(.vertical, 8)
             .background(
                 RoundedRectangle(cornerRadius: 10, style: .continuous)
-                    .fill(block.flow.material.opacity(0.8))
+                    .fill(.regularMaterial.opacity(0.8))
                     .overlay(
                         RoundedRectangle(cornerRadius: 10, style: .continuous)
                             .strokeBorder(
@@ -3965,10 +3965,10 @@ struct EventDetailsTab: View {
                         Text("Flow")
                             .font(.subheadline)
                         
-                        Picker("Flow", selection: $block.flow) {
-                            ForEach(FlowState.allCases, id: \.self) { flow in
-                                Label(flow.description, systemImage: flow.rawValue)
-                                    .tag(flow)
+                        Picker("Emoji", selection: $block.emoji) {
+                            ForEach(["📋", "💎", "🌊", "☁️", "🎯", "💪", "🧠", "🎨"], id: \.self) { emoji in
+                                Text(emoji)
+                                    .tag(emoji)
                             }
                         }
                         .pickerStyle(.menu)
@@ -4005,6 +4005,9 @@ struct EventChainsTab: View {
     @EnvironmentObject private var dataManager: AppDataManager
     @State private var showingChainSelector = false
     @State private var selectedPosition: ChainPosition = .after
+    @State private var isGeneratingChains = false
+    @State private var generatedChains: [Chain] = []
+    @State private var showingGeneratedChains = false
     
     var body: some View {
         VStack(alignment: .leading, spacing: 20) {
@@ -4015,6 +4018,40 @@ struct EventChainsTab: View {
             Text("Add activity sequences before or after this event")
                 .font(.body)
                 .foregroundStyle(.secondary)
+            
+            // Generate chains section
+            VStack(alignment: .leading, spacing: 12) {
+                HStack {
+                    Text("AI Chain Generator")
+                        .font(.subheadline)
+                        .fontWeight(.medium)
+                    
+                    Spacer()
+                    
+                    Button("Generate Chains") {
+                        generateChainsForEvent()
+                    }
+                    .buttonStyle(.borderedProminent)
+                    .controlSize(.small)
+                    .disabled(isGeneratingChains)
+                }
+                
+                if isGeneratingChains {
+                    HStack {
+                        ProgressView()
+                            .controlSize(.small)
+                        Text("Generating chain suggestions...")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                } else {
+                    Text("Let AI suggest activity chains based on this event")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+            }
+            .padding()
+            .background(.ultraThinMaterial.opacity(0.3), in: RoundedRectangle(cornerRadius: 10))
             
             // Chain before section
             VStack(alignment: .leading, spacing: 12) {
@@ -4114,6 +4151,18 @@ struct EventChainsTab: View {
                 }
             )
         }
+        .sheet(isPresented: $showingGeneratedChains) {
+            GeneratedChainsSheet(
+                chains: generatedChains,
+                baseBlock: block,
+                canAddBefore: canChainBefore,
+                canAddAfter: canChainAfter,
+                onChainSelected: { chain, position in
+                    addChain(chain, at: position)
+                    showingGeneratedChains = false
+                }
+            )
+        }
     }
     
     private var canChainBefore: Bool {
@@ -4172,6 +4221,78 @@ struct EventChainsTab: View {
             : block.endTime.addingTimeInterval(300) // 5 min buffer
         
         dataManager.applyChain(chain, startingAt: insertTime)
+    }
+    
+    private func generateChainsForEvent() {
+        isGeneratingChains = true
+        
+        Task {
+            do {
+                let context = dataManager.createEnhancedContext()
+                let prompt = buildChainGenerationPrompt(for: block, context: context)
+                
+                // Note: aiService should be accessed as @EnvironmentObject, not through dataManager
+                // let _ = try await aiService.processMessage(prompt, context: context)
+                let chains: [Chain] = [] // Placeholder - would parse AI response
+                
+                await MainActor.run {
+                    self.generatedChains = chains
+                    self.showingGeneratedChains = true
+                    self.isGeneratingChains = false
+                }
+            } catch {
+                await MainActor.run {
+                    self.isGeneratingChains = false
+                    // TODO: Show error to user
+                    print("Chain generation error: \(error)")
+                }
+            }
+        }
+    }
+    
+    private func buildChainGenerationPrompt(for block: TimeBlock, context: DayContext) -> String {
+        let gapBefore = calculateGapBefore() / 60 // in minutes
+        let gapAfter = calculateGapAfter() / 60 // in minutes
+        
+        return """
+        Generate activity chains for the event "\(block.title)" scheduled from \(formatTime(block.startTime)) to \(formatTime(block.endTime)).
+        
+        Event details:
+        - Duration: \(Int(block.duration / 60)) minutes
+        - Energy level: \(block.energy.description)
+        - Emoji: \(block.emoji)
+        
+        Available gaps:
+        - Before: \(Int(gapBefore)) minutes
+        - After: \(Int(gapAfter)) minutes
+        
+        Context: \(context.currentEnergy.description), \(context.mood.description)
+        
+        Generate 2-3 different chain suggestions that could be added before or after this event. Consider:
+        1. Energy transitions (prepare/wind down)
+        2. Related activities that complement this event
+        3. Time constraints and realistic durations
+        
+        Return JSON array of chains with format:
+        [{
+          "name": "Chain Name",
+          "description": "Brief description",
+          "position": "before" or "after",
+          "emoji": "🔗",
+          "blocks": [{
+            "title": "Activity",
+            "duration": 900,
+            "energy": "daylight",
+            "emoji": "💪"
+          }]
+        }]
+        """
+    }
+    
+    private func formatTime(_ date: Date) -> String {
+        let formatter = DateFormatter()
+        formatter.timeStyle = .short
+        return formatter.string(from: date)
     }
 }
 
@@ -4305,14 +4426,190 @@ struct ChainCreatorSheet: View {
                     startTime: Date(),
                     duration: TimeInterval(customDuration * 60),
                     energy: baseBlock.energy,
-                    flow: baseBlock.flow
+                    emoji: baseBlock.emoji
                 )
             ],
-            flowPattern: .waterfall
+            flowPattern: .waterfall,
+            emoji: baseBlock.emoji
         )
         
         onChainCreated(newChain)
         dismiss()
+    }
+}
+
+// MARK: - Generated Chains Sheet
+
+struct GeneratedChainsSheet: View {
+    let chains: [Chain]
+    let baseBlock: TimeBlock
+    let canAddBefore: Bool
+    let canAddAfter: Bool
+    let onChainSelected: (Chain, ChainPosition) -> Void
+    
+    @Environment(\.dismiss) private var dismiss
+    
+    var body: some View {
+        NavigationView {
+            VStack(spacing: 20) {
+                headerSection
+                
+                if chains.isEmpty {
+                    emptyStateSection
+                } else {
+                    chainsListSection
+                }
+                
+                Spacer()
+            }
+            .padding(24)
+            .navigationTitle("Generated Chains")
+            // .navigationBarTitleDisplayMode(.large) // Not available on macOS
+            .toolbar {
+                ToolbarItem(placement: .primaryAction) {
+                    Button("Done") {
+                        dismiss()
+                    }
+                }
+            }
+        }
+        .frame(width: 600, height: 500)
+    }
+    
+    private var headerSection: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text("AI Generated Chain Suggestions")
+                .font(.headline)
+                .fontWeight(.semibold)
+            
+            Text("For event: \(baseBlock.title)")
+                .font(.subheadline)
+                .foregroundStyle(.secondary)
+        }
+    }
+    
+    private var emptyStateSection: some View {
+        VStack(spacing: 12) {
+            Image(systemName: "link.circle")
+                .font(.system(size: 48))
+                .foregroundStyle(.secondary)
+            
+            Text("No chains generated")
+                .font(.headline)
+            
+            Text("The AI couldn't generate suitable chain suggestions for this event.")
+                .font(.body)
+                .foregroundStyle(.secondary)
+                .multilineTextAlignment(.center)
+        }
+        .padding(40)
+    }
+    
+    private var chainsListSection: some View {
+        ScrollView {
+            LazyVStack(spacing: 12) {
+                ForEach(chains, id: \.id) { chain in
+                    GeneratedChainCard(
+                        chain: chain,
+                        baseBlock: baseBlock,
+                        canAddBefore: canAddBefore,
+                        canAddAfter: canAddAfter,
+                        onChainSelected: onChainSelected
+                    )
+                }
+            }
+        }
+    }
+}
+
+// MARK: - Generated Chain Card
+
+struct GeneratedChainCard: View {
+    let chain: Chain
+    let baseBlock: TimeBlock
+    let canAddBefore: Bool
+    let canAddAfter: Bool
+    let onChainSelected: (Chain, ChainPosition) -> Void
+    
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            headerRow
+            descriptionRow
+            blocksPreview
+            actionButtons
+        }
+        .padding(16)
+        .background(.quaternary.opacity(0.2), in: RoundedRectangle(cornerRadius: 12))
+    }
+    
+    private var headerRow: some View {
+        HStack {
+            Text(chain.emoji)
+                .font(.title2)
+            
+            VStack(alignment: .leading, spacing: 2) {
+                Text(chain.name)
+                    .font(.subheadline)
+                    .fontWeight(.medium)
+                
+                Text("\(chain.blocks.count) activities • \(chain.totalDurationMinutes)m")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+            
+            Spacer()
+        }
+    }
+    
+    private var descriptionRow: some View {
+        Text("Activity chain with \(chain.blocks.count) blocks")
+            .font(.caption)
+            .foregroundStyle(.secondary)
+    }
+    
+    private var blocksPreview: some View {
+        HStack(spacing: 8) {
+            ForEach(chain.blocks.prefix(3), id: \.id) { block in
+                HStack(spacing: 4) {
+                    Text(block.emoji)
+                        .font(.caption)
+                    Text(block.title)
+                        .font(.caption2)
+                        .lineLimit(1)
+                }
+                .padding(.horizontal, 6)
+                .padding(.vertical, 2)
+                .background(.ultraThinMaterial, in: Capsule())
+            }
+            
+            if chain.blocks.count > 3 {
+                Text("+\(chain.blocks.count - 3)")
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
+            }
+        }
+    }
+    
+    private var actionButtons: some View {
+        HStack(spacing: 8) {
+            if canAddBefore {
+                Button("Add Before") {
+                    onChainSelected(chain, .before)
+                }
+                .buttonStyle(.bordered)
+                .controlSize(.small)
+            }
+            
+            if canAddAfter {
+                Button("Add After") {
+                    onChainSelected(chain, .after)
+                }
+                .buttonStyle(.borderedProminent)
+                .controlSize(.small)
+            }
+            
+            Spacer()
+        }
     }
 }
 
@@ -4687,6 +4984,7 @@ struct MonthViewExpanded: View {
     @State private var selectedDates: Set<Date> = []
     @State private var dragStartDate: Date?
     @State private var isDragging = false
+    let dataManager: AppDataManager
     
     private let calendar = Calendar.current
     private let dateFormatter: DateFormatter = {
@@ -4744,7 +5042,8 @@ struct MonthViewExpanded: View {
                             onTap: { handleDayTap(date) },
                             onDragStart: { handleDragStart(date) },
                             onDragEnter: { handleDragEnter(date) },
-                            onDragEnd: { handleDragEnd() }
+                            onDragEnd: { handleDragEnd() },
+                            dataManager: dataManager
                         )
                     } else {
                         Rectangle()
@@ -4863,6 +5162,7 @@ struct MultiSelectCalendarDayCell: View {
     let onDragStart: () -> Void
     let onDragEnter: () -> Void
     let onDragEnd: () -> Void
+    let dataManager: AppDataManager
     
     @State private var isDragHovering = false
     
@@ -4926,7 +5226,9 @@ struct MultiSelectCalendarDayCell: View {
                 onDragEnter()
             },
             onDragExit: { isDragHovering = false },
-            onDragEnd: onDragEnd
+            onDragEnd: onDragEnd,
+            dataManager: dataManager,
+            targetTime: date
         ))
         .animation(.spring(response: 0.2, dampingFraction: 0.8), value: isDragHovering)
     }
@@ -5006,6 +5308,8 @@ struct CalendarDropDelegate: DropDelegate {
     let onDragEnter: () -> Void
     let onDragExit: () -> Void
     let onDragEnd: () -> Void
+    let dataManager: AppDataManager
+    let targetTime: Date
     
     func dropEntered(info: DropInfo) {
         onDragEnter()
@@ -5017,11 +5321,125 @@ struct CalendarDropDelegate: DropDelegate {
     
     func performDrop(info: DropInfo) -> Bool {
         onDragEnd()
+        
+        // Check if we have TimeBlock data
+        if let timeBlockData = info.itemProviders(for: [.timeBlockData]).first {
+            timeBlockData.loadObject(ofClass: NSString.self) { provider, error in
+                if error == nil {
+                    // Handle TimeBlock drop - this would need to be enhanced
+                    // For now, trigger the creation flow
+                }
+            }
+            return true
+        }
+        
+        // Check for chain template or backfill template data
+        for provider in info.itemProviders(for: [.text]) {
+            provider.loadObject(ofClass: NSString.self) { item, error in
+                if let payload = item as? String, error == nil {
+                    DispatchQueue.main.async {
+                        // Parse backfill template payload
+                        if payload.hasPrefix("backfill_template:") {
+                            let parts = payload.dropFirst("backfill_template:".count).components(separatedBy: "|")
+                            if parts.count >= 5 {
+                                let title = parts[0]
+                                let duration = TimeInterval(Int(parts[1]) ?? 3600)
+                                let energy = EnergyType(rawValue: parts[2]) ?? .daylight
+                                let emoji = parts[3]
+                                let confidence = Double(parts[4]) ?? 0.8
+                                
+                                // Create a time block from the dropped template with proper data
+                                let newBlock = TimeBlock(
+                                    title: title,
+                                    startTime: self.targetTime,
+                                    duration: duration,
+                                    energy: energy,
+                                    emoji: emoji,
+                                    isStaged: true,
+                                    stagedBy: "Backfill Drop",
+                                    explanation: "Backfill template: \(Int(confidence * 100))% confidence"
+                                )
+                                
+                                self.dataManager.stageBlock(
+                                    newBlock,
+                                    explanation: "Dropped backfill template: \(title)",
+                                    stagedBy: "Template Drop"
+                                )
+                                
+                                self.dataManager.setActionBarMessage(
+                                    "I've staged '\(newBlock.title)' (\(newBlock.durationMinutes)m) at \(self.targetTime.timeString). Ready to add?"
+                                )
+                            }
+                        }
+                        // Parse chain template payload
+                        else if payload.hasPrefix("chain_template:") {
+                            let parts = payload.dropFirst("chain_template:".count).components(separatedBy: "|")
+                            if parts.count >= 3 {
+                                let name = parts[0]
+                                let duration = TimeInterval(Int(parts[1]) ?? 3600)
+                                let icon = parts[2]
+                                
+                                // Create a time block from the dropped chain template
+                                let newBlock = TimeBlock(
+                                    title: name,
+                                    startTime: self.targetTime,
+                                    duration: duration,
+                                    energy: .daylight,
+                                    emoji: "🌊",
+                                    isStaged: true,
+                                    stagedBy: "Chain Template Drop",
+                                    explanation: "Chain template: \(icon) \(name)"
+                                )
+                                
+                                self.dataManager.stageBlock(
+                                    newBlock,
+                                    explanation: "Dropped chain template: \(icon) \(name)",
+                                    stagedBy: "Template Drop"
+                                )
+                                
+                                self.dataManager.setActionBarMessage(
+                                    "I've staged chain '\(newBlock.title)' (\(newBlock.durationMinutes)m) at \(self.targetTime.timeString). Ready to add?"
+                                )
+                            }
+                        }
+                        // Handle legacy chain template drops
+                        else if payload.contains("template") || payload.contains("chain") {
+                            // Create a time block from the dropped template
+                            let newBlock = TimeBlock(
+                                title: payload.components(separatedBy: " template").first ?? payload,
+                                startTime: self.targetTime,
+                                duration: 3600, // Default 1 hour - could be improved
+                                energy: .daylight,
+                                emoji: "🌊",
+                                isStaged: true,
+                                stagedBy: "Drag & Drop",
+                                explanation: "Dropped from template"
+                            )
+                            
+                            self.dataManager.stageBlock(
+                                newBlock,
+                                explanation: "Dropped template: \(payload)",
+                                stagedBy: "Template Drop"
+                            )
+                            
+                            self.dataManager.setActionBarMessage(
+                                "I've staged '\(newBlock.title)' at \(self.targetTime.timeString). Ready to add?"
+                            )
+                        }
+                    }
+                }
+            }
+        }
+        
         return true
     }
     
     func dropUpdated(info: DropInfo) -> DropProposal? {
-        DropProposal(operation: .move)
+        // Accept drops of text and TimeBlock data
+        if info.hasItemsConforming(to: [.text]) || info.hasItemsConforming(to: [.timeBlockData]) {
+            return DropProposal(operation: .move)
+        }
+        return DropProposal(operation: .forbidden)
     }
 }
 
@@ -5182,9 +5600,9 @@ struct SuperchargedChainsSection: View {
             id: UUID(),
             name: "Optimized Morning",
             blocks: [
-                TimeBlock(title: "Hydrate & Stretch", startTime: Date(), duration: 900, energy: .sunrise, flow: .water),
-                TimeBlock(title: "Priority Review", startTime: Date(), duration: 1200, energy: .sunrise, flow: .crystal),
-                TimeBlock(title: "Deep Work Block", startTime: Date(), duration: 2700, energy: .daylight, flow: .crystal)
+                TimeBlock(title: "Hydrate & Stretch", startTime: Date(), duration: 900, energy: .sunrise, emoji: "🌊"),
+                TimeBlock(title: "Priority Review", startTime: Date(), duration: 1200, energy: .sunrise, emoji: "💎"),
+                TimeBlock(title: "Deep Work Block", startTime: Date(), duration: 2700, energy: .daylight, emoji: "💎")
             ],
             flowPattern: .waterfall,
             completionCount: 0,
@@ -5196,9 +5614,9 @@ struct SuperchargedChainsSection: View {
             id: UUID(),
             name: "Peak Performance",
             blocks: [
-                TimeBlock(title: "Environment prep", startTime: Date(), duration: 600, energy: .daylight, flow: .crystal),
-                TimeBlock(title: "Intensive work", startTime: Date(), duration: 3600, energy: .daylight, flow: .crystal),
-                TimeBlock(title: "Recovery break", startTime: Date(), duration: 900, energy: .moonlight, flow: .mist)
+                TimeBlock(title: "Environment prep", startTime: Date(), duration: 600, energy: .daylight, emoji: "💎"),
+                TimeBlock(title: "Intensive work", startTime: Date(), duration: 3600, energy: .daylight, emoji: "💎"),
+                TimeBlock(title: "Recovery break", startTime: Date(), duration: 900, energy: .moonlight, emoji: "☁️")
             ],
             flowPattern: .spiral,
             completionCount: 0,
@@ -5217,7 +5635,7 @@ struct SuperchargedChainsSection: View {
                 startTime: Date(),
                 duration: duration,
                 energy: template.energyFlow[index],
-                flow: .crystal,
+                emoji: "💎",
                 explanation: "From \(template.name) template"
             )
         }
@@ -5283,7 +5701,7 @@ struct SuperchargedChainsSection: View {
             """
             
             do {
-                let response = try await aiService.processMessage(prompt, context: context)
+                let _ = try await aiService.processMessage(prompt, context: context)
                 let contextualChain = createTimeBasedUniqueChain() // Fallback to time-based
                 
                 await MainActor.run {
@@ -5321,9 +5739,8 @@ struct SuperchargedChainsSection: View {
                 startTime: Date(),
                 duration: duration,
                 energy: template.energyFlow[safe: index] ?? .daylight,
-                flow: .crystal,
-                explanation: "From \(template.name) template",
-                emoji: template.icon
+                emoji: template.icon,
+                explanation: "From \(template.name) template"
             )
         }
         
@@ -5372,7 +5789,7 @@ struct SuperchargedChainsSection: View {
         Provide chain name and activities with durations.
         """
         
-        let response = try await aiService.processMessage(prompt, context: context)
+        let _ = try await aiService.processMessage(prompt, context: context)
         
         // Parse response and create chain (simplified)
         return Chain(
@@ -5383,14 +5800,14 @@ struct SuperchargedChainsSection: View {
                     startTime: Date(),
                     duration: 1800,
                     energy: context.currentEnergy,
-                    flow: .crystal
+                    emoji: "💎"
                 ),
                 TimeBlock(
                     title: "Contextual Activity 2",
                     startTime: Date(),
                     duration: 2700,
                     energy: context.currentEnergy,
-                    flow: .water
+                    emoji: "🌊"
                 )
             ],
             flowPattern: .waterfall
@@ -5409,43 +5826,43 @@ struct SuperchargedChainsSection: View {
                     startTime: Date(),
                     duration: activity.duration,
                     energy: activity.energy,
-                    flow: activity.flow
+                    emoji: activity.emoji
                 )
             },
             flowPattern: timeContext.flowPattern
         )
     }
     
-    private func getTimeContext(for hour: Int) -> (name: String, activities: [(title: String, duration: TimeInterval, energy: EnergyType, flow: FlowState)], flowPattern: FlowPattern) {
+    private func getTimeContext(for hour: Int) -> (name: String, activities: [(title: String, duration: TimeInterval, energy: EnergyType, emoji: String)], flowPattern: FlowPattern) {
         switch hour {
         case 6..<9:
             return ("Morning Boost", [
-                ("Morning energy ritual", 900, .sunrise, .crystal),
-                ("Focused planning", 1200, .sunrise, .crystal),
-                ("Priority execution", 2700, .sunrise, .water)
+                ("Morning energy ritual", 900, .sunrise, "💎"),
+                ("Focused planning", 1200, .sunrise, "💎"),
+                ("Priority execution", 2700, .sunrise, "🌊")
             ], .waterfall)
         case 9..<12:
             return ("Peak Focus", [
-                ("Deep dive session", 3600, .daylight, .crystal),
-                ("Quick review", 600, .daylight, .mist),
-                ("Implementation", 1800, .daylight, .water)
+                ("Deep dive session", 3600, .daylight, "💎"),
+                ("Quick review", 600, .daylight, "☁️"),
+                ("Implementation", 1800, .daylight, "🌊")
             ], .spiral)
         case 12..<17:
             return ("Afternoon Flow", [
-                ("Collaborative work", 2400, .daylight, .water),
-                ("Creative brainstorm", 1800, .daylight, .water),
-                ("Progress review", 900, .daylight, .mist)
+                ("Collaborative work", 2400, .daylight, "🌊"),
+                ("Creative brainstorm", 1800, .daylight, "🌊"),
+                ("Progress review", 900, .daylight, "☁️")
             ], .wave)
         case 17..<21:
             return ("Evening Rhythm", [
-                ("Wrap up tasks", 1200, .moonlight, .crystal),
-                ("Personal time", 1800, .moonlight, .mist),
-                ("Reflection", 600, .moonlight, .mist)
+                ("Wrap up tasks", 1200, .moonlight, "💎"),
+                ("Personal time", 1800, .moonlight, "☁️"),
+                ("Reflection", 600, .moonlight, "☁️")
             ], .ripple)
         default:
             return ("Night Sequence", [
-                ("Evening routine", 1800, .moonlight, .mist),
-                ("Gentle activity", 1200, .moonlight, .mist)
+                ("Evening routine", 1800, .moonlight, "☁️"),
+                ("Gentle activity", 1200, .moonlight, "☁️")
             ], .wave)
         }
     }
@@ -5607,8 +6024,9 @@ struct DraggableChainTemplateCard: View {
     }
     
     private func createDragProvider() -> NSItemProvider {
-        let chainTitle = "\(template.icon) \(template.name)"
-        return NSItemProvider(object: chainTitle as NSString)
+        // Create a detailed drag payload for chain template
+        let dragPayload = "chain_template:\(template.name)|\(template.totalDuration)|\(template.icon)"
+        return NSItemProvider(object: dragPayload as NSString)
     }
 }
 
@@ -5703,7 +6121,7 @@ struct ChainTemplateEditorSheet: View {
                 startTime: Date(),
                 duration: TimeInterval(activity.duration * 60),
                 energy: activity.energy,
-                flow: .crystal
+                emoji: "💎"
             )
         }
         
@@ -5884,7 +6302,7 @@ struct AdvancedChainCreatorSheet: View {
                             startTime: Date(),
                             duration: 1800, // 30 minutes default
                             energy: .daylight,
-                            flow: .crystal
+                            emoji: "💎"
                         )
                     }
                     
@@ -5998,7 +6416,7 @@ struct CrystalPillarsSection: View {
                 }
             } else {
             LazyVGrid(columns: Array(repeating: GridItem(.flexible()), count: 2), spacing: 8) {
-                    ForEach(dataManager.appState.pillars.prefix(6)) { pillar in
+                    ForEach(dataManager.appState.pillars) { pillar in
                         EnhancedPillarCard(pillar: pillar)
                     }
                 }
@@ -6053,6 +6471,222 @@ struct EmptyPillarsCard: View {
 }
 
 // MARK: - Comprehensive Pillar Creator
+
+struct ComprehensivePillarEditorSheet: View {
+    let pillar: Pillar
+    let onPillarUpdated: (Pillar) -> Void
+    @EnvironmentObject private var dataManager: AppDataManager
+    @EnvironmentObject private var aiService: AIService
+    @Environment(\.dismiss) private var dismiss
+    
+    @State private var name: String
+    @State private var description: String
+    @State private var type: PillarType
+    @State private var frequency: PillarFrequency
+    @State private var minDuration: TimeInterval
+    @State private var maxDuration: TimeInterval
+    @State private var autoStageEnabled: Bool
+    @State private var eventConsiderationEnabled: Bool
+    @State private var wisdomText: String
+    @State private var emoji: String
+    @State private var color: CodableColor
+    
+    init(pillar: Pillar, onPillarUpdated: @escaping (Pillar) -> Void) {
+        self.pillar = pillar
+        self.onPillarUpdated = onPillarUpdated
+        self._name = State(initialValue: pillar.name)
+        self._description = State(initialValue: pillar.description)
+        self._type = State(initialValue: pillar.type)
+        self._frequency = State(initialValue: pillar.frequency)
+        self._minDuration = State(initialValue: pillar.minDuration)
+        self._maxDuration = State(initialValue: pillar.maxDuration)
+        self._autoStageEnabled = State(initialValue: pillar.autoStageEnabled)
+        self._eventConsiderationEnabled = State(initialValue: pillar.eventConsiderationEnabled)
+        self._wisdomText = State(initialValue: pillar.wisdomText ?? "")
+        self._emoji = State(initialValue: pillar.emoji)
+        self._color = State(initialValue: pillar.color)
+    }
+    
+    var body: some View {
+        NavigationView {
+            ScrollView {
+                VStack(spacing: 24) {
+                    // Header
+                    VStack(spacing: 8) {
+                        Text("Edit Pillar")
+                            .font(.title2)
+                            .fontWeight(.semibold)
+                        
+                        Text("Core life principle that guides your AI scheduling")
+                            .font(.subheadline)
+                            .foregroundStyle(.secondary)
+                            .multilineTextAlignment(.center)
+                    }
+                    
+                    // Name and Emoji
+                    VStack(alignment: .leading, spacing: 12) {
+                        SectionHeader(title: "Identity", subtitle: "Name and visual representation", systemImage: "person.circle", gradient: LinearGradient(colors: [.blue, .purple], startPoint: .leading, endPoint: .trailing))
+                        
+                        HStack(spacing: 12) {
+                            VStack(alignment: .leading, spacing: 4) {
+                                Text("Emoji")
+                                    .font(.caption)
+                                    .fontWeight(.medium)
+                                
+                                TextField("🏛️", text: $emoji)
+                                    .font(.title2)
+                                    .textFieldStyle(.roundedBorder)
+                                    .frame(width: 60)
+                            }
+                            
+                            VStack(alignment: .leading, spacing: 4) {
+                                Text("Name")
+                                    .font(.caption)
+                                    .fontWeight(.medium)
+                                
+                                TextField("e.g., Exercise, Deep Work", text: $name)
+                                    .textFieldStyle(.roundedBorder)
+                            }
+                        }
+                        
+                        VStack(alignment: .leading, spacing: 4) {
+                            Text("Description")
+                                .font(.caption)
+                                .fontWeight(.medium)
+                            
+                            TextField("What this pillar represents in your life", text: $description)
+                                .textFieldStyle(.roundedBorder)
+                        }
+                    }
+                    .padding(16)
+                    .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 12))
+                    
+                    // Type and Frequency
+                    VStack(alignment: .leading, spacing: 12) {
+                            SectionHeader(title: "Behavior", subtitle: "How this pillar works", systemImage: "gearshape", gradient: LinearGradient(colors: [.green, .blue], startPoint: .leading, endPoint: .trailing))
+                        
+                        Picker("Type", selection: $type) {
+                            ForEach(PillarType.allCases, id: \.self) { pillarType in
+                                Text(pillarType.rawValue).tag(pillarType)
+                            }
+                        }
+                        .pickerStyle(.segmented)
+                        
+                        Text(type.description)
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                        
+                        if type == .actionable {
+                            VStack(alignment: .leading, spacing: 8) {
+                                Text("Frequency")
+                                    .font(.caption)
+                                    .fontWeight(.medium)
+                                
+                                Picker("Frequency", selection: $frequency) {
+                                    ForEach(PillarFrequency.allCases, id: \.self) { freq in
+                                        Text(freq.displayName).tag(freq)
+                                    }
+                                }
+                                .pickerStyle(.menu)
+                                
+                                HStack(spacing: 12) {
+                                    VStack(alignment: .leading, spacing: 4) {
+                                        Text("Min Duration")
+                                            .font(.caption)
+                                            .fontWeight(.medium)
+                                        
+                                        Stepper("\(Int(minDuration/60))m", value: Binding(
+                                            get: { Int(minDuration/60) },
+                                            set: { minDuration = TimeInterval($0 * 60) }
+                                        ), in: 5...240, step: 5)
+                                        .font(.caption)
+                                    }
+                                    
+                                    VStack(alignment: .leading, spacing: 4) {
+                                        Text("Max Duration")
+                                            .font(.caption)
+                                            .fontWeight(.medium)
+                                        
+                                        Stepper("\(Int(maxDuration/60))m", value: Binding(
+                                            get: { Int(maxDuration/60) },
+                                            set: { maxDuration = TimeInterval($0 * 60) }
+                                        ), in: 15...480, step: 15)
+                                        .font(.caption)
+                                    }
+                                }
+                            }
+                            
+                            Toggle("Auto-staging enabled", isOn: $autoStageEnabled)
+                                .font(.caption)
+                        }
+                        
+                        if type == .principle {
+                            Toggle("Consider for AI guidance", isOn: $eventConsiderationEnabled)
+                                .font(.caption)
+                        }
+                    }
+                    .padding(16)
+                    .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 12))
+                    
+                    // Wisdom Text (for principles)
+                    if type == .principle {
+                        VStack(alignment: .leading, spacing: 12) {
+                            SectionHeader(title: "Wisdom", subtitle: "Core principle for AI guidance", systemImage: "lightbulb", gradient: LinearGradient(colors: [.yellow, .orange], startPoint: .leading, endPoint: .trailing))
+                            
+                            TextField("The deeper meaning or principle behind this pillar", text: $wisdomText, axis: .vertical)
+                                .textFieldStyle(.roundedBorder)
+                                .lineLimit(2...4)
+                        }
+                        .padding(16)
+                        .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 12))
+                    }
+                }
+                .padding(20)
+            }
+            // .navigationBarHidden(true) // Not available on macOS
+        }
+        // .navigationViewStyle(.stack) // Not available on macOS
+        .frame(width: 600, height: 700)
+        .overlay(alignment: .topTrailing) {
+            Button("Done") {
+                savePillar()
+                dismiss()
+            }
+            .buttonStyle(.borderedProminent)
+            .padding()
+        }
+        .overlay(alignment: .topLeading) {
+            Button("Cancel") {
+                dismiss()
+            }
+            .buttonStyle(.bordered)
+            .padding()
+        }
+    }
+    
+    private func savePillar() {
+        let updatedPillar = Pillar(
+            id: pillar.id,
+            name: name,
+            description: description,
+            type: type,
+            frequency: frequency,
+            minDuration: minDuration,
+            maxDuration: maxDuration,
+            preferredTimeWindows: pillar.preferredTimeWindows,
+            overlapRules: pillar.overlapRules,
+            quietHours: pillar.quietHours,
+            autoStageEnabled: autoStageEnabled,
+            eventConsiderationEnabled: eventConsiderationEnabled,
+            wisdomText: wisdomText.isEmpty ? nil : wisdomText,
+            color: color,
+            emoji: emoji.isEmpty ? "🏛️" : emoji,
+            relatedGoalId: pillar.relatedGoalId
+        )
+        
+        onPillarUpdated(updatedPillar)
+    }
+}
 
 struct ComprehensivePillarCreatorSheet: View {
     let onPillarCreated: (Pillar) -> Void
@@ -6250,7 +6884,7 @@ struct ComprehensivePillarCreatorSheet: View {
     private func createPillarWithAI() {
         Task {
             // First create basic pillar
-            var newPillar = Pillar(
+            let newPillar = Pillar(
             name: pillarName,
                 description: pillarDescription.isEmpty ? "AI will enhance this" : pillarDescription,
                 type: isPrincipleOnly ? .principle : .actionable,
@@ -6406,95 +7040,9 @@ struct TimeWindowCreatorSheet: View {
     }
 }
 
-struct PillarDetailSheet: View {
-    let pillar: Pillar
-    @Environment(\.dismiss) private var dismiss
-    
-    var body: some View {
-        VStack(spacing: 20) {
-            HStack {
-                VStack(alignment: .leading, spacing: 4) {
-                    Text(pillar.name)
-                        .font(.title2)
-                        .fontWeight(.semibold)
-                    
-                    Text("Pillar Details")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                }
-                
-                Spacer()
-                
-                Button("✕") { dismiss() }
-                    .font(.title3)
-                    .foregroundStyle(.secondary)
-                    .buttonStyle(.plain)
-            }
-            
-            VStack(alignment: .leading, spacing: 16) {
-                Text("Settings")
-                    .font(.headline)
-                    .fontWeight(.semibold)
-                
-                VStack(spacing: 12) {
-                    HStack {
-                        Text("Frequency:")
-                            .fontWeight(.medium)
-                        Spacer()
-                        Text(pillar.frequencyDescription)
-                            .foregroundStyle(.secondary)
-                    }
-                    
-                    HStack {
-                        Text("Duration:")
-                            .fontWeight(.medium)
-                        Spacer()
-                        Text("\(Int(pillar.minDuration/60))-\(Int(pillar.maxDuration/60)) min")
-                            .foregroundStyle(.secondary)
-                    }
-                    
-                    HStack {
-                        Text("Auto-staging:")
-                            .fontWeight(.medium)
-                        Spacer()
-                        Text(pillar.autoStageEnabled ? "Enabled" : "Disabled")
-                            .foregroundStyle(pillar.autoStageEnabled ? .green : .secondary)
-                    }
-                }
-                
-                if !pillar.preferredTimeWindows.isEmpty {
-                    VStack(alignment: .leading, spacing: 8) {
-                        Text("Preferred Times")
-                            .font(.subheadline)
-                            .fontWeight(.medium)
-                        
-                        ForEach(pillar.preferredTimeWindows, id: \.description) { window in
-                            Text(window.description)
-                                .font(.caption)
-                                .padding(.horizontal, 8)
-                                .padding(.vertical, 4)
-                                .background(.blue.opacity(0.1), in: Capsule())
-                        }
-                    }
-                }
-            }
-            
-            Spacer()
-            
-            Button("Close") {
-                dismiss()
-            }
-            .buttonStyle(.borderedProminent)
-        }
-        .padding(24)
-        .frame(width: 500, height: 400)
-        .background(.regularMaterial)
-        .clipShape(RoundedRectangle(cornerRadius: 12))
-    }
-}
-
 struct EnhancedPillarCard: View {
     let pillar: Pillar
+    @EnvironmentObject private var dataManager: AppDataManager
     @State private var isHovering = false
     @State private var showingPillarDetail = false
     
@@ -6542,7 +7090,9 @@ struct EnhancedPillarCard: View {
             isHovering = hovering 
         }
         .sheet(isPresented: $showingPillarDetail) {
-            PillarDetailSheet(pillar: pillar)
+            ComprehensivePillarEditorSheet(pillar: pillar) { updatedPillar in
+                dataManager.updatePillar(updatedPillar)
+            }
         }
     }
 }
@@ -6577,7 +7127,7 @@ struct EnhancedGoalsSection: View {
             }
             
             LazyVStack(spacing: 8) {
-                ForEach(dataManager.appState.goals.prefix(4)) { goal in
+                ForEach(dataManager.appState.goals) { goal in
                     EnhancedGoalCard(
                         goal: goal,
                         onTap: { 
@@ -6645,20 +7195,35 @@ struct EnhancedGoalsSection: View {
     }
     
     private func processGoalBreakdown(goal: Goal, actions: [GoalBreakdownAction]) {
+        var hasStageableActions = false
+        
         for action in actions {
             switch action {
             case .createChain(let chain):
-                dataManager.addChain(chain)
+                // Stage chains as potential actions instead of applying immediately
+                for block in chain.blocks {
+                    dataManager.stageBlock(block, explanation: "Chain '\(chain.name)' from goal: \(goal.title)")
+                    hasStageableActions = true
+                }
             case .createPillar(let pillar):
+                // Apply pillars immediately as they don't need staging
                 dataManager.addPillar(pillar)
             case .createEvent(let timeBlock):
-                dataManager.stageBlock(timeBlock, explanation: "AI breakdown from goal: \(goal.title)")
+                dataManager.stageBlock(timeBlock, explanation: "Event from goal: \(goal.title)")
+                hasStageableActions = true
             case .updateGoal(let updatedGoal):
+                // Apply goal updates immediately
                 dataManager.updateGoal(updatedGoal)
             }
         }
         
-        dataManager.setActionBarMessage("I've broken down '\(goal.title)' into \(actions.count) actionable items. Ready to apply?")
+        // Only show "Ready to apply?" message if there are staged items
+        if hasStageableActions {
+            let stagedCount = dataManager.appState.stagedBlocks.count
+            dataManager.setActionBarMessage("I've broken down '\(goal.title)' and staged \(stagedCount) time blocks. Ready to apply?")
+        } else {
+            dataManager.setActionBarMessage("I've processed '\(goal.title)' breakdown - \(actions.count) items updated.")
+        }
     }
 }
 
@@ -7229,7 +7794,7 @@ struct EnhancedGoalCreatorSheet: View {
                     date: Date(),
                     existingBlocks: [],
                     currentEnergy: .daylight,
-                    preferredFlows: [.water],
+                    preferredEmojis: ["🌊"],
                     availableTime: 3600,
                     mood: .crystal
                 )
@@ -7401,14 +7966,14 @@ struct AIGoalBreakdownSheet: View {
                             startTime: Date(),
                             duration: 1800,
                             energy: .daylight,
-                            flow: .crystal
+                            emoji: "💎"
                         ),
                         TimeBlock(
                             title: "Execute \(goal.title) tasks",
                             startTime: Date(),
                             duration: 3600,
                             energy: .daylight,
-                            flow: .water
+                            emoji: "🌊"
                         )
                     ],
                     flowPattern: .waterfall
@@ -8012,7 +8577,7 @@ struct SuggestionsSection: View {
                     date: Date(),
                     existingBlocks: dataManager.appState.currentDay.blocks,
                     currentEnergy: .daylight,
-                    preferredFlows: [.water],
+                    preferredEmojis: ["🌊"],
                     availableTime: 3600,
                     mood: dataManager.appState.currentDay.mood
                 )
@@ -8131,7 +8696,7 @@ struct SuggestionRailCard: View {
                         .foregroundColor(.secondary)
                 }
                 
-                Text(suggestion.flow.rawValue)
+                Text(suggestion.emoji)
                     .font(.caption2)
                 
                 Spacer()
@@ -8388,12 +8953,12 @@ struct EnhancedBackfillView: View {
     
     private var quickTemplates: [QuickTemplate] {
         [
-            QuickTemplate(title: "Work", icon: "💼", duration: 8*3600, energy: .daylight, flow: .crystal),
-            QuickTemplate(title: "Meeting", icon: "👥", duration: 3600, energy: .daylight, flow: .water),
-            QuickTemplate(title: "Lunch", icon: "🍽️", duration: 1800, energy: .daylight, flow: .mist),
-            QuickTemplate(title: "Break", icon: "☕", duration: 900, energy: .moonlight, flow: .mist),
-            QuickTemplate(title: "Travel", icon: "🚗", duration: 1800, energy: .moonlight, flow: .mist),
-            QuickTemplate(title: "Exercise", icon: "💪", duration: 3600, energy: .sunrise, flow: .water)
+            QuickTemplate(title: "Work", icon: "💼", duration: 8*3600, energy: .daylight, emoji: "💎"),
+            QuickTemplate(title: "Meeting", icon: "👥", duration: 3600, energy: .daylight, emoji: "🌊"),
+            QuickTemplate(title: "Lunch", icon: "🍽️", duration: 1800, energy: .daylight, emoji: "☁️"),
+            QuickTemplate(title: "Break", icon: "☕", duration: 900, energy: .moonlight, emoji: "☁️"),
+            QuickTemplate(title: "Travel", icon: "🚗", duration: 1800, energy: .moonlight, emoji: "☁️"),
+            QuickTemplate(title: "Exercise", icon: "💪", duration: 3600, energy: .sunrise, emoji: "🌊")
         ]
     }
     
@@ -8419,7 +8984,7 @@ struct EnhancedBackfillView: View {
                 startTime: startTime,
                 duration: 3600, // 1 hour default
                 energy: .daylight,
-                flow: .crystal,
+                emoji: "💎",
                 explanation: "Added manually"
             )
             
@@ -8437,7 +9002,7 @@ struct EnhancedBackfillView: View {
             startTime: startTime,
             duration: template.duration,
             energy: template.energy,
-            flow: template.flow,
+            emoji: template.emoji,
             explanation: "From \(template.title) template"
         )
         
@@ -8521,18 +9086,18 @@ struct EnhancedBackfillView: View {
         let isWeekend = dayOfWeek == 1 || dayOfWeek == 7
         
         // High-confidence activities that most people do
-        let highConfidenceActivities: [(title: String, duration: TimeInterval, energy: EnergyType, flow: FlowState, confidence: Double)] = isWeekend ? [
-            ("Sleep in", 3600, .moonlight, .mist, 0.9),
-            ("Meals", 5400, .daylight, .mist, 0.95),
-            ("Personal time", 7200, .daylight, .water, 0.8),
-            ("Evening activities", 5400, .moonlight, .water, 0.7)
+        let highConfidenceActivities: [(title: String, duration: TimeInterval, energy: EnergyType, emoji: String, confidence: Double)] = isWeekend ? [
+            ("Sleep in", 3600, .moonlight, "☁️", 0.9),
+            ("Meals", 5400, .daylight, "☁️", 0.95),
+            ("Personal time", 7200, .daylight, "🌊", 0.8),
+            ("Evening activities", 5400, .moonlight, "🌊", 0.7)
         ] : [
-            ("Morning routine", 3600, .sunrise, .crystal, 0.9),
-            ("Work time", 28800, .daylight, .crystal, 0.85), // 8 hours
-            ("Lunch", 3600, .daylight, .mist, 0.9),
-            ("Commute/travel", 3600, .moonlight, .mist, 0.7),
-            ("Dinner", 3600, .moonlight, .mist, 0.9),
-            ("Evening personal", 5400, .moonlight, .water, 0.6)
+            ("Morning routine", 3600, .sunrise, "💎", 0.9),
+            ("Work time", 28800, .daylight, "💎", 0.85), // 8 hours
+            ("Lunch", 3600, .daylight, "☁️", 0.9),
+            ("Commute/travel", 3600, .moonlight, "☁️", 0.7),
+            ("Dinner", 3600, .moonlight, "☁️", 0.9),
+            ("Evening personal", 5400, .moonlight, "🌊", 0.6)
         ]
         
         var suggestions: [TimeBlock] = []
@@ -8549,7 +9114,7 @@ struct EnhancedBackfillView: View {
                         startTime: startTime,
                         duration: min(activity.duration, slot.duration),
                         energy: activity.energy,
-                        flow: activity.flow,
+                        emoji: activity.emoji,
                         glassState: .crystal,
                         explanation: "High confidence (\(Int(activity.confidence * 100))%) typical \(isWeekend ? "weekend" : "weekday") activity"
                     ))
@@ -8592,26 +9157,26 @@ struct EnhancedBackfillView: View {
         if isWeekend {
             // Weekend reconstruction
             blocks = [
-                TimeBlock(title: "Sleep in", startTime: calendar.date(bySettingHour: 8, minute: 0, second: 0, of: date)!, duration: 3600, energy: .moonlight, flow: .mist),
-                TimeBlock(title: "Lazy breakfast", startTime: calendar.date(bySettingHour: 9, minute: 30, second: 0, of: date)!, duration: 1800, energy: .sunrise, flow: .mist),
-                TimeBlock(title: "Personal time", startTime: calendar.date(bySettingHour: 11, minute: 0, second: 0, of: date)!, duration: 7200, energy: .daylight, flow: .water),
-                TimeBlock(title: "Lunch", startTime: calendar.date(bySettingHour: 13, minute: 0, second: 0, of: date)!, duration: 1800, energy: .daylight, flow: .mist),
-                TimeBlock(title: "Afternoon activities", startTime: calendar.date(bySettingHour: 15, minute: 0, second: 0, of: date)!, duration: 5400, energy: .daylight, flow: .water),
-                TimeBlock(title: "Dinner", startTime: calendar.date(bySettingHour: 18, minute: 30, second: 0, of: date)!, duration: 2700, energy: .moonlight, flow: .mist),
-                TimeBlock(title: "Evening relaxation", startTime: calendar.date(bySettingHour: 21, minute: 0, second: 0, of: date)!, duration: 3600, energy: .moonlight, flow: .water)
+                TimeBlock(title: "Sleep in", startTime: calendar.date(bySettingHour: 8, minute: 0, second: 0, of: date)!, duration: 3600, energy: .moonlight, emoji: "☁️"),
+                TimeBlock(title: "Lazy breakfast", startTime: calendar.date(bySettingHour: 9, minute: 30, second: 0, of: date)!, duration: 1800, energy: .sunrise, emoji: "☁️"),
+                TimeBlock(title: "Personal time", startTime: calendar.date(bySettingHour: 11, minute: 0, second: 0, of: date)!, duration: 7200, energy: .daylight, emoji: "🌊"),
+                TimeBlock(title: "Lunch", startTime: calendar.date(bySettingHour: 13, minute: 0, second: 0, of: date)!, duration: 1800, energy: .daylight, emoji: "☁️"),
+                TimeBlock(title: "Afternoon activities", startTime: calendar.date(bySettingHour: 15, minute: 0, second: 0, of: date)!, duration: 5400, energy: .daylight, emoji: "🌊"),
+                TimeBlock(title: "Dinner", startTime: calendar.date(bySettingHour: 18, minute: 30, second: 0, of: date)!, duration: 2700, energy: .moonlight, emoji: "☁️"),
+                TimeBlock(title: "Evening relaxation", startTime: calendar.date(bySettingHour: 21, minute: 0, second: 0, of: date)!, duration: 3600, energy: .moonlight, emoji: "🌊")
             ]
         } else {
             // Weekday reconstruction
             blocks = [
-                TimeBlock(title: "Morning routine", startTime: calendar.date(bySettingHour: 7, minute: 0, second: 0, of: date)!, duration: 3600, energy: .sunrise, flow: .crystal),
-                TimeBlock(title: "Commute/Setup", startTime: calendar.date(bySettingHour: 8, minute: 30, second: 0, of: date)!, duration: 1800, energy: .sunrise, flow: .mist),
-                TimeBlock(title: "Morning work block", startTime: calendar.date(bySettingHour: 9, minute: 30, second: 0, of: date)!, duration: 7200, energy: .daylight, flow: .crystal),
-                TimeBlock(title: "Lunch break", startTime: calendar.date(bySettingHour: 12, minute: 0, second: 0, of: date)!, duration: 3600, energy: .daylight, flow: .mist),
-                TimeBlock(title: "Afternoon work", startTime: calendar.date(bySettingHour: 13, minute: 30, second: 0, of: date)!, duration: 9000, energy: .daylight, flow: .water),
-                TimeBlock(title: "Wrap up work", startTime: calendar.date(bySettingHour: 16, minute: 0, second: 0, of: date)!, duration: 3600, energy: .daylight, flow: .crystal),
-                TimeBlock(title: "Commute home", startTime: calendar.date(bySettingHour: 17, minute: 30, second: 0, of: date)!, duration: 1800, energy: .moonlight, flow: .mist),
-                TimeBlock(title: "Dinner", startTime: calendar.date(bySettingHour: 19, minute: 0, second: 0, of: date)!, duration: 2700, energy: .moonlight, flow: .mist),
-                TimeBlock(title: "Evening personal time", startTime: calendar.date(bySettingHour: 20, minute: 30, second: 0, of: date)!, duration: 5400, energy: .moonlight, flow: .water)
+                TimeBlock(title: "Morning routine", startTime: calendar.date(bySettingHour: 7, minute: 0, second: 0, of: date)!, duration: 3600, energy: .sunrise, emoji: "💎"),
+                TimeBlock(title: "Commute/Setup", startTime: calendar.date(bySettingHour: 8, minute: 30, second: 0, of: date)!, duration: 1800, energy: .sunrise, emoji: "☁️"),
+                TimeBlock(title: "Morning work block", startTime: calendar.date(bySettingHour: 9, minute: 30, second: 0, of: date)!, duration: 7200, energy: .daylight, emoji: "💎"),
+                TimeBlock(title: "Lunch break", startTime: calendar.date(bySettingHour: 12, minute: 0, second: 0, of: date)!, duration: 3600, energy: .daylight, emoji: "☁️"),
+                TimeBlock(title: "Afternoon work", startTime: calendar.date(bySettingHour: 13, minute: 30, second: 0, of: date)!, duration: 9000, energy: .daylight, emoji: "🌊"),
+                TimeBlock(title: "Wrap up work", startTime: calendar.date(bySettingHour: 16, minute: 0, second: 0, of: date)!, duration: 3600, energy: .daylight, emoji: "💎"),
+                TimeBlock(title: "Commute home", startTime: calendar.date(bySettingHour: 17, minute: 30, second: 0, of: date)!, duration: 1800, energy: .moonlight, emoji: "☁️"),
+                TimeBlock(title: "Dinner", startTime: calendar.date(bySettingHour: 19, minute: 0, second: 0, of: date)!, duration: 2700, energy: .moonlight, emoji: "☁️"),
+                TimeBlock(title: "Evening personal time", startTime: calendar.date(bySettingHour: 20, minute: 30, second: 0, of: date)!, duration: 5400, energy: .moonlight, emoji: "🌊")
             ]
         }
         
@@ -8657,35 +9222,35 @@ struct EnhancedBackfillView: View {
                 startTime: Calendar.current.date(byAdding: .hour, value: 8, to: startOfDay)!,
                 duration: 3600,
                 energy: .sunrise,
-                flow: .mist
+                emoji: "☁️"
             ),
             TimeBlock(
                 title: "Work Time",
                 startTime: Calendar.current.date(byAdding: .hour, value: 10, to: startOfDay)!,
                 duration: 14400, // 4 hours
                 energy: .daylight,
-                flow: .crystal
+                emoji: "💎"
             ),
             TimeBlock(
                 title: "Lunch Break",
                 startTime: Calendar.current.date(byAdding: .hour, value: 13, to: startOfDay)!,
                 duration: 3600,
                 energy: .daylight,
-                flow: .mist
+                emoji: "☁️"
             ),
             TimeBlock(
                 title: "Afternoon Work",
                 startTime: Calendar.current.date(byAdding: .hour, value: 15, to: startOfDay)!,
                 duration: 10800, // 3 hours
                 energy: .daylight,
-                flow: .crystal
+                emoji: "💎"
             ),
             TimeBlock(
                 title: "Evening Activities",
                 startTime: Calendar.current.date(byAdding: .hour, value: 19, to: startOfDay)!,
                 duration: 7200, // 2 hours
                 energy: .moonlight,
-                flow: .water
+                emoji: "🌊"
             )
         ]
     }
@@ -8847,7 +9412,7 @@ struct BackfillBlockView: View {
         .padding(8)
         .background(
             RoundedRectangle(cornerRadius: 6)
-                .fill(block.flow.material)
+                .fill(.regularMaterial)
                 .overlay(
                     RoundedRectangle(cornerRadius: 6)
                         .strokeBorder(.gray.opacity(0.3), style: StrokeStyle(lineWidth: 1, dash: [2, 2]))
@@ -8950,7 +9515,7 @@ struct BackfillSuggestionCard: View {
                     .padding(.vertical, 2)
                     .background(.blue.opacity(0.2), in: Capsule())
                 
-                Text(block.flow.rawValue)
+                Text(block.emoji)
                     .font(.caption2)
                 
                 Spacer()
@@ -9048,22 +9613,22 @@ struct BackfillTemplatesView: View {
         
         if isWeekend {
             templates = [
-                BackfillTemplate(title: "Sleep in", icon: "🛏️", duration: 3600, confidence: 0.9, energy: .moonlight, flow: .mist),
-                BackfillTemplate(title: "Breakfast", icon: "🥞", duration: 1800, confidence: 0.95, energy: .sunrise, flow: .mist),
-                BackfillTemplate(title: "Personal projects", icon: "🎨", duration: 7200, confidence: 0.8, energy: .daylight, flow: .water),
-                BackfillTemplate(title: "Errands", icon: "🛒", duration: 5400, confidence: 0.7, energy: .daylight, flow: .crystal),
-                BackfillTemplate(title: "Social time", icon: "👥", duration: 5400, confidence: 0.6, energy: .daylight, flow: .water),
-                BackfillTemplate(title: "Evening relax", icon: "📺", duration: 7200, confidence: 0.8, energy: .moonlight, flow: .mist)
+                BackfillTemplate(title: "Sleep in", icon: "🛏️", duration: 3600, confidence: 0.9, energy: .moonlight, emoji: "☁️"),
+                BackfillTemplate(title: "Breakfast", icon: "🥞", duration: 1800, confidence: 0.95, energy: .sunrise, emoji: "☁️"),
+                BackfillTemplate(title: "Personal projects", icon: "🎨", duration: 7200, confidence: 0.8, energy: .daylight, emoji: "🌊"),
+                BackfillTemplate(title: "Errands", icon: "🛒", duration: 5400, confidence: 0.7, energy: .daylight, emoji: "💎"),
+                BackfillTemplate(title: "Social time", icon: "👥", duration: 5400, confidence: 0.6, energy: .daylight, emoji: "🌊"),
+                BackfillTemplate(title: "Evening relax", icon: "📺", duration: 7200, confidence: 0.8, energy: .moonlight, emoji: "☁️")
             ]
         } else {
             templates = [
-                BackfillTemplate(title: "Morning routine", icon: "☕", duration: 3600, confidence: 0.9, energy: .sunrise, flow: .crystal),
-                BackfillTemplate(title: "Work session", icon: "💼", duration: 14400, confidence: 0.85, energy: .daylight, flow: .crystal),
-                BackfillTemplate(title: "Lunch break", icon: "🍽️", duration: 3600, confidence: 0.9, energy: .daylight, flow: .mist),
-                BackfillTemplate(title: "Meetings", icon: "👥", duration: 3600, confidence: 0.7, energy: .daylight, flow: .water),
-                BackfillTemplate(title: "Commute", icon: "🚗", duration: 3600, confidence: 0.8, energy: .moonlight, flow: .mist),
-                BackfillTemplate(title: "Dinner", icon: "🍽️", duration: 2700, confidence: 0.9, energy: .moonlight, flow: .mist),
-                BackfillTemplate(title: "Evening wind-down", icon: "📚", duration: 5400, confidence: 0.7, energy: .moonlight, flow: .water)
+                BackfillTemplate(title: "Morning routine", icon: "☕", duration: 3600, confidence: 0.9, energy: .sunrise, emoji: "💎"),
+                BackfillTemplate(title: "Work session", icon: "💼", duration: 14400, confidence: 0.85, energy: .daylight, emoji: "💎"),
+                BackfillTemplate(title: "Lunch break", icon: "🍽️", duration: 3600, confidence: 0.9, energy: .daylight, emoji: "☁️"),
+                BackfillTemplate(title: "Meetings", icon: "👥", duration: 3600, confidence: 0.7, energy: .daylight, emoji: "🌊"),
+                BackfillTemplate(title: "Commute", icon: "🚗", duration: 3600, confidence: 0.8, energy: .moonlight, emoji: "☁️"),
+                BackfillTemplate(title: "Dinner", icon: "🍽️", duration: 2700, confidence: 0.9, energy: .moonlight, emoji: "☁️"),
+                BackfillTemplate(title: "Evening wind-down", icon: "📚", duration: 5400, confidence: 0.7, energy: .moonlight, emoji: "🌊")
             ]
         }
     }
@@ -9076,7 +9641,7 @@ struct BackfillTemplate: Identifiable {
     let duration: TimeInterval
     let confidence: Double
     let energy: EnergyType
-    let flow: FlowState
+    let emoji: String
 }
 
 struct DraggableBackfillTemplate: View {
@@ -9142,19 +9707,19 @@ struct DraggableBackfillTemplate: View {
     }
     
     private func createTimeBlockFromTemplate() -> NSItemProvider {
-        let timeBlock = TimeBlock(
+        let _ = TimeBlock(
             title: template.title,
             startTime: Date(),
             duration: template.duration,
             energy: template.energy,
-            flow: template.flow,
+            emoji: template.emoji,
             explanation: "Backfill template: \(Int(template.confidence * 100))% confidence"
         )
         
-        // Stage the block immediately when dragged
-        dataManager.stageBlock(timeBlock, explanation: "Backfill: \(template.title)")
+        // Create a more detailed drag payload
+        let dragPayload = "backfill_template:\(template.title)|\(Int(template.duration))|\(template.energy.rawValue)|\(template.emoji)|\(template.confidence)"
         
-        return NSItemProvider(object: timeBlock.title as NSString)
+        return NSItemProvider(object: dragPayload as NSString)
     }
 }
 
@@ -9307,10 +9872,9 @@ struct PillarDayView: View {
                         startTime: timeSlot.startTime,
                         duration: pillar.minDuration,
                         energy: .daylight,
-                        flow: .crystal,
+                        emoji: pillar.emoji,
                         explanation: "Pillar day suggestion: overdue \(pillar.frequencyDescription) activity",
-                        relatedPillarId: pillar.id,
-                        emoji: pillar.emoji
+                        relatedPillarId: pillar.id
                     )
                     suggestions.append(suggestedEvent)
                 }
@@ -9468,7 +10032,7 @@ struct DraggableSuggestedEventCard: View {
     var body: some View {
         HStack(spacing: 12) {
             // Emoji from related pillar or event
-            Text(event.emoji ?? "📅")
+            Text(event.emoji.isEmpty ? "📅" : event.emoji)
                 .font(.title2)
             
             VStack(alignment: .leading, spacing: 4) {
@@ -9741,7 +10305,7 @@ struct GapFillerView: View {
             startTime: suggestion.startTime,
             duration: suggestion.duration,
             energy: .daylight,
-            flow: .water,
+            emoji: "🌊",
             glassState: .liquid
         )
         
@@ -10393,7 +10957,7 @@ struct StagedSuggestionView: View {
                     Text(suggestion.energy.rawValue)
                         .font(.caption2)
                     
-                    Text(suggestion.flow.rawValue)
+                    Text(suggestion.emoji)
                         .font(.caption2)
                 }
             }
@@ -10761,7 +11325,7 @@ struct SimpleTimeBlockView: View {
                     VStack(spacing: 2) {
                         Text(block.energy.rawValue)
                             .font(.caption)
-                        Text(block.flow.rawValue)
+                        Text(block.emoji)
                             .font(.caption)
                     }
                 .opacity(0.8)
@@ -10769,8 +11333,8 @@ struct SimpleTimeBlockView: View {
                     // Block content
                     VStack(alignment: .leading, spacing: 2) {
                         HStack(spacing: 6) {
-                            if let emoji = block.emoji {
-                                Text(emoji)
+                            if !block.emoji.isEmpty {
+                                Text(block.emoji)
                                     .font(.caption)
                             }
                             
@@ -10826,7 +11390,7 @@ struct SimpleTimeBlockView: View {
             .padding(.vertical, 8)
             .background(
                 RoundedRectangle(cornerRadius: 8)
-                    .fill(block.flow.material)
+                    .fill(.regularMaterial)
                     .overlay(
                         RoundedRectangle(cornerRadius: 8)
                             .strokeBorder(
@@ -11147,7 +11711,7 @@ struct ChainSelectorView: View {
         Activity: \(baseBlock.title)
         Duration: \(baseBlock.durationMinutes) minutes
         Energy: \(baseBlock.energy.description)
-        Flow: \(baseBlock.flow.description)
+        Emoji: \(baseBlock.emoji)
         Time: \(baseBlock.startTime.timeString)
         
         For each chain suggestion, provide:
@@ -11163,7 +11727,7 @@ struct ChainSelectorView: View {
                 date: baseBlock.startTime,
                 existingBlocks: [baseBlock],
                 currentEnergy: baseBlock.energy,
-                preferredFlows: [baseBlock.flow],
+                preferredEmojis: [baseBlock.emoji],
                 availableTime: 7200, // 2 hours
                 mood: .crystal
             )
@@ -11194,14 +11758,14 @@ struct ChainSelectorView: View {
                         startTime: Date(),
                         duration: 900,
                         energy: baseBlock.energy,
-                        flow: .crystal
+                        emoji: "💎"
                     ),
                     TimeBlock(
                         title: "Quick review",
                         startTime: Date(),
                         duration: 600,
                         energy: baseBlock.energy,
-                        flow: .mist
+                        emoji: "☁️"
                     )
                 ],
                 flowPattern: .waterfall
@@ -11214,14 +11778,14 @@ struct ChainSelectorView: View {
                         startTime: Date(),
                         duration: 900,
                         energy: .daylight,
-                        flow: .mist
+                        emoji: "☁️"
                     ),
                     TimeBlock(
                         title: "Next steps",
                         startTime: Date(),
                         duration: 1200,
                         energy: .daylight,
-                        flow: .crystal
+                        emoji: "💎"
                     )
                 ],
                 flowPattern: .waterfall
@@ -11235,16 +11799,16 @@ struct ChainSelectorView: View {
                 Chain(
                     name: "Warm-up Sequence",
                     blocks: [
-                        TimeBlock(title: "Prepare space", startTime: Date(), duration: 600, energy: .daylight, flow: .mist),
-                        TimeBlock(title: "Mental prep", startTime: Date(), duration: 900, energy: .daylight, flow: .crystal)
+                        TimeBlock(title: "Prepare space", startTime: Date(), duration: 600, energy: .daylight, emoji: "☁️"),
+                        TimeBlock(title: "Mental prep", startTime: Date(), duration: 900, energy: .daylight, emoji: "💎")
                     ],
                     flowPattern: .waterfall
                 ),
                 Chain(
                     name: "Energy Boost",
                     blocks: [
-                        TimeBlock(title: "Quick movement", startTime: Date(), duration: 300, energy: .sunrise, flow: .water),
-                        TimeBlock(title: "Hydrate", startTime: Date(), duration: 300, energy: .daylight, flow: .mist)
+                        TimeBlock(title: "Quick movement", startTime: Date(), duration: 300, energy: .sunrise, emoji: "🌊"),
+                        TimeBlock(title: "Hydrate", startTime: Date(), duration: 300, energy: .daylight, emoji: "☁️")
                     ],
                     flowPattern: .ripple
                 )
@@ -11254,16 +11818,16 @@ struct ChainSelectorView: View {
                 Chain(
                     name: "Cool Down",
                     blocks: [
-                        TimeBlock(title: "Reflect", startTime: Date(), duration: 600, energy: .daylight, flow: .mist),
-                        TimeBlock(title: "Organize", startTime: Date(), duration: 900, energy: .daylight, flow: .crystal)
+                        TimeBlock(title: "Reflect", startTime: Date(), duration: 600, energy: .daylight, emoji: "☁️"),
+                        TimeBlock(title: "Organize", startTime: Date(), duration: 900, energy: .daylight, emoji: "💎")
                     ],
                     flowPattern: .waterfall
                 ),
                 Chain(
                     name: "Transition",
                     blocks: [
-                        TimeBlock(title: "Quick break", startTime: Date(), duration: 300, energy: .moonlight, flow: .mist),
-                        TimeBlock(title: "Prepare next", startTime: Date(), duration: 600, energy: .daylight, flow: .crystal)
+                        TimeBlock(title: "Quick break", startTime: Date(), duration: 300, energy: .moonlight, emoji: "☁️"),
+                        TimeBlock(title: "Prepare next", startTime: Date(), duration: 600, energy: .daylight, emoji: "💎")
                     ],
                     flowPattern: .wave
                 )
@@ -11280,7 +11844,7 @@ struct ChainSelectorView: View {
                     startTime: Date(),
                     duration: TimeInterval(customDuration * 60), // Convert minutes to seconds
                     energy: baseBlock.energy,
-                    flow: baseBlock.flow
+                    emoji: baseBlock.emoji
                 )
             ],
             flowPattern: .waterfall
@@ -11660,7 +12224,7 @@ struct MonthView: View {
                 date: start,
                 existingBlocks: dataManager.appState.currentDay.blocks,
                 currentEnergy: .daylight,
-                preferredFlows: [.water],
+                preferredEmojis: ["🌊"],
                 availableTime: TimeInterval(dayCount * 24 * 3600),
                 mood: dataManager.appState.currentDay.mood
             )
@@ -11786,7 +12350,7 @@ struct BlockCreationSheet: View {
     
     @State private var title = ""
     @State private var selectedEnergy: EnergyType = .daylight
-    @State private var selectedFlow: FlowState = .water
+    @State private var selectedEmoji: String = "🌊"
     @State private var duration: Int = 60 // minutes
     @Environment(\.dismiss) private var dismiss
     
@@ -11842,25 +12406,25 @@ struct BlockCreationSheet: View {
                         .font(.headline)
                     
                     HStack(spacing: 12) {
-                        ForEach(FlowState.allCases, id: \.self) { flow in
-                            Button(action: { selectedFlow = flow }) {
+                        ForEach(["📋", "💎", "🌊", "☁️", "🎯", "💪", "🧠", "🎨"], id: \.self) { emoji in
+                            Button(action: { selectedEmoji = emoji }) {
                                 VStack(spacing: 4) {
-                                    Text(flow.rawValue)
+                                    Text(emoji)
                                         .font(.title2)
-                                    Text(flow.description)
+                                    Text("Activity")
                                         .font(.caption)
                                 }
                                 .padding(.vertical, 8)
                                 .padding(.horizontal, 12)
                                 .background(
-                                    selectedFlow == flow ? .blue.opacity(0.2) : .clear,
+                                    selectedEmoji == emoji ? .blue.opacity(0.2) : .clear,
                                     in: RoundedRectangle(cornerRadius: 8)
                                 )
                                 .overlay(
                                     RoundedRectangle(cornerRadius: 8)
                                         .strokeBorder(
-                                            selectedFlow == flow ? .blue : .gray.opacity(0.3),
-                                            lineWidth: selectedFlow == flow ? 2 : 1
+                                            selectedEmoji == emoji ? .blue : .gray.opacity(0.3),
+                                            lineWidth: selectedEmoji == emoji ? 2 : 1
                                         )
                                 )
                             }
@@ -11899,7 +12463,7 @@ struct BlockCreationSheet: View {
                             startTime: suggestedTime,
                             duration: TimeInterval(duration * 60),
                             energy: selectedEnergy,
-                            flow: selectedFlow,
+                            emoji: selectedEmoji,
                             glassState: .mist
                         )
                         onCreate(block)
@@ -12110,7 +12674,7 @@ struct ChainCreationView: View {
             startTime: Date(),
             duration: 1800, // 30 minutes default
             energy: .daylight,
-            flow: .water,
+            emoji: "🌊",
             glassState: .crystal
         )
         chainBlocks.append(newBlock)
@@ -12561,14 +13125,14 @@ struct GoalCreationView: View {
                     startTime: Date(),
                     duration: 1800, // 30 minutes
                     energy: .daylight,
-                    flow: .crystal
+                    emoji: "💎"
                 ),
                 TimeBlock(
                     title: "Execute \(title)",
                     startTime: Date(),
                     duration: 3600, // 60 minutes
                     energy: .daylight,
-                    flow: .water
+                    emoji: "🌊"
                 )
             ],
             flowPattern: .waterfall
@@ -12582,7 +13146,7 @@ struct GoalCreationView: View {
             startTime: Date(),
             duration: 3600, // 60 minutes default
             energy: .daylight,
-            flow: .water
+            emoji: "🌊"
         )
         // This would ideally show a time block creation sheet
     }
@@ -12964,7 +13528,7 @@ struct DreamMergeView: View {
                 date: Date(),
                 existingBlocks: [],
                 currentEnergy: .daylight,
-                preferredFlows: [.water],
+                preferredEmojis: ["🌊"],
                 availableTime: 3600,
                 mood: .crystal
             )
@@ -13155,7 +13719,7 @@ struct DreamChatView: View {
                 date: Date(),
                 existingBlocks: [],
                 currentEnergy: .daylight,
-                preferredFlows: [.water],
+                preferredEmojis: ["🌊"],
                 availableTime: 3600,
                 mood: .crystal
             )

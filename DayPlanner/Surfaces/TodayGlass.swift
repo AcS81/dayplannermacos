@@ -340,7 +340,7 @@ struct TimeBlockCard: View {
             VStack(spacing: 4) {
                 Text(block.energy.rawValue)
                     .font(.title2)
-                Text(block.flow.rawValue)
+                Text(block.emoji)
                     .font(.title3)
                 
                 if isHovering {
@@ -735,7 +735,7 @@ struct EnhancedBlockBackgroundView: View {
         } else if isHovering {
             return .ultraThinMaterial
         } else {
-            return block.flow.material
+            return .regularMaterial // Default material since flow was replaced with emoji
         }
     }
     
@@ -997,16 +997,16 @@ struct EventHeaderSection: View {
             )
             
             VStack(spacing: 8) {
-                Text(block.flow.rawValue)
+                Text(block.emoji)
                     .font(.title)
-                Text(block.flow.description)
+                Text("Flow") // Placeholder since flow was replaced with emoji
                     .font(.caption)
                     .foregroundColor(.secondary)
             }
             .padding(16)
             .background(
                 RoundedRectangle(cornerRadius: 12)
-                    .fill(block.flow.material)
+                    .fill(.blue.opacity(0.3)) // Default material since flow was replaced with emoji
                     .overlay(
                         RoundedRectangle(cornerRadius: 12)
                             .strokeBorder(.secondary.opacity(0.2))
@@ -1207,36 +1207,32 @@ struct EventPropertiesSection: View {
                     }
                 }
                 
-                // Flow State Selection
+                // Emoji Selection (replaces Flow State)
                 VStack(alignment: .leading, spacing: 8) {
-                    Text("Flow State")
+                    Text("Visual Identifier")
                         .font(.subheadline)
                         .foregroundColor(.secondary)
                     
                     HStack(spacing: 12) {
-                        ForEach(FlowState.allCases, id: \.self) { flow in
+                        let commonEmojis = ["🎯", "💡", "📚", "🏃‍♂️", "🧘‍♀️", "🎨", "💻", "📞"]
+                        ForEach(commonEmojis, id: \.self) { emoji in
                             Button(action: {
-                                block.flow = flow
+                                block.emoji = emoji
                             }) {
-                                VStack(spacing: 4) {
-                                    Text(flow.rawValue)
-                                        .font(.title2)
-                                    Text(flow.description)
-                                        .font(.caption2)
-                                        .foregroundColor(.secondary)
-                                }
-                                .padding(8)
-                                .background(
-                                    RoundedRectangle(cornerRadius: 8)
-                                        .fill(flow.material.opacity(0.3))
-                                        .overlay(
-                                            RoundedRectangle(cornerRadius: 8)
-                                                .strokeBorder(
-                                                    block.flow == flow ? .primary : Color.secondary.opacity(0.3),
-                                                    lineWidth: block.flow == flow ? 2 : 1
-                                                )
-                                        )
-                                )
+                                Text(emoji)
+                                    .font(.title2)
+                                    .padding(8)
+                                    .background(
+                                        RoundedRectangle(cornerRadius: 8)
+                                            .fill(block.emoji == emoji ? .blue.opacity(0.2) : .clear)
+                                            .overlay(
+                                                RoundedRectangle(cornerRadius: 8)
+                                                    .strokeBorder(
+                                                        block.emoji == emoji ? .blue : .secondary.opacity(0.3),
+                                                        lineWidth: block.emoji == emoji ? 2 : 1
+                                                    )
+                                            )
+                                    )
                             }
                             .buttonStyle(.plain)
                         }

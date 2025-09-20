@@ -16,7 +16,7 @@ struct CalendarDayView: View {
     @State private var draggedBlock: TimeBlock?
     @State private var dragOffset: CGSize = .zero
     @State private var showingBlockCreation = false
-    @State private var creationTime: Date?
+    @State private var creationTime: Date? = nil
     
     // Constants for layout calculations
     private let hourHeight: CGFloat = 80
@@ -102,7 +102,6 @@ struct CalendarDayView: View {
                     },
                     onCancel: {
                         showingBlockCreation = false
-                        creationTime = nil
                     }
                 )
             }
@@ -172,7 +171,7 @@ struct CalendarDayView: View {
         dataManager.updateTimeBlock(updatedBlock)
     }
     
-    private func scrollToCurrentHour(proxy: ScrollViewReader) {
+    private func scrollToCurrentHour(proxy: ScrollViewProxy) {
         let currentHour = Calendar.current.component(.hour, from: Date())
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
             withAnimation(.easeInOut(duration: 0.6)) {
@@ -185,7 +184,7 @@ struct CalendarDayView: View {
         // Generate contextual AI explanation based on time, energy, and flow
         let timeContext = getTimeContext(for: block.startTime)
         let energyContext = block.energy.description.lowercased()
-        let flowContext = block.flow.description.lowercased()
+        let flowContext = "focused" // Simplified since flow property was removed
         
         return "Perfect \(timeContext) activity for \(energyContext) energy and \(flowContext) focus"
     }
@@ -295,7 +294,7 @@ struct EventsOverlay: View {
                     onEventDrag(block, dragValue)
                 },
                 onDragEnded: { dragValue in
-                    let minutesChanged = dragValue.translation.y / pixelsPerMinute
+                    let minutesChanged = dragValue.translation.height / pixelsPerMinute
                     let newStartTime = block.startTime.addingTimeInterval(TimeInterval(minutesChanged * 60))
                     onEventDrop(block, newStartTime)
                 },
@@ -406,17 +405,12 @@ struct EventCard: View {
             
             // Resize handle at bottom
             if isHovering && !isResizing {
-                ResizeHandle(
-                    onDragChanged: { value in
-                        isResizing = true
-                        let newHeight = eventHeight + value.translation.y
-                        let newDuration = TimeInterval((newHeight / pixelsPerMinute) * 60)
-                        onResize(newDuration)
-                    },
-                    onDragEnded: { _ in
-                        isResizing = false
-                    }
-                )
+                ResizeHandle(onDrag: { dragValue in
+                    isResizing = true
+                    let newHeight = eventHeight + dragValue.height
+                    let newDuration = TimeInterval((newHeight / pixelsPerMinute) * 60)
+                    onResize(newDuration)
+                })
                 .transition(.opacity.combined(with: .scale(scale: 0.8)))
             }
         }
@@ -452,7 +446,7 @@ struct EventCard: View {
             DragGesture(coordinateSpace: .global)
                 .onChanged { value in
                     if !isResizing {
-                        dragOffset = CGSize(width: 0, height: value.translation.y)
+                        dragOffset = CGSize(width: 0, height: value.translation.height)
                         onDragChanged(value)
                     }
                 }
@@ -520,7 +514,7 @@ struct EventCard: View {
     }
     
     private func generateAIDescription() -> String {
-        let flowEmoji = block.flow.rawValue
+        let flowEmoji = block.emoji
         let energyDesc = block.energy.description.lowercased()
         let timeContext = getTimeContext(for: block.startTime)
         
@@ -580,7 +574,7 @@ struct EventCard: View {
             startTime: time,
             duration: 15 * 60, // 15 minutes
             energy: block.energy,
-            flow: block.flow,
+            emoji: block.emoji,
             glassState: .mist,
             isStaged: true,
             stagedBy: "Chain Creation",
@@ -618,47 +612,6 @@ struct ChainButton: View {
     }
 }
 
-// MARK: - Resize Handle
-
-struct ResizeHandle: View {
-    let onDragChanged: (DragGesture.Value) -> Void
-    let onDragEnded: (DragGesture.Value) -> Void
-    
-    @State private var isDragging = false
-    
-    var body: some View {
-        HStack {
-            Spacer()
-            
-            RoundedRectangle(cornerRadius: 2)
-                .fill(.secondary)
-                .frame(width: 30, height: 4)
-                .scaleEffect(isDragging ? 1.2 : 1.0)
-                .gesture(
-                    DragGesture()
-                        .onChanged { value in
-                            if !isDragging {
-                                withAnimation(.spring(response: 0.2, dampingFraction: 0.8)) {
-                                    isDragging = true
-                                }
-                            }
-                            onDragChanged(value)
-                        }
-                        .onEnded { value in
-                            withAnimation(.spring(response: 0.4, dampingFraction: 0.8)) {
-                                isDragging = false
-                            }
-                            onDragEnded(value)
-                        }
-                )
-            
-            Spacer()
-        }
-        .frame(height: 12)
-        .contentShape(Rectangle())
-    }
-}
-
 // MARK: - Drag Indicator Line
 
 struct DragIndicatorLine: View {
@@ -671,7 +624,7 @@ struct DragIndicatorLine: View {
     var body: some View {
         let startOfDay = Calendar.current.startOfDay(for: draggedBlock.startTime)
         let originalY = CGFloat(draggedBlock.startTime.timeIntervalSince(startOfDay) / 60) * pixelsPerMinute
-        let newY = originalY + dragOffset.y
+        let newY = originalY + dragOffset.height
         
         Rectangle()
             .fill(.blue.opacity(0.8))
@@ -680,7 +633,7 @@ struct DragIndicatorLine: View {
         
         // Time indicator
         HStack {
-            let newTime = draggedBlock.startTime.addingTimeInterval(TimeInterval(dragOffset.y / pixelsPerMinute * 60))
+            let newTime = draggedBlock.startTime.addingTimeInterval(TimeInterval(dragOffset.height / pixelsPerMinute * 60))
             Text(timeFormatter.string(from: newTime))
                 .font(.caption)
                 .fontWeight(.semibold)
@@ -717,7 +670,7 @@ struct EventCreationSheet: View {
     @State private var title = ""
     @State private var duration: TimeInterval = 3600 // 1 hour default
     @State private var energy: EnergyType = .daylight
-    @State private var flow: FlowState = .water
+    @State private var emoji: String = "🎯"
     @Environment(\.dismiss) private var dismiss
     
     var body: some View {
@@ -744,14 +697,9 @@ struct EventCreationSheet: View {
                         }
                     }
                     
-                    Picker("Flow State", selection: $flow) {
-                        ForEach(FlowState.allCases, id: \.self) { flow in
-                            HStack {
-                                Text(flow.rawValue)
-                                Text(flow.description)
-                            }.tag(flow)
-                        }
-                    }
+                    // Flow state picker removed - using emoji system instead
+                    TextField("Emoji", text: $emoji)
+                        .textFieldStyle(.roundedBorder)
                 }
                 
                 Section("Timing") {
@@ -760,7 +708,6 @@ struct EventCreationSheet: View {
                 }
             }
             .navigationTitle("New Event")
-            .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("Cancel") {
@@ -775,7 +722,7 @@ struct EventCreationSheet: View {
                             startTime: startTime,
                             duration: duration,
                             energy: energy,
-                            flow: flow,
+                            emoji: "🎯",
                             glassState: .crystal
                         )
                         onSave(newBlock)
@@ -787,6 +734,8 @@ struct EventCreationSheet: View {
         .frame(width: 500, height: 600)
     }
 }
+
+// MARK: - Resize Handle (defined in TodayGlass.swift)
 
 // MARK: - Preview
 

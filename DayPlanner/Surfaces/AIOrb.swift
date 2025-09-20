@@ -379,7 +379,7 @@ struct ExpandedAIInterface: View {
                     date: Date(),
                     existingBlocks: [],
                     currentEnergy: .daylight,
-                    preferredFlows: [.water],
+                    preferredEmojis: ["🌊"],
                     availableTime: 3600,
                     mood: .crystal
                 )
