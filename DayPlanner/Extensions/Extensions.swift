@@ -75,6 +75,13 @@ extension Date {
         return DateFormatters.timeFormatter.string(from: self)
     }
     
+    /// Precise time for timeline display (e.g., "6:45")
+    var preciseTwoLineTime: String {
+        let formatter = DateFormatter()
+        formatter.dateFormat = "H:mm"
+        return formatter.string(from: self)
+    }
+    
     /// Format date as "Today", "Tomorrow", or "Wed, Dec 12"
     var dayString: String {
         let calendar = Calendar.current

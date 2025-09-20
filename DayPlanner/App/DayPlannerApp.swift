@@ -1739,16 +1739,18 @@ struct EnhancedDayView: View {
     @State private var creationTime: Date?
     @State private var draggedBlock: TimeBlock?
     
+    // Constants for precise timeline sizing
+    private let minuteHeight: CGFloat = 1.0 // 1 pixel per minute = perfect precision
+    
     var body: some View {
         VStack(spacing: 0) {
-            // Enhanced timeline view with liquid glass hour slots
+            // Proportional timeline view where duration = visual height
             ScrollView {
-                LazyVStack(spacing: 1) {
-                    ForEach(0..<24, id: \.self) { hour in
-                        EnhancedHourSlot(
-                            hour: hour,
+                ProportionalTimelineView(
                             selectedDate: selectedDate,
-                            blocks: blocksForHour(hour),
+                    blocks: allBlocksForDay,
+                    draggedBlock: draggedBlock,
+                    minuteHeight: minuteHeight,
                             onTap: { time in
                                 creationTime = time
                                 showingBlockCreation = true
@@ -1758,13 +1760,9 @@ struct EnhancedDayView: View {
                             },
                             onBlockDrop: { block, newTime in
                                 handleBlockDrop(block: block, newTime: newTime)
-                                draggedBlock = nil // Clear drag state
+                        draggedBlock = nil
                             }
                         )
-                    }
-                }
-                .padding(.horizontal, 12)
-                .padding(.vertical, 8)
             }
             .scrollIndicators(.hidden)
             .scrollDisabled(draggedBlock != nil) // Disable scroll when dragging an event
@@ -1787,15 +1785,8 @@ struct EnhancedDayView: View {
         }
     }
     
-    private func blocksForHour(_ hour: Int) -> [TimeBlock] {
-        let calendar = Calendar.current
-        let dayStart = calendar.startOfDay(for: selectedDate)
-        let hourStart = calendar.date(byAdding: .hour, value: hour, to: dayStart) ?? dayStart
-        let hourEnd = calendar.date(byAdding: .hour, value: 1, to: hourStart) ?? hourStart
-        
-        return dataManager.appState.currentDay.blocks.filter { block in
-            block.startTime >= hourStart && block.startTime < hourEnd
-        }
+    private var allBlocksForDay: [TimeBlock] {
+        return dataManager.appState.currentDay.blocks + dataManager.appState.stagedBlocks
     }
     
     private func handleBlockDrop(block: TimeBlock, newTime: Date) {
@@ -1807,6 +1798,1546 @@ struct EnhancedDayView: View {
     private func updateDataManagerDate() {
         dataManager.appState.currentDay.date = selectedDate
         dataManager.save()
+    }
+}
+
+// MARK: - Precise Timeline View (Exact Positioning)
+
+struct ProportionalTimelineView: View {
+    let selectedDate: Date
+    let blocks: [TimeBlock]
+    let draggedBlock: TimeBlock?
+    let minuteHeight: CGFloat
+    let onTap: (Date) -> Void
+    let onBlockDrag: (TimeBlock, CGPoint) -> Void
+    let onBlockDrop: (TimeBlock, Date) -> Void
+    
+    private let calendar = Calendar.current
+    private let dayStartHour = 6
+    private let dayEndHour = 24
+    
+    var body: some View {
+        HStack(alignment: .top, spacing: 0) {
+            // Time labels column with precise minute markers
+            TimeLabelsColumn(
+                selectedDate: selectedDate,
+                dayStartHour: dayStartHour,
+                dayEndHour: dayEndHour
+            )
+            .frame(width: 80)
+            
+            // Precise timeline canvas
+            ZStack(alignment: .topLeading) {
+                // Background grid
+                TimelineCanvas(
+                    selectedDate: selectedDate,
+                    dayStartHour: dayStartHour,
+                    dayEndHour: dayEndHour,
+                    onTap: onTap
+                )
+                
+                // Events positioned at exact times
+                ForEach(blocks) { block in
+                    PreciseEventCard(
+                        block: block,
+                        selectedDate: selectedDate,
+                        dayStartHour: dayStartHour,
+                        minuteHeight: minuteHeight,
+                        isDragged: draggedBlock?.id == block.id,
+                        allBlocks: blocks,
+                        onDrag: { location in
+                            onBlockDrag(block, location)
+                        },
+                        onDrop: { newTime in
+                            onBlockDrop(block, newTime)
+                        }
+                    )
+                }
+            }
+            .frame(maxWidth: .infinity)
+        }
+    }
+    
+    private func blocksForHour(_ hour: Int, blocks: [TimeBlock]) -> [TimeBlock] {
+        return blocks.filter { block in
+            let blockHour = calendar.component(.hour, from: block.startTime)
+            return blockHour == hour
+        }
+    }
+    
+    private func hourLabel(for hour: Int) -> String {
+        let date = calendar.date(bySettingHour: hour, minute: 0, second: 0, of: selectedDate) ?? selectedDate
+        let formatter = DateFormatter()
+        formatter.timeStyle = .short
+        
+        switch hour {
+        case 6: return "🌅 \(formatter.string(from: date))"
+        case 18: return "🌅 \(formatter.string(from: date))"
+        case 0: return "🌙 \(formatter.string(from: date))"
+        default: return formatter.string(from: date)
+        }
+    }
+    
+    private func isCurrentHour(_ hour: Int) -> Bool {
+        return calendar.component(.hour, from: Date()) == hour &&
+               calendar.isDate(selectedDate, inSameDayAs: Date())
+    }
+    
+    private func hourBackgroundColor(for hour: Int) -> Color {
+        switch hour {
+        case 6: return .orange.opacity(0.03)
+        case 7...17: return .blue.opacity(0.01) 
+        case 18: return .orange.opacity(0.03)
+        case 19...21: return .purple.opacity(0.02)
+        case 22...23, 0: return .indigo.opacity(0.03)
+        default: return .indigo.opacity(0.01)
+        }
+    }
+    
+    @ViewBuilder
+    private func currentTimeIndicator(for hour: Int) -> some View {
+        if isCurrentHour(hour) {
+            let now = Date()
+            let minute = calendar.component(.minute, from: now)
+            let offsetY = CGFloat(minute) // 1 pixel per minute
+            
+            Rectangle()
+                .fill(.blue)
+                .frame(height: 2)
+                .frame(maxWidth: .infinity)
+                .offset(y: offsetY)
+                .opacity(0.8)
+                .shadow(color: .blue, radius: 1)
+        }
+    }
+}
+
+// MARK: - Precise Timeline Components
+
+struct TimeLabelsColumn: View {
+    let selectedDate: Date
+    let dayStartHour: Int
+    let dayEndHour: Int
+    
+    private let calendar = Calendar.current
+    
+    var body: some View {
+        VStack(spacing: 0) {
+            ForEach(dayStartHour..<dayEndHour, id: \.self) { hour in
+                VStack(spacing: 0) {
+                    // Hour label at top
+                    Text(hourLabel(for: hour))
+                        .font(.system(.caption, design: .monospaced))
+                        .fontWeight(.medium)
+                        .foregroundStyle(isCurrentHour(hour) ? .blue : .primary)
+                        .frame(height: 15, alignment: .bottom)
+                    
+                    // Quarter hour markers
+                    VStack(spacing: 0) {
+                        ForEach([15, 30, 45], id: \.self) { minute in
+                            HStack {
+                                Spacer()
+                                Text(":\(minute)")
+                                    .font(.system(.caption2, design: .monospaced))
+                                    .foregroundStyle(.tertiary)
+                            }
+                            .frame(height: 15)
+                        }
+                    }
+                }
+                .frame(height: 60) // 60 pixels per hour
+            }
+        }
+    }
+    
+    private func hourLabel(for hour: Int) -> String {
+        let date = calendar.date(bySettingHour: hour, minute: 0, second: 0, of: selectedDate) ?? selectedDate
+        let formatter = DateFormatter()
+        formatter.timeStyle = .short
+        
+        switch hour {
+        case 6: return "🌅 \(formatter.string(from: date))"
+        case 18: return "🌅 \(formatter.string(from: date))"
+        case 0: return "🌙 \(formatter.string(from: date))"
+        default: return formatter.string(from: date)
+        }
+    }
+    
+    private func isCurrentHour(_ hour: Int) -> Bool {
+        return calendar.component(.hour, from: Date()) == hour &&
+               calendar.isDate(selectedDate, inSameDayAs: Date())
+    }
+}
+
+struct TimelineCanvas: View {
+    let selectedDate: Date
+    let dayStartHour: Int
+    let dayEndHour: Int
+    let onTap: (Date) -> Void
+    
+    private let calendar = Calendar.current
+    
+    var body: some View {
+        VStack(spacing: 0) {
+            ForEach(dayStartHour..<dayEndHour, id: \.self) { hour in
+                Rectangle()
+                    .fill(hourBackgroundColor(for: hour))
+                    .frame(height: 60) // 60 pixels per hour (1 pixel per minute)
+                    .overlay(
+                        // Quarter hour grid lines
+                        VStack(spacing: 0) {
+                            ForEach([15, 30, 45], id: \.self) { minute in
+                                Rectangle()
+                                    .fill(.quaternary.opacity(0.1))
+                                    .frame(height: 1)
+                                    .frame(maxWidth: .infinity)
+                                    .offset(y: CGFloat(minute - 15))
+                            }
+                        },
+                        alignment: .top
+                    )
+                    .overlay(
+                        // Current time indicator
+                        currentTimeIndicator(for: hour),
+                        alignment: .topLeading
+                    )
+                    .overlay(
+                        // Hour separator
+                        Rectangle()
+                            .fill(.quaternary.opacity(0.3))
+                            .frame(height: 1),
+                        alignment: .bottom
+                    )
+                    .contentShape(Rectangle())
+                    .onTapGesture {
+                        let hourTime = calendar.date(bySettingHour: hour, minute: 0, second: 0, of: selectedDate) ?? selectedDate
+                        onTap(hourTime)
+                    }
+            }
+        }
+    }
+    
+    private func hourBackgroundColor(for hour: Int) -> Color {
+        switch hour {
+        case 6: return .orange.opacity(0.02)
+        case 7...17: return .blue.opacity(0.005) 
+        case 18: return .orange.opacity(0.02)
+        case 19...21: return .purple.opacity(0.01)
+        default: return .indigo.opacity(0.005)
+        }
+    }
+    
+    @ViewBuilder
+    private func currentTimeIndicator(for hour: Int) -> some View {
+        if isCurrentHour(hour) {
+            let now = Date()
+            let minute = calendar.component(.minute, from: now)
+            let offsetY = CGFloat(minute) // 1 pixel per minute
+            
+            Rectangle()
+                .fill(.blue)
+                .frame(height: 2)
+                .frame(maxWidth: .infinity)
+                .offset(y: offsetY)
+                .opacity(0.8)
+                .shadow(color: .blue, radius: 1)
+        }
+    }
+    
+    private func isCurrentHour(_ hour: Int) -> Bool {
+        return calendar.component(.hour, from: Date()) == hour &&
+               calendar.isDate(selectedDate, inSameDayAs: Date())
+    }
+}
+
+struct PreciseEventCard: View {
+    let block: TimeBlock
+    let selectedDate: Date
+    let dayStartHour: Int
+    let minuteHeight: CGFloat
+    let isDragged: Bool
+    let allBlocks: [TimeBlock]
+    let onDrag: (CGPoint) -> Void
+    let onDrop: (Date) -> Void
+    
+    @EnvironmentObject private var dataManager: AppDataManager
+    @State private var dragOffset: CGSize = .zero
+    @State private var isDragging = false
+    @State private var showingDetails = false
+    
+    private let calendar = Calendar.current
+    
+    var body: some View {
+        Button(action: { showingDetails = true }) {
+            HStack(spacing: 8) {
+                // Energy and flow indicators
+                VStack(spacing: 1) {
+                    Text(block.energy.rawValue)
+                        .font(.caption)
+                    Text(block.flow.rawValue)
+                        .font(.caption2)
+                }
+                .opacity(0.8)
+                .frame(width: 25)
+                
+                // Block content
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(block.title)
+                        .font(.subheadline)
+                        .fontWeight(.medium)
+                        .foregroundStyle(.primary)
+                        .lineLimit(durationBasedLineLimit)
+                    
+                    HStack(spacing: 4) {
+                        Text(block.startTime.preciseTwoLineTime)
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                        
+                        Text("•")
+                            .font(.caption)
+                            .foregroundStyle(.gray)
+                        
+                        Text("\(block.durationMinutes)m")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                        
+                        Spacer()
+                        
+                        // Info icon
+                        Image(systemName: "info.circle")
+                            .font(.caption)
+                            .foregroundStyle(.blue.opacity(0.6))
+                    }
+                    
+                    // Show end time for longer events
+                    if block.durationMinutes >= 45 {
+                        Text("→ \(block.endTime.preciseTwoLineTime)")
+                            .font(.caption2)
+                            .foregroundStyle(.tertiary)
+                    }
+                }
+                
+                Spacer()
+                
+                // Glass state indicator
+                Circle()
+                    .fill(stateColor)
+                    .frame(width: 6, height: 6)
+            }
+        }
+        .buttonStyle(.plain)
+        .padding(.horizontal, 10)
+        .padding(.vertical, 4)
+        .frame(height: eventHeight, alignment: .center)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(
+            RoundedRectangle(cornerRadius: 8)
+                .fill(block.flow.material.opacity(0.85))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 8)
+                        .strokeBorder(
+                            block.isStaged ? .gray.opacity(0.6) : borderColor, 
+                            style: StrokeStyle(
+                                lineWidth: block.isStaged ? 2 : 1,
+                                dash: block.isStaged ? [4, 4] : []
+                            )
+                        )
+                )
+        )
+        .opacity(block.isStaged ? 0.5 : 1.0)
+        .scaleEffect(isDragging ? 0.98 : 1.0)
+        .offset(x: dragOffset.width, y: dragOffset.height + yPosition)
+        .highPriorityGesture(
+            DragGesture(minimumDistance: 8, coordinateSpace: .global)
+                .onChanged { value in
+                    if !isDragging {
+                        isDragging = true
+                    }
+                    dragOffset = value.translation
+                    onDrag(value.location)
+                }
+                .onEnded { value in
+                    isDragging = false
+                    dragOffset = .zero
+                    
+                    let newTime = calculateNewTime(from: value.translation)
+                    onDrop(newTime)
+                }
+        )
+        .sheet(isPresented: $showingDetails) {
+            NoFlashEventDetailsSheet(
+                block: block,
+                allBlocks: allBlocks,
+                onSave: { updatedBlock in
+                    dataManager.updateTimeBlock(updatedBlock)
+                    showingDetails = false
+                },
+                onDelete: {
+                    dataManager.removeTimeBlock(block.id)
+                    showingDetails = false
+                }
+            )
+            .presentationDetents([.large])
+            .presentationDragIndicator(.hidden)
+        }
+    }
+    
+    // MARK: - Precise Positioning
+    
+    private var yPosition: CGFloat {
+        // Calculate exact Y position based on start time
+        let dayStart = calendar.startOfDay(for: selectedDate)
+        let dayStartTime = calendar.date(byAdding: .hour, value: dayStartHour, to: dayStart) ?? dayStart
+        let totalMinutesFromStart = block.startTime.timeIntervalSince(dayStartTime) / 60
+        return CGFloat(totalMinutesFromStart) * minuteHeight
+    }
+    
+    private var eventHeight: CGFloat {
+        // Height exactly proportional to duration
+        CGFloat(block.durationMinutes) * minuteHeight
+    }
+    
+    private var durationBasedLineLimit: Int {
+        switch block.durationMinutes {
+        case 0..<30: return 1
+        case 30..<90: return 2
+        default: return 3
+        }
+    }
+    
+    private var stateColor: Color {
+        switch block.glassState {
+        case .solid: return .green
+        case .liquid: return .blue
+        case .mist: return .orange
+        case .crystal: return .cyan
+        }
+    }
+    
+    private var borderColor: Color {
+        switch block.glassState {
+        case .solid: return .clear
+        case .liquid: return .blue.opacity(0.6)
+        case .mist: return .orange.opacity(0.5)
+        case .crystal: return .cyan.opacity(0.7)
+        }
+    }
+    
+    private func calculateNewTime(from translation: CGSize) -> Date {
+        // Precise time calculation using minute height
+        let minuteChange = Int(translation.height / minuteHeight)
+        let newTime = calendar.date(byAdding: .minute, value: minuteChange, to: block.startTime) ?? block.startTime
+        
+        // Round to nearest 15-minute interval for clean scheduling
+        let minute = calendar.component(.minute, from: newTime)
+        let roundedMinute = (minute / 15) * 15
+        
+        return calendar.date(bySettingHour: calendar.component(.hour, from: newTime), 
+                           minute: roundedMinute, 
+                           second: 0, 
+                           of: newTime) ?? newTime
+    }
+}
+
+// MARK: - Fixed Position Event Card (Proper Layout)
+
+struct FixedPositionEventCard: View {
+    let block: TimeBlock
+    let selectedDate: Date
+    let dayStartHour: Int
+    let isDragged: Bool
+    let allBlocks: [TimeBlock]
+    let onDrag: (CGPoint) -> Void
+    let onDrop: (Date) -> Void
+    
+    @EnvironmentObject private var dataManager: AppDataManager
+    @State private var dragOffset: CGSize = .zero
+    @State private var isDragging = false
+    @State private var showingDetails = false
+    
+    private let calendar = Calendar.current
+    
+    var body: some View {
+        VStack(spacing: 0) {
+            // Spacer to push event to correct vertical position
+            Spacer()
+                .frame(height: topSpacerHeight)
+            
+            // Event card with proper layout (no absolute positioning)
+            Button(action: { 
+                showingDetails = true // No animation to prevent flashing
+            }) {
+                HStack(spacing: 8) {
+                    // Energy and flow indicators  
+                    VStack(spacing: 2) {
+                        Text(block.energy.rawValue)
+                            .font(.caption)
+                        Text(block.flow.rawValue)
+                            .font(.caption)
+                    }
+                    .opacity(0.8)
+                    .frame(width: 25)
+                    
+                    // Block content
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text(block.title)
+                            .font(.subheadline)
+                            .fontWeight(.medium)
+                            .foregroundStyle(.primary)
+                            .lineLimit(durationBasedLineLimit)
+                        
+                        HStack(spacing: 4) {
+                            Text(block.startTime.timeString)
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                            
+                            Text("•")
+                                .font(.caption)
+                                .foregroundStyle(.gray)
+                            
+                            Text("\(block.durationMinutes)m")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                            
+                            Spacer()
+                            
+                            // Improved arrow that's not buggy
+                            Image(systemName: "info.circle")
+                                .font(.caption)
+                                .foregroundStyle(.blue.opacity(0.6))
+                        }
+                        
+                        // Show end time for longer events
+                        if block.durationMinutes >= 60 {
+                            Text("→ \(block.endTime.timeString)")
+                                .font(.caption2)
+                                .foregroundStyle(.tertiary)
+                        }
+                    }
+                    
+                    Spacer()
+                    
+                    // Glass state indicator
+                    Circle()
+                        .fill(stateColor)
+                        .frame(width: 6, height: 6)
+                }
+            }
+            .buttonStyle(.plain)
+            .padding(.horizontal, 10)
+            .padding(.vertical, durationBasedPadding)
+            .frame(height: eventHeight, alignment: .center)
+            .frame(maxWidth: .infinity)
+            .background(
+                RoundedRectangle(cornerRadius: 8)
+                    .fill(block.flow.material.opacity(0.9))
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 8)
+                            .strokeBorder(
+                                block.isStaged ? .gray.opacity(0.6) : borderColor, 
+                                style: StrokeStyle(
+                                    lineWidth: block.isStaged ? 2 : 1,
+                                    dash: block.isStaged ? [4, 4] : []
+                                )
+                            )
+                    )
+            )
+            .opacity(block.isStaged ? 0.5 : 1.0)
+            .scaleEffect(isDragging ? 0.98 : 1.0)
+            .offset(dragOffset)
+            .highPriorityGesture(
+                DragGesture(minimumDistance: 8, coordinateSpace: .global)
+                    .onChanged { value in
+                        if !isDragging {
+                            isDragging = true
+                        }
+                        dragOffset = value.translation
+                        onDrag(value.location)
+                    }
+                    .onEnded { value in
+                        isDragging = false
+                        dragOffset = .zero
+                        
+                        let newTime = calculateNewTime(from: value.translation)
+                        onDrop(newTime)
+                    }
+            )
+            .sheet(isPresented: $showingDetails) {
+                // Fixed event details sheet
+                NoFlashEventDetailsSheet(
+                    block: block,
+                    allBlocks: allBlocks,
+                    onSave: { updatedBlock in
+                        dataManager.updateTimeBlock(updatedBlock)
+                        showingDetails = false
+                    },
+                    onDelete: {
+                        dataManager.removeTimeBlock(block.id)
+                        showingDetails = false
+                    }
+                )
+                .presentationDetents([.large])
+                .presentationDragIndicator(.hidden)
+            }
+            
+            Spacer()
+        }
+        .frame(maxWidth: .infinity)
+    }
+    
+    // MARK: - Computed Properties
+    
+    private var eventHeight: CGFloat {
+        // Height proportional to duration with minimum
+        max(30, CGFloat(block.durationMinutes))
+    }
+    
+    private var topSpacerHeight: CGFloat {
+        // Calculate minutes from day start (6 AM) to event start
+        let dayStart = calendar.startOfDay(for: selectedDate)
+        let dayStartTime = calendar.date(byAdding: .hour, value: dayStartHour, to: dayStart) ?? dayStart
+        let minutesFromDayStart = block.startTime.timeIntervalSince(dayStartTime) / 60
+        return max(0, CGFloat(minutesFromDayStart))
+    }
+    
+    private var durationBasedLineLimit: Int {
+        switch block.durationMinutes {
+        case 0..<30: return 1
+        case 30..<90: return 2
+        default: return 3
+        }
+    }
+    
+    private var durationBasedPadding: CGFloat {
+        switch block.durationMinutes {
+        case 0..<30: return 4
+        case 30..<60: return 6
+        default: return 8
+        }
+    }
+    
+    private var stateColor: Color {
+        switch block.glassState {
+        case .solid: return .green
+        case .liquid: return .blue
+        case .mist: return .orange
+        case .crystal: return .cyan
+        }
+    }
+    
+    private var borderColor: Color {
+        switch block.glassState {
+        case .solid: return .clear
+        case .liquid: return .blue.opacity(0.6)
+        case .mist: return .orange.opacity(0.5)
+        case .crystal: return .cyan.opacity(0.7)
+        }
+    }
+    
+    private func calculateNewTime(from translation: CGSize) -> Date {
+        let minuteChange = Int(translation.height) // 1 pixel = 1 minute
+        let newTime = calendar.date(byAdding: .minute, value: minuteChange, to: block.startTime) ?? block.startTime
+        
+        // Round to nearest 15-minute interval
+        let minute = calendar.component(.minute, from: newTime)
+        let roundedMinute = (minute / 15) * 15
+        
+        return calendar.date(bySettingHour: calendar.component(.hour, from: newTime), 
+                           minute: roundedMinute, 
+                           second: 0, 
+                           of: newTime) ?? newTime
+    }
+}
+
+// MARK: - Fixed Event Details Sheet (No NavigationView Issues)
+
+struct FixedEventDetailsSheet: View {
+    let block: TimeBlock
+    let allBlocks: [TimeBlock]
+    let onSave: (TimeBlock) -> Void
+    let onDelete: () -> Void
+    
+    @Environment(\.dismiss) private var dismiss
+    @EnvironmentObject private var dataManager: AppDataManager
+    @State private var editedBlock: TimeBlock
+    @State private var activeTab: EventTab = .details
+    @State private var showingDeleteConfirmation = false
+    
+    private let calendar = Calendar.current
+    private let dayStartHour = 6
+    
+    init(block: TimeBlock, allBlocks: [TimeBlock], onSave: @escaping (TimeBlock) -> Void, onDelete: @escaping () -> Void) {
+        self.block = block
+        self.allBlocks = allBlocks
+        self.onSave = onSave
+        self.onDelete = onDelete
+        self._editedBlock = State(initialValue: block)
+    }
+    
+    var body: some View {
+        VStack(spacing: 0) {
+            // Header with title and close button
+            HStack {
+                VStack(alignment: .leading, spacing: 4) {
+                    Text(block.title)
+                        .font(.title2)
+                        .fontWeight(.semibold)
+                    
+                    Text("Event Details")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+                
+                Spacer()
+                
+                Button("✕") {
+                    dismiss()
+                }
+                .font(.title3)
+                .foregroundStyle(.secondary)
+                .buttonStyle(.plain)
+            }
+            .padding(.horizontal, 24)
+            .padding(.vertical, 16)
+            .background(.ultraThinMaterial.opacity(0.8))
+            
+            // Improved tab selector (no flashing)
+            HStack(spacing: 4) {
+                ForEach(EventTab.allCases, id: \.self) { tab in
+                    Button(action: { activeTab = tab }) {
+                        HStack(spacing: 6) {
+                            Image(systemName: tab.icon)
+                                .font(.system(size: 13, weight: .medium))
+                            
+                            Text(tab.rawValue)
+                                .font(.subheadline)
+                                .fontWeight(.medium)
+                        }
+                        .foregroundStyle(activeTab == tab ? .white : .primary)
+                        .frame(maxWidth: .infinity)
+                        .frame(height: 40)
+                        .background(
+                            RoundedRectangle(cornerRadius: 8)
+                                .fill(activeTab == tab ? .blue : .gray.opacity(0.2))
+                        )
+                    }
+                    .buttonStyle(.plain)
+                }
+            }
+            .padding(.horizontal, 16)
+            .padding(.vertical, 8)
+            .background(.ultraThinMaterial.opacity(0.4))
+            
+            // Tab content (no ScrollView to prevent conflicts)
+            Group {
+                switch activeTab {
+                case .details:
+                    EventDetailsTab(block: $editedBlock)
+                case .chains:
+                    EventChainsTab(
+                        block: block,
+                        allBlocks: allBlocks,
+                        onAddChain: { position in
+                            addChainToEvent(position: position)
+                        }
+                    )
+                case .duration:
+                    EventDurationTab(block: $editedBlock)
+                }
+            }
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            
+            // Bottom actions
+            HStack(spacing: 16) {
+                Button("Delete", role: .destructive) {
+                    showingDeleteConfirmation = true
+                }
+                .buttonStyle(.bordered)
+                .foregroundStyle(.red)
+                
+                Spacer()
+                
+                Button("Cancel") {
+                    dismiss()
+                }
+                .buttonStyle(.bordered)
+                
+                Button("Save Changes") {
+                    onSave(editedBlock)
+                }
+                .buttonStyle(.borderedProminent)
+                .disabled(editedBlock.title.isEmpty)
+            }
+            .padding(.horizontal, 24)
+            .padding(.vertical, 16)
+            .background(.ultraThinMaterial.opacity(0.8))
+        }
+        .frame(width: 700, height: 600)
+        .background(.ultraThinMaterial.opacity(0.5))
+        .clipShape(RoundedRectangle(cornerRadius: 16))
+        .shadow(radius: 20)
+        .alert("Delete Event", isPresented: $showingDeleteConfirmation) {
+            Button("Cancel", role: .cancel) { }
+            Button("Delete", role: .destructive) {
+                onDelete()
+            }
+        } message: {
+            Text("Are you sure you want to delete '\(block.title)'? This action cannot be undone.")
+        }
+    }
+    
+    private func addChainToEvent(position: ChainPosition) {
+        let chainDuration: TimeInterval = 1800 // 30 minutes
+        let chainName = position == .before ? "Prep for \(block.title)" : "Follow-up to \(block.title)"
+        
+        let newChain = Chain(
+            name: chainName,
+            blocks: [
+                TimeBlock(
+                    title: chainName,
+                    startTime: Date(),
+                    duration: chainDuration,
+                    energy: block.energy,
+                    flow: block.flow
+                )
+            ],
+            flowPattern: .waterfall
+        )
+        
+        let insertTime = position == .before 
+            ? block.startTime.addingTimeInterval(-chainDuration - 300)
+            : block.endTime.addingTimeInterval(300)
+        
+        dataManager.applyChain(newChain, startingAt: insertTime)
+        dismiss() // Close the sheet after adding chain
+    }
+}
+
+// MARK: - No Flash Event Details Sheet (Completely Static)
+
+struct NoFlashEventDetailsSheet: View {
+    let block: TimeBlock
+    let allBlocks: [TimeBlock]
+    let onSave: (TimeBlock) -> Void
+    let onDelete: () -> Void
+    
+    @Environment(\.dismiss) private var dismiss
+    @EnvironmentObject private var dataManager: AppDataManager
+    @State private var editedBlock: TimeBlock
+    @State private var activeTab: EventTab = .details
+    @State private var showingDeleteConfirmation = false
+    
+    private let calendar = Calendar.current
+    
+    init(block: TimeBlock, allBlocks: [TimeBlock], onSave: @escaping (TimeBlock) -> Void, onDelete: @escaping () -> Void) {
+        self.block = block
+        self.allBlocks = allBlocks
+        self.onSave = onSave
+        self.onDelete = onDelete
+        self._editedBlock = State(initialValue: block)
+    }
+    
+    var body: some View {
+        // Fixed size container - no resizing, no flashing
+        VStack(spacing: 0) {
+            // Static header
+            headerSection
+            
+            // Static tab selector - no animations
+            staticTabSelector
+            
+            // Tab content without ScrollView (prevents layout conflicts)
+            tabContent
+                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+            
+            // Static bottom actions
+            bottomActionsSection
+        }
+        .frame(width: 700, height: 600) // Fixed size - always fully expanded
+        .background(.regularMaterial) // Solid background to prevent transparency flashing
+        .clipShape(RoundedRectangle(cornerRadius: 16))
+        .shadow(color: .black.opacity(0.1), radius: 10, y: 5)
+        .transition(.identity) // No transition animations to prevent flashing
+        .alert("Delete Event", isPresented: $showingDeleteConfirmation) {
+            Button("Cancel", role: .cancel) { }
+            Button("Delete", role: .destructive) { onDelete() }
+        } message: {
+            Text("Are you sure you want to delete '\(block.title)'? This action cannot be undone.")
+        }
+    }
+    
+    // MARK: - Static Sections (No Animations)
+    
+    private var headerSection: some View {
+        HStack {
+            VStack(alignment: .leading, spacing: 4) {
+                Text(block.title)
+                    .font(.title2)
+                    .fontWeight(.semibold)
+                    .foregroundStyle(.primary)
+                
+                Text("Event Details")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+            
+            Spacer()
+            
+            Button("✕") {
+                dismiss()
+            }
+            .font(.title3)
+            .foregroundStyle(.secondary)
+            .buttonStyle(.plain)
+        }
+        .padding(.horizontal, 24)
+        .padding(.vertical, 16)
+        .background(.thinMaterial)
+    }
+    
+    private var staticTabSelector: some View {
+        HStack(spacing: 3) {
+            ForEach(EventTab.allCases, id: \.self) { tab in
+                Button(action: { activeTab = tab }) {
+                    HStack(spacing: 6) {
+                        Image(systemName: tab.icon)
+                            .font(.system(size: 13, weight: .medium))
+                        
+                        Text(tab.rawValue)
+                            .font(.subheadline)
+                            .fontWeight(.medium)
+                    }
+                    .foregroundStyle(activeTab == tab ? .white : .primary)
+                    .frame(maxWidth: .infinity)
+                    .frame(height: 40) // Fixed height
+                    .background(
+                        RoundedRectangle(cornerRadius: 8)
+                            .fill(activeTab == tab ? .blue : .clear)
+                    )
+                }
+                .buttonStyle(.plain)
+            }
+        }
+        .padding(.horizontal, 16)
+        .padding(.vertical, 8)
+        .background(.thinMaterial)
+    }
+    
+    @ViewBuilder
+    private var tabContent: some View {
+        switch activeTab {
+        case .details:
+            StaticEventDetailsTab(block: $editedBlock)
+        case .chains:
+            StaticEventChainsTab(
+                block: block,
+                allBlocks: allBlocks,
+                onAddChain: { position in
+                    addChainToEvent(position: position)
+                }
+            )
+        case .duration:
+            StaticEventDurationTab(block: $editedBlock)
+        }
+    }
+    
+    private var bottomActionsSection: some View {
+        HStack(spacing: 16) {
+            Button("Delete", role: .destructive) {
+                showingDeleteConfirmation = true
+            }
+            .buttonStyle(.bordered)
+            .foregroundStyle(.red)
+            
+            Spacer()
+            
+            Button("Cancel") {
+                dismiss()
+            }
+            .buttonStyle(.bordered)
+            
+            Button("Save Changes") {
+                onSave(editedBlock)
+            }
+            .buttonStyle(.borderedProminent)
+            .disabled(editedBlock.title.isEmpty)
+        }
+        .padding(.horizontal, 24)
+        .padding(.vertical, 16)
+        .background(.thinMaterial)
+    }
+    
+    private func addChainToEvent(position: ChainPosition) {
+        let chainDuration: TimeInterval = 1800 // 30 minutes
+        let chainName = position == .before ? "Prep for \(block.title)" : "Follow-up to \(block.title)"
+        
+        let newChain = Chain(
+            name: chainName,
+            blocks: [
+                TimeBlock(
+                    title: chainName,
+                    startTime: Date(),
+                    duration: chainDuration,
+                    energy: block.energy,
+                    flow: block.flow
+                )
+            ],
+            flowPattern: .waterfall
+        )
+        
+        let insertTime = position == .before 
+            ? block.startTime.addingTimeInterval(-chainDuration - 300)
+            : block.endTime.addingTimeInterval(300)
+        
+        dataManager.applyChain(newChain, startingAt: insertTime)
+        dismiss()
+    }
+}
+
+// MARK: - Static Tab Components (No Flash Implementation)
+
+struct StaticEventDetailsTab: View {
+    @Binding var block: TimeBlock
+    
+    var body: some View {
+        VStack(alignment: .leading, spacing: 20) {
+            // Title editing
+            VStack(alignment: .leading, spacing: 8) {
+                Text("Activity")
+                    .font(.headline)
+                    .fontWeight(.semibold)
+                
+                TextField("Activity title", text: $block.title)
+                    .textFieldStyle(.roundedBorder)
+                    .font(.body)
+            }
+            
+            // Time and duration
+            VStack(alignment: .leading, spacing: 8) {
+                Text("Timing")
+                    .font(.headline)
+                    .fontWeight(.semibold)
+                
+                VStack(spacing: 12) {
+                    DatePicker("Start Time", selection: $block.startTime, displayedComponents: [.date, .hourAndMinute])
+                        .datePickerStyle(.compact)
+                    
+                    HStack {
+                        Text("Duration: \(block.durationMinutes) minutes")
+                            .font(.subheadline)
+                        
+                        Spacer()
+                        
+                        Text("Ends at \(block.endTime.timeString)")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                }
+            }
+            
+            // Energy and flow selection (simplified to prevent flashing)
+            VStack(alignment: .leading, spacing: 8) {
+                Text("Type")
+                    .font(.headline)
+                    .fontWeight(.semibold)
+                
+                HStack(spacing: 16) {
+                    Picker("Energy", selection: $block.energy) {
+                        ForEach(EnergyType.allCases, id: \.self) { energy in
+                            Text("\(energy.rawValue) \(energy.description)").tag(energy)
+                        }
+                    }
+                    .pickerStyle(.menu)
+                    
+                    Picker("Flow", selection: $block.flow) {
+                        ForEach(FlowState.allCases, id: \.self) { flow in
+                            Text("\(flow.rawValue) \(flow.description)").tag(flow)
+                        }
+                    }
+                    .pickerStyle(.menu)
+                }
+            }
+            
+            Spacer()
+        }
+        .padding(24)
+    }
+}
+
+struct StaticEventChainsTab: View {
+    let block: TimeBlock
+    let allBlocks: [TimeBlock]
+    let onAddChain: (ChainPosition) -> Void
+    
+    var body: some View {
+        VStack(alignment: .leading, spacing: 20) {
+            Text("Chain Operations")
+                .font(.headline)
+                .fontWeight(.semibold)
+            
+            Text("Add activity sequences before or after this event")
+                .font(.body)
+                .foregroundStyle(.secondary)
+            
+            // Simple chain adding
+            HStack(spacing: 20) {
+                VStack(spacing: 8) {
+                    Text("Add Before")
+                        .font(.subheadline)
+                        .fontWeight(.medium)
+                    
+                    if canChainBefore {
+                        Button("Add Chain") {
+                            onAddChain(.before)
+                        }
+                        .buttonStyle(.borderedProminent)
+                    } else {
+                        Text("No space")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                    
+                    Text(chainBeforeStatus)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .multilineTextAlignment(.center)
+                }
+                .frame(maxWidth: .infinity)
+                .padding()
+                .background(.quaternary.opacity(0.2), in: RoundedRectangle(cornerRadius: 10))
+                
+                VStack(spacing: 8) {
+                    Text("Add After")
+                        .font(.subheadline)
+                        .fontWeight(.medium)
+                    
+                    if canChainAfter {
+                        Button("Add Chain") {
+                            onAddChain(.after)
+                        }
+                        .buttonStyle(.borderedProminent)
+                    } else {
+                        Text("No space")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                    
+                    Text(chainAfterStatus)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .multilineTextAlignment(.center)
+                }
+                .frame(maxWidth: .infinity)
+                .padding()
+                .background(.quaternary.opacity(0.2), in: RoundedRectangle(cornerRadius: 10))
+            }
+            
+            Spacer()
+        }
+        .padding(24)
+    }
+    
+    private var canChainBefore: Bool {
+        calculateGapBefore() >= 300 // 5 minutes minimum
+    }
+    
+    private var canChainAfter: Bool {
+        calculateGapAfter() >= 300 // 5 minutes minimum
+    }
+    
+    private var chainBeforeStatus: String {
+        let gap = calculateGapBefore()
+        if gap < 300 {
+            return "Need 5min gap\n(\(Int(gap/60))min available)"
+        }
+        return "\(Int(gap/60)) minutes\navailable"
+    }
+    
+    private var chainAfterStatus: String {
+        let gap = calculateGapAfter()
+        if gap < 300 {
+            return "Need 5min gap\n(\(Int(gap/60))min available)"
+        }
+        return "\(Int(gap/60)) minutes\navailable"
+    }
+    
+    private func calculateGapBefore() -> TimeInterval {
+        let previousBlocks = allBlocks.filter { $0.endTime <= block.startTime && $0.id != block.id }
+        guard let previousBlock = previousBlocks.max(by: { $0.endTime < $1.endTime }) else {
+            let startOfDay = Calendar.current.startOfDay(for: block.startTime)
+            return block.startTime.timeIntervalSince(startOfDay)
+        }
+        return block.startTime.timeIntervalSince(previousBlock.endTime)
+    }
+    
+    private func calculateGapAfter() -> TimeInterval {
+        let nextBlocks = allBlocks.filter { $0.startTime >= block.endTime && $0.id != block.id }
+        guard let nextBlock = nextBlocks.min(by: { $0.startTime < $1.startTime }) else {
+            let endOfDay = Calendar.current.date(bySettingHour: 23, minute: 59, second: 59, of: block.startTime) ?? block.endTime
+            return endOfDay.timeIntervalSince(block.endTime)
+        }
+        return nextBlock.startTime.timeIntervalSince(block.endTime)
+    }
+}
+
+struct StaticEventDurationTab: View {
+    @Binding var block: TimeBlock
+    
+    private let presetDurations = [15, 30, 45, 60, 90, 120, 180, 240]
+    
+    var body: some View {
+        VStack(alignment: .leading, spacing: 20) {
+            Text("Duration Control")
+                .font(.headline)
+                .fontWeight(.semibold)
+            
+            // Current duration display
+            VStack(alignment: .leading, spacing: 8) {
+                Text("Current Duration")
+                    .font(.subheadline)
+                    .fontWeight(.medium)
+                
+                HStack {
+                    Text("\(block.durationMinutes) minutes")
+                        .font(.title2)
+                        .fontWeight(.semibold)
+                    
+                    Spacer()
+                    
+                    Text("Ends at \(block.endTime.timeString)")
+                        .font(.body)
+                        .foregroundStyle(.secondary)
+                }
+            }
+            .padding()
+            .background(.quaternary.opacity(0.3), in: RoundedRectangle(cornerRadius: 10))
+            
+            // Preset duration buttons (simple, no complex layouts)
+            VStack(alignment: .leading, spacing: 12) {
+                Text("Quick Durations")
+                    .font(.subheadline)
+                    .fontWeight(.medium)
+                
+                VStack(spacing: 8) {
+                    HStack(spacing: 8) {
+                        ForEach(presetDurations.prefix(4), id: \.self) { minutes in
+                            durationButton(minutes: minutes)
+                        }
+                    }
+                    
+                    HStack(spacing: 8) {
+                        ForEach(presetDurations.suffix(4), id: \.self) { minutes in
+                            durationButton(minutes: minutes)
+                        }
+                    }
+                }
+            }
+            
+            // Simple duration slider
+            VStack(alignment: .leading, spacing: 12) {
+                Text("Custom Duration: \(block.durationMinutes) minutes")
+                    .font(.subheadline)
+                    .fontWeight(.medium)
+                
+                Slider(
+                    value: Binding(
+                        get: { Double(block.durationMinutes) },
+                        set: { block.duration = TimeInterval($0 * 60) }
+                    ),
+                    in: 15...240,
+                    step: 15
+                )
+                .accentColor(.blue)
+            }
+            
+            Spacer()
+        }
+        .padding(24)
+    }
+    
+    @ViewBuilder
+    private func durationButton(minutes: Int) -> some View {
+        Button(action: { setDuration(minutes) }) {
+            VStack(spacing: 2) {
+                Text("\(minutes)")
+                    .font(.subheadline)
+                    .fontWeight(.semibold)
+                
+                Text("min")
+                    .font(.caption2)
+            }
+            .frame(height: 40)
+            .frame(maxWidth: .infinity)
+            .background(
+                block.durationMinutes == minutes ? .blue.opacity(0.2) : .gray.opacity(0.1),
+                in: RoundedRectangle(cornerRadius: 6)
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: 6)
+                    .strokeBorder(
+                        block.durationMinutes == minutes ? .blue : .clear,
+                        lineWidth: 1.5
+                    )
+            )
+        }
+        .buttonStyle(.plain)
+    }
+    
+    private func setDuration(_ minutes: Int) {
+        block.duration = TimeInterval(minutes * 60)
+    }
+}
+
+// MARK: - Hour With Events (Simplified Layout)
+
+struct HourWithEvents: View {
+    let hour: Int
+    let selectedDate: Date
+    let blocks: [TimeBlock]
+    let draggedBlock: TimeBlock?
+    let onTap: (Date) -> Void
+    let onBlockDrag: (TimeBlock, CGPoint) -> Void
+    let onBlockDrop: (TimeBlock, Date) -> Void
+    
+    @EnvironmentObject private var dataManager: AppDataManager
+    @State private var isHovering = false
+    
+    private let calendar = Calendar.current
+    
+    var body: some View {
+        VStack(alignment: .leading, spacing: 2) {
+            // Events for this hour
+            ForEach(blocks) { block in
+                CleanEventCard(
+                    block: block,
+                    onDrag: { location in
+                        onBlockDrag(block, location)
+                    },
+                    onDrop: { newTime in
+                        onBlockDrop(block, newTime)
+                    }
+                )
+            }
+            
+            // Empty space for creating new blocks
+            if blocks.isEmpty {
+                Rectangle()
+                    .fill(.clear)
+                    .frame(height: 50)
+                    .frame(maxWidth: .infinity)
+                    .background(
+                        RoundedRectangle(cornerRadius: 8)
+                            .fill(isHovering ? .blue.opacity(0.05) : hourBackgroundColor)
+                            .overlay(
+                                RoundedRectangle(cornerRadius: 8)
+                                    .strokeBorder(
+                                        isHovering ? .blue.opacity(0.3) : .clear,
+                                        style: StrokeStyle(lineWidth: 1, dash: [4, 4])
+                                    )
+                            )
+                    )
+                    .contentShape(Rectangle())
+                    .onTapGesture {
+                        let hourTime = calendar.date(bySettingHour: hour, minute: 0, second: 0, of: selectedDate) ?? selectedDate
+                        onTap(hourTime)
+                    }
+                    .onHover { hovering in
+                        isHovering = hovering
+                    }
+            }
+            
+            // Hour separator line
+            if hour < 23 {
+                Rectangle()
+                    .fill(.quaternary.opacity(0.2))
+                    .frame(height: 1)
+                    .frame(maxWidth: .infinity)
+            }
+        }
+        .frame(minHeight: 60) // Minimum hour height
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+    
+    private var hourBackgroundColor: Color {
+        switch hour {
+        case 6: return .orange.opacity(0.02)
+        case 7...17: return .blue.opacity(0.01) 
+        case 18: return .orange.opacity(0.02)
+        case 19...21: return .purple.opacity(0.01)
+        default: return .indigo.opacity(0.01)
+        }
+    }
+}
+
+// MARK: - Clean Event Card (No Flash, Perfect Position)
+
+struct CleanEventCard: View {
+    let block: TimeBlock
+    let onDrag: (CGPoint) -> Void
+    let onDrop: (Date) -> Void
+    
+    @EnvironmentObject private var dataManager: AppDataManager
+    @State private var dragOffset: CGSize = .zero
+    @State private var isDragging = false
+    @State private var showingDetails = false
+    
+    private let calendar = Calendar.current
+    
+    var body: some View {
+        Button(action: { showingDetails = true }) {
+            HStack(spacing: 8) {
+                // Energy and flow indicators
+                VStack(spacing: 1) {
+                    Text(block.energy.rawValue)
+                        .font(.caption)
+                    Text(block.flow.rawValue)
+                        .font(.caption2)
+                }
+                .opacity(0.8)
+                .frame(width: 25)
+                
+                // Block content
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(block.title)
+                        .font(.subheadline)
+                        .fontWeight(.medium)
+                        .foregroundStyle(.primary)
+                        .lineLimit(1)
+                    
+                    HStack(spacing: 4) {
+                        Text(block.startTime.timeString)
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                        
+                        Text("•")
+                            .font(.caption)
+                            .foregroundStyle(.gray)
+                        
+                        Text("\(block.durationMinutes)m")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                        
+                        Spacer()
+                        
+                        // Simple info icon - no animation
+                        Image(systemName: "info.circle")
+                            .font(.caption)
+                            .foregroundStyle(.blue.opacity(0.6))
+                    }
+                }
+                
+                Spacer()
+                
+                // Glass state indicator
+                Circle()
+                    .fill(stateColor)
+                    .frame(width: 6, height: 6)
+            }
+        }
+        .buttonStyle(.plain)
+        .padding(.horizontal, 12)
+        .padding(.vertical, eventPadding)
+        .frame(height: eventHeight)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(
+            RoundedRectangle(cornerRadius: 8)
+                .fill(block.flow.material.opacity(0.8))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 8)
+                        .strokeBorder(
+                            block.isStaged ? .gray.opacity(0.6) : borderColor, 
+                            style: StrokeStyle(
+                                lineWidth: block.isStaged ? 2 : 1,
+                                dash: block.isStaged ? [4, 4] : []
+                            )
+                        )
+                )
+        )
+        .opacity(block.isStaged ? 0.5 : 1.0)
+        .scaleEffect(isDragging ? 0.98 : 1.0)
+        .offset(dragOffset)
+        .highPriorityGesture(
+            DragGesture(minimumDistance: 8, coordinateSpace: .global)
+                .onChanged { value in
+                    if !isDragging {
+                        isDragging = true
+                    }
+                    dragOffset = value.translation
+                    onDrag(value.location)
+                }
+                .onEnded { value in
+                    isDragging = false
+                    dragOffset = .zero
+                    
+                    let newTime = calculateNewTime(from: value.translation)
+                    onDrop(newTime)
+                }
+        )
+        .sheet(isPresented: $showingDetails) {
+            NoFlashEventDetailsSheet(
+                block: block,
+                allBlocks: dataManager.appState.currentDay.blocks + dataManager.appState.stagedBlocks,
+                onSave: { updatedBlock in
+                    dataManager.updateTimeBlock(updatedBlock)
+                    showingDetails = false
+                },
+                onDelete: {
+                    dataManager.removeTimeBlock(block.id)
+                    showingDetails = false
+                }
+            )
+            .presentationDetents([.large])
+            .presentationDragIndicator(.hidden)
+        }
+    }
+    
+    // MARK: - Computed Properties
+    
+    private var eventHeight: CGFloat {
+        // Height based on duration, scaled appropriately
+        let baseHeight: CGFloat = 30
+        let durationMultiplier = max(1.0, CGFloat(block.durationMinutes) / 60.0)
+        return baseHeight * durationMultiplier
+    }
+    
+    private var eventPadding: CGFloat {
+        block.durationMinutes >= 60 ? 8 : 4
+    }
+    
+    private var stateColor: Color {
+        switch block.glassState {
+        case .solid: return .green
+        case .liquid: return .blue
+        case .mist: return .orange
+        case .crystal: return .cyan
+        }
+    }
+    
+    private var borderColor: Color {
+        switch block.glassState {
+        case .solid: return .clear
+        case .liquid: return .blue.opacity(0.6)
+        case .mist: return .orange.opacity(0.5)
+        case .crystal: return .cyan.opacity(0.7)
+        }
+    }
+    
+    private func calculateNewTime(from translation: CGSize) -> Date {
+        // Simple time calculation based on drag distance
+        let pixelsPerHour: CGFloat = 60
+        let hourChange = translation.height / pixelsPerHour
+        let minuteChange = Int(hourChange * 60)
+        
+        let newTime = calendar.date(byAdding: .minute, value: minuteChange, to: block.startTime) ?? block.startTime
+        
+        // Round to nearest 15-minute interval
+        let minute = calendar.component(.minute, from: newTime)
+        let roundedMinute = (minute / 15) * 15
+        
+        return calendar.date(bySettingHour: calendar.component(.hour, from: newTime), 
+                           minute: roundedMinute, 
+                           second: 0, 
+                           of: newTime) ?? newTime
     }
 }
 
@@ -2096,12 +3627,11 @@ struct EnhancedTimeBlockCard: View {
                         onDrop(newTime)
                     }
             )
-            .animation(.spring(response: 0.3, dampingFraction: 0.7), value: isDragging)
+            // No animation to prevent flashing
         }
         .sheet(isPresented: $showingDetails) {
-            EventDetailsSheet(
+            NoFlashEventDetailsSheet(
                 block: block,
-                activeTab: $activeTab,
                 allBlocks: allBlocks,
                 onSave: { updatedBlock in
                     dataManager.updateTimeBlock(updatedBlock)
@@ -2110,11 +3640,10 @@ struct EnhancedTimeBlockCard: View {
                 onDelete: {
                     dataManager.removeTimeBlock(block.id)
                     showingDetails = false
-                },
-                onAddChain: { position in
-                    activeTab = .chains // Switch to chains tab when chain button is pressed
                 }
             )
+            .presentationDetents([.large])
+            .presentationDragIndicator(.hidden)
         }
     }
     
@@ -2188,7 +3717,7 @@ enum EventTab: String, CaseIterable {
 
 struct EventDetailsSheet: View {
     let block: TimeBlock
-    @Binding var activeTab: EventTab
+    let activeTab: Binding<EventTab>
     let allBlocks: [TimeBlock]
     let onSave: (TimeBlock) -> Void
     let onDelete: () -> Void
@@ -2197,50 +3726,58 @@ struct EventDetailsSheet: View {
     @Environment(\.dismiss) private var dismiss
     @State private var editedBlock: TimeBlock
     @State private var showingDeleteConfirmation = false
+    @State private var currentTab: EventTab = .details
     
     init(block: TimeBlock, activeTab: Binding<EventTab>, allBlocks: [TimeBlock], onSave: @escaping (TimeBlock) -> Void, onDelete: @escaping () -> Void, onAddChain: @escaping (ChainPosition) -> Void) {
         self.block = block
-        self._activeTab = activeTab
+        self.activeTab = activeTab
         self.allBlocks = allBlocks
         self.onSave = onSave
         self.onDelete = onDelete
         self.onAddChain = onAddChain
         self._editedBlock = State(initialValue: block)
+        self._currentTab = State(initialValue: activeTab.wrappedValue)
     }
     
     var body: some View {
         NavigationView {
             VStack(spacing: 0) {
-                // Tab selector
-                EventTabSelector(activeTab: $activeTab)
+                // Improved tab selector with liquid glass styling
+                EventTabSelector(activeTab: $currentTab)
                 
                 Divider()
+                    .opacity(0.3)
                 
-                // Tab content
+                // Tab content with smooth transitions
                 ScrollView {
-                    switch activeTab {
-                    case .details:
-                        EventDetailsTab(block: $editedBlock)
-                    case .chains:
-                        EventChainsTab(
-                            block: block,
-                            allBlocks: allBlocks,
-                            onAddChain: onAddChain
-                        )
-                    case .duration:
-                        EventDurationTab(block: $editedBlock)
+                    Group {
+                        switch currentTab {
+                        case .details:
+                            EventDetailsTab(block: $editedBlock)
+                        case .chains:
+                            EventChainsTab(
+                                block: block,
+                                allBlocks: allBlocks,
+                                onAddChain: onAddChain
+                            )
+                        case .duration:
+                            EventDurationTab(block: $editedBlock)
+                        }
                     }
+                    .animation(.easeInOut(duration: 0.2), value: currentTab)
                 }
                 .frame(maxHeight: .infinity)
                 
                 Divider()
+                    .opacity(0.3)
                 
-                // Bottom actions
-                HStack {
+                // Enhanced bottom actions with liquid glass styling
+                HStack(spacing: 12) {
                     Button("Delete", role: .destructive) {
                         showingDeleteConfirmation = true
                     }
                     .buttonStyle(.bordered)
+                    .foregroundStyle(.red)
                     
                     Spacer()
                     
@@ -2249,18 +3786,26 @@ struct EventDetailsSheet: View {
                     }
                     .buttonStyle(.bordered)
                     
-                    Button("Save") {
+                    Button("Save Changes") {
                         onSave(editedBlock)
                     }
                     .buttonStyle(.borderedProminent)
                     .disabled(editedBlock.title.isEmpty)
                 }
-                .padding()
-                .background(.ultraThinMaterial)
+                .padding(.horizontal, 20)
+                .padding(.vertical, 16)
+                .background(.ultraThinMaterial.opacity(0.8), in: RoundedRectangle(cornerRadius: 12))
+                    .overlay(
+                    RoundedRectangle(cornerRadius: 12)
+                        .strokeBorder(.white.opacity(0.1), lineWidth: 1)
+                )
+                .padding(.horizontal, 16)
+                .padding(.bottom, 16)
             }
             .navigationTitle(block.title)
+            .background(.ultraThinMaterial.opacity(0.3))
         }
-        .frame(width: 600, height: 500)
+        .frame(width: 700, height: 600) // Made wider and taller for better usability
         .alert("Delete Event", isPresented: $showingDeleteConfirmation) {
             Button("Cancel", role: .cancel) { }
             Button("Delete", role: .destructive) {
@@ -2276,34 +3821,43 @@ struct EventTabSelector: View {
     @Binding var activeTab: EventTab
     
     var body: some View {
-        HStack(spacing: 0) {
+        HStack(spacing: 2) {
             ForEach(EventTab.allCases, id: \.self) { tab in
                 Button(action: { 
-                    withAnimation(.spring(response: 0.4, dampingFraction: 0.8)) {
-                        activeTab = tab
-                    }
+                    // Instant tab switching to fix delays
+                    activeTab = tab
                 }) {
                     HStack(spacing: 8) {
                         Image(systemName: tab.icon)
-                            .font(.system(size: 14))
+                            .font(.system(size: 14, weight: .medium))
                         
                         Text(tab.rawValue)
                             .font(.subheadline)
                             .fontWeight(.medium)
                     }
                     .foregroundStyle(activeTab == tab ? .white : .primary)
-                    .frame(maxWidth: .infinity, minHeight: 44) // Full width and consistent height
-                    .padding(.vertical, 8)
+                    .frame(maxWidth: .infinity)
+                    .frame(height: 44) // Fixed height prevents flashing
                     .background(
-                        activeTab == tab ? .blue : .clear,
-                        in: Rectangle() // Use Rectangle for full coverage
+                        RoundedRectangle(cornerRadius: 8)
+                            .fill(activeTab == tab ? .blue : .clear)
                     )
                 }
                 .buttonStyle(.plain)
             }
         }
-        .background(.quaternary.opacity(0.3)) // Fill the entire container
-        .frame(maxWidth: .infinity) // Ensure it fills the sheet width
+        .padding(.horizontal, 6)
+        .padding(.vertical, 4)
+        .background(
+            .ultraThinMaterial.opacity(0.5),
+            in: RoundedRectangle(cornerRadius: 10)
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 10)
+                .strokeBorder(.white.opacity(0.1), lineWidth: 1)
+        )
+        .frame(maxWidth: .infinity)
+        .animation(.easeInOut(duration: 0.15), value: activeTab) // Faster, smoother animation
     }
 }
 
@@ -2627,9 +4181,9 @@ struct ChainOptionCard: View {
                     .buttonStyle(.borderedProminent)
                     .controlSize(.small)
                 }
-            }
-        }
-        .padding(.horizontal, 12)
+                    }
+                }
+                .padding(.horizontal, 12)
         .padding(.vertical, 8)
         .background(.quaternary.opacity(0.2), in: RoundedRectangle(cornerRadius: 8))
     }
@@ -3471,6 +5025,7 @@ struct EnhancedChainsSection: View {
 
 struct CrystalPillarsSection: View {
     @EnvironmentObject private var dataManager: AppDataManager
+    @State private var showingPillarCreator = false
     
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
@@ -3478,14 +5033,641 @@ struct CrystalPillarsSection: View {
                 title: "Pillars", 
                 subtitle: "Life foundations",
                 systemImage: "building.columns.circle",
-                gradient: LinearGradient(colors: [.purple, .pink], startPoint: .leading, endPoint: .trailing)
+                gradient: LinearGradient(colors: [.purple, .pink], startPoint: .leading, endPoint: .trailing),
+                onAction: { showingPillarCreator = true }
             )
             
+            if dataManager.appState.pillars.isEmpty {
+                EmptyPillarsCard {
+                    showingPillarCreator = true
+                }
+            } else {
             LazyVGrid(columns: Array(repeating: GridItem(.flexible()), count: 2), spacing: 8) {
-                ForEach(dataManager.appState.pillars.prefix(4)) { pillar in
-                    PillarCrystalCard(pillar: pillar)
+                    ForEach(dataManager.appState.pillars.prefix(6)) { pillar in
+                        EnhancedPillarCard(pillar: pillar)
+                    }
                 }
             }
+        }
+        .sheet(isPresented: $showingPillarCreator) {
+            ComprehensivePillarCreatorSheet { newPillar in
+                dataManager.addPillar(newPillar)
+                showingPillarCreator = false
+            }
+        }
+    }
+}
+
+struct EmptyPillarsCard: View {
+    let onCreatePillar: () -> Void
+    
+    var body: some View {
+        Button(action: onCreatePillar) {
+            VStack(spacing: 12) {
+                Text("⛰️")
+                    .font(.title)
+                    .opacity(0.6)
+                
+                Text("Create Your First Pillar")
+                    .font(.subheadline)
+                    .fontWeight(.medium)
+                
+                Text("Pillars are recurring activities that AI can automatically schedule for you")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .multilineTextAlignment(.center)
+                
+                Text("+ Create Pillar")
+                    .font(.caption)
+                    .fontWeight(.medium)
+                    .padding(.horizontal, 12)
+                    .padding(.vertical, 6)
+                    .background(.blue.opacity(0.15), in: Capsule())
+                    .foregroundStyle(.blue)
+            }
+        }
+        .buttonStyle(.plain)
+        .frame(maxWidth: .infinity)
+        .padding(.vertical, 20)
+        .background(.ultraThinMaterial.opacity(0.3), in: RoundedRectangle(cornerRadius: 12))
+        .overlay(
+            RoundedRectangle(cornerRadius: 12)
+                .strokeBorder(.white.opacity(0.1), style: StrokeStyle(lineWidth: 1, dash: [4, 4]))
+        )
+    }
+}
+
+// MARK: - Comprehensive Pillar Creator
+
+struct ComprehensivePillarCreatorSheet: View {
+    let onPillarCreated: (Pillar) -> Void
+    
+    @Environment(\.dismiss) private var dismiss
+    @EnvironmentObject private var dataManager: AppDataManager
+    @EnvironmentObject private var aiService: AIService
+    
+    @State private var pillarName = ""
+    @State private var pillarDescription = ""
+    @State private var selectedFrequency: PillarFrequency = .daily
+    @State private var minDuration = 30 // minutes
+    @State private var maxDuration = 120 // minutes
+    @State private var autoStageEnabled = true
+    @State private var selectedColor: Color = .blue
+    @State private var preferredTimeWindows: [TimeWindow] = []
+    @State private var showingTimeWindowCreator = false
+    @State private var aiSuggestions = ""
+    @State private var isGeneratingAI = false
+    
+    var body: some View {
+        VStack(spacing: 0) {
+            // Header
+            HStack {
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("Create Pillar")
+                        .font(.title2)
+                        .fontWeight(.semibold)
+                    
+                    Text("Define a recurring activity for AI auto-scheduling")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+                
+                Spacer()
+                
+                Button("✕") { dismiss() }
+                    .font(.title3)
+                    .foregroundStyle(.secondary)
+                    .buttonStyle(.plain)
+            }
+            .padding(.horizontal, 24)
+            .padding(.vertical, 16)
+            .background(.thinMaterial)
+            
+            // Content
+            ScrollView {
+                VStack(alignment: .leading, spacing: 24) {
+                    // Basic Info
+                    VStack(alignment: .leading, spacing: 16) {
+                        Text("Basic Information")
+                            .font(.headline)
+                            .fontWeight(.semibold)
+                        
+                        VStack(alignment: .leading, spacing: 12) {
+                            VStack(alignment: .leading, spacing: 6) {
+                                Text("Name")
+                                    .font(.subheadline)
+                                    .fontWeight(.medium)
+                                
+                                TextField("e.g., Exercise, Deep Work, Meals", text: $pillarName)
+                                    .textFieldStyle(.roundedBorder)
+                                    .onChange(of: pillarName) { _, _ in
+                                        generateAISuggestions()
+                                    }
+                            }
+                            
+                            VStack(alignment: .leading, spacing: 6) {
+                                Text("Description")
+                                    .font(.subheadline)
+                                    .fontWeight(.medium)
+                                
+                                TextField("Brief description of this activity", text: $pillarDescription)
+                                    .textFieldStyle(.roundedBorder)
+                            }
+                            
+                            HStack {
+                                VStack(alignment: .leading, spacing: 6) {
+                                    Text("Color")
+                                        .font(.subheadline)
+                                        .fontWeight(.medium)
+                                    
+                                    ColorPicker("Pillar Color", selection: $selectedColor)
+                                        .labelsHidden()
+                                        .frame(width: 100)
+                                }
+                                
+                                Spacer()
+                                
+                                VStack(alignment: .leading, spacing: 6) {
+                                    Text("Auto-scheduling")
+                                        .font(.subheadline)
+                                        .fontWeight(.medium)
+                                    
+                                    Toggle("Enable auto-staging", isOn: $autoStageEnabled)
+                                        .help("AI will automatically suggest this activity based on your pillar rules")
+                                }
+                            }
+                        }
+                    }
+                    
+                    // Frequency and Duration
+                    VStack(alignment: .leading, spacing: 16) {
+                        Text("Scheduling Rules")
+                            .font(.headline)
+                            .fontWeight(.semibold)
+                        
+                        VStack(alignment: .leading, spacing: 12) {
+                            VStack(alignment: .leading, spacing: 6) {
+                                Text("Frequency")
+                                    .font(.subheadline)
+                                    .fontWeight(.medium)
+                                
+                                Picker("Frequency", selection: $selectedFrequency) {
+                                    Text("Daily").tag(PillarFrequency.daily)
+                                    Text("3x per week").tag(PillarFrequency.weekly(3))
+                                    Text("Weekly").tag(PillarFrequency.weekly(1))
+                                    Text("As needed").tag(PillarFrequency.asNeeded)
+                                }
+                                .pickerStyle(.segmented)
+                            }
+                            
+                            VStack(alignment: .leading, spacing: 6) {
+                                Text("Duration Range")
+                                    .font(.subheadline)
+                                    .fontWeight(.medium)
+                                
+                                HStack {
+                                    VStack(alignment: .leading, spacing: 4) {
+                                        Text("Minimum: \(minDuration) min")
+                                            .font(.caption)
+                                        
+                                        Slider(value: Binding(
+                                            get: { Double(minDuration) },
+                                            set: { minDuration = Int($0) }
+                                        ), in: 15...180, step: 15)
+                                    }
+                                    
+                                    VStack(alignment: .leading, spacing: 4) {
+                                        Text("Maximum: \(maxDuration) min")
+                                            .font(.caption)
+                                        
+                                        Slider(value: Binding(
+                                            get: { Double(maxDuration) },
+                                            set: { maxDuration = Int($0) }
+                                        ), in: 30...480, step: 15)
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    
+                    // Time Windows
+                    VStack(alignment: .leading, spacing: 16) {
+                        HStack {
+                            Text("Preferred Time Windows")
+                                .font(.headline)
+                                .fontWeight(.semibold)
+                            
+                            Spacer()
+                            
+                            Button("Add Window") {
+                                showingTimeWindowCreator = true
+                            }
+                            .buttonStyle(.bordered)
+                            .controlSize(.small)
+                        }
+                        
+                        if preferredTimeWindows.isEmpty {
+                            Text("No time preferences set - AI can suggest this pillar anytime")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                                .italic()
+                        } else {
+                            VStack(spacing: 8) {
+                                ForEach(preferredTimeWindows.indices, id: \.self) { index in
+                                    HStack {
+                                        Text(preferredTimeWindows[index].description)
+                                            .font(.subheadline)
+                                        
+                                        Spacer()
+                                        
+                                        Button("Remove") {
+                                            preferredTimeWindows.remove(at: index)
+                                        }
+                                        .buttonStyle(.bordered)
+                                        .controlSize(.mini)
+                                        .foregroundStyle(.red)
+                                    }
+                                    .padding(.horizontal, 12)
+                                    .padding(.vertical, 6)
+                                    .background(.quaternary.opacity(0.2), in: RoundedRectangle(cornerRadius: 6))
+                                }
+                            }
+                        }
+                    }
+                    
+                    // AI Suggestions
+                    if !aiSuggestions.isEmpty {
+                        VStack(alignment: .leading, spacing: 12) {
+                            Text("AI Suggestions")
+                                .font(.headline)
+                                .fontWeight(.semibold)
+                            
+                            Text(aiSuggestions)
+                                .font(.body)
+                                .foregroundStyle(.secondary)
+                                .padding()
+                                .background(.blue.opacity(0.1), in: RoundedRectangle(cornerRadius: 8))
+                        }
+                    }
+                    
+                    Spacer()
+                }
+                .padding(24)
+            }
+            
+            // Bottom actions
+            HStack(spacing: 16) {
+                Button("Cancel") {
+                    dismiss()
+                }
+                .buttonStyle(.bordered)
+                
+                Spacer()
+                
+                if isGeneratingAI {
+                    HStack {
+                        ProgressView()
+                            .controlSize(.small)
+                        Text("Getting AI suggestions...")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                }
+                
+                Button("Create Pillar") {
+                    createPillar()
+                }
+                .buttonStyle(.borderedProminent)
+                .disabled(pillarName.isEmpty)
+            }
+            .padding(.horizontal, 24)
+            .padding(.vertical, 16)
+            .background(.thinMaterial)
+        }
+        .frame(width: 600, height: 700)
+        .background(.regularMaterial)
+        .clipShape(RoundedRectangle(cornerRadius: 16))
+        .shadow(radius: 20)
+        .sheet(isPresented: $showingTimeWindowCreator) {
+            TimeWindowCreatorSheet { timeWindow in
+                preferredTimeWindows.append(timeWindow)
+                showingTimeWindowCreator = false
+            }
+        }
+    }
+    
+    private func generateAISuggestions() {
+        guard !pillarName.isEmpty else { return }
+        
+        isGeneratingAI = true
+        
+        Task {
+            let prompt = """
+            I'm creating a pillar called "\(pillarName)" for recurring activities in my schedule.
+            
+            Please suggest:
+            1. Optimal time windows for this activity
+            2. Realistic duration ranges
+            3. Frequency recommendations
+            4. Any scheduling considerations
+            
+            Keep suggestions practical and brief.
+            """
+            
+            do {
+                let context = DayContext(
+                    date: Date(),
+                    existingBlocks: [],
+                    currentEnergy: .daylight,
+                    preferredFlows: [.water],
+                    availableTime: 3600,
+                    mood: .crystal
+                )
+                
+                let response = try await aiService.processMessage(prompt, context: context)
+                
+                await MainActor.run {
+                    aiSuggestions = response.text
+                    isGeneratingAI = false
+                }
+            } catch {
+                await MainActor.run {
+                    aiSuggestions = "Consider when you typically do \(pillarName.lowercased()) activities and set appropriate time windows."
+                    isGeneratingAI = false
+                }
+            }
+        }
+    }
+    
+    private func createPillar() {
+        let newPillar = Pillar(
+            name: pillarName,
+            description: pillarDescription,
+            frequency: selectedFrequency,
+            minDuration: TimeInterval(minDuration * 60), // Convert minutes to seconds
+            maxDuration: TimeInterval(maxDuration * 60),
+            preferredTimeWindows: preferredTimeWindows,
+            overlapRules: [], // Can be enhanced later
+            quietHours: [], // Can be enhanced later
+            autoStageEnabled: autoStageEnabled,
+            color: CodableColor(selectedColor)
+        )
+        
+        onPillarCreated(newPillar)
+    }
+}
+
+struct TimeWindowCreatorSheet: View {
+    let onWindowCreated: (TimeWindow) -> Void
+    
+    @Environment(\.dismiss) private var dismiss
+    @State private var startHour = 9
+    @State private var startMinute = 0
+    @State private var endHour = 10
+    @State private var endMinute = 0
+    
+    var body: some View {
+        VStack(spacing: 20) {
+            Text("Add Time Window")
+                .font(.headline)
+                .fontWeight(.semibold)
+            
+            VStack(alignment: .leading, spacing: 12) {
+                Text("When is this activity best scheduled?")
+                    .font(.subheadline)
+                
+                HStack {
+                    VStack(alignment: .leading, spacing: 8) {
+                        Text("Start Time")
+                            .font(.caption)
+                            .fontWeight(.medium)
+                        
+                        HStack {
+                            Picker("Hour", selection: $startHour) {
+                                ForEach(0..<24, id: \.self) { hour in
+                                    Text("\(hour):00").tag(hour)
+                                }
+                            }
+                            .pickerStyle(.menu)
+                            .frame(width: 80)
+                            
+                            Picker("Minute", selection: $startMinute) {
+                                ForEach([0, 15, 30, 45], id: \.self) { minute in
+                                    Text(":\(String(format: "%02d", minute))").tag(minute)
+                                }
+                            }
+                            .pickerStyle(.menu)
+                            .frame(width: 60)
+                        }
+                    }
+                    
+                    VStack(alignment: .leading, spacing: 8) {
+                        Text("End Time")
+                            .font(.caption)
+                            .fontWeight(.medium)
+                        
+                        HStack {
+                            Picker("Hour", selection: $endHour) {
+                                ForEach(0..<24, id: \.self) { hour in
+                                    Text("\(hour):00").tag(hour)
+                                }
+                            }
+                            .pickerStyle(.menu)
+                            .frame(width: 80)
+                            
+                            Picker("Minute", selection: $endMinute) {
+                                ForEach([0, 15, 30, 45], id: \.self) { minute in
+                                    Text(":\(String(format: "%02d", minute))").tag(minute)
+                                }
+                            }
+                            .pickerStyle(.menu)
+                            .frame(width: 60)
+                        }
+                    }
+                }
+            }
+            
+            Text("Current window: \(String(format: "%02d:%02d", startHour, startMinute)) - \(String(format: "%02d:%02d", endHour, endMinute))")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+            
+            HStack {
+                Button("Cancel") {
+                    dismiss()
+                }
+                .buttonStyle(.bordered)
+                
+                Spacer()
+                
+                Button("Add Window") {
+                    let newWindow = TimeWindow(
+                        startHour: startHour,
+                        startMinute: startMinute,
+                        endHour: endHour,
+                        endMinute: endMinute
+                    )
+                    onWindowCreated(newWindow)
+                }
+                .buttonStyle(.borderedProminent)
+                .disabled(endHour < startHour || (endHour == startHour && endMinute <= startMinute))
+            }
+        }
+        .padding(24)
+        .frame(width: 400, height: 300)
+        .background(.regularMaterial)
+        .clipShape(RoundedRectangle(cornerRadius: 12))
+    }
+}
+
+struct PillarDetailSheet: View {
+    let pillar: Pillar
+    @Environment(\.dismiss) private var dismiss
+    
+    var body: some View {
+        VStack(spacing: 20) {
+            HStack {
+                VStack(alignment: .leading, spacing: 4) {
+                    Text(pillar.name)
+                        .font(.title2)
+                        .fontWeight(.semibold)
+                    
+                    Text("Pillar Details")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+                
+                Spacer()
+                
+                Button("✕") { dismiss() }
+                    .font(.title3)
+                    .foregroundStyle(.secondary)
+                    .buttonStyle(.plain)
+            }
+            
+            VStack(alignment: .leading, spacing: 16) {
+                Text("Settings")
+                    .font(.headline)
+                    .fontWeight(.semibold)
+                
+                VStack(spacing: 12) {
+                    HStack {
+                        Text("Frequency:")
+                            .fontWeight(.medium)
+                        Spacer()
+                        Text(pillar.frequencyDescription)
+                            .foregroundStyle(.secondary)
+                    }
+                    
+                    HStack {
+                        Text("Duration:")
+                            .fontWeight(.medium)
+                        Spacer()
+                        Text("\(Int(pillar.minDuration/60))-\(Int(pillar.maxDuration/60)) min")
+                            .foregroundStyle(.secondary)
+                    }
+                    
+                    HStack {
+                        Text("Auto-staging:")
+                            .fontWeight(.medium)
+                        Spacer()
+                        Text(pillar.autoStageEnabled ? "Enabled" : "Disabled")
+                            .foregroundStyle(pillar.autoStageEnabled ? .green : .secondary)
+                    }
+                }
+                
+                if !pillar.preferredTimeWindows.isEmpty {
+                    VStack(alignment: .leading, spacing: 8) {
+                        Text("Preferred Times")
+                            .font(.subheadline)
+                            .fontWeight(.medium)
+                        
+                        ForEach(pillar.preferredTimeWindows, id: \.description) { window in
+                            Text(window.description)
+                                .font(.caption)
+                                .padding(.horizontal, 8)
+                                .padding(.vertical, 4)
+                                .background(.blue.opacity(0.1), in: Capsule())
+                        }
+                    }
+                }
+            }
+            
+            Spacer()
+            
+            Button("Close") {
+                dismiss()
+            }
+            .buttonStyle(.borderedProminent)
+        }
+        .padding(24)
+        .frame(width: 500, height: 400)
+        .background(.regularMaterial)
+        .clipShape(RoundedRectangle(cornerRadius: 12))
+    }
+}
+
+struct EnhancedPillarCard: View {
+    let pillar: Pillar
+    @State private var isHovering = false
+    @State private var showingPillarDetail = false
+    
+    var body: some View {
+        Button(action: { showingPillarDetail = true }) {
+            VStack(spacing: 8) {
+                // Pillar icon with color
+                RoundedRectangle(cornerRadius: 6)
+                    .fill(
+                        LinearGradient(
+                            colors: [pillar.color.color.opacity(0.8), pillar.color.color.opacity(0.4)],
+                            startPoint: .topLeading,
+                            endPoint: .bottomTrailing
+                        )
+                    )
+                    .frame(height: 24)
+                    .overlay(
+                        Text(pillar.name.prefix(1).uppercased())
+                            .font(.caption)
+                            .fontWeight(.bold)
+                            .foregroundStyle(.white)
+                    )
+                
+                Text(pillar.name)
+                    .font(.caption)
+                    .fontWeight(.medium)
+                    .multilineTextAlignment(.center)
+                    .foregroundStyle(.primary)
+                    .lineLimit(2)
+                
+                // Frequency and auto-stage status
+                VStack(spacing: 2) {
+                    Text(pillar.frequencyDescription)
+                        .font(.caption2)
+                        .foregroundStyle(.secondary)
+                    
+                    if pillar.autoStageEnabled {
+                        Text("Auto-staging ON")
+                            .font(.caption2)
+                            .foregroundStyle(.green)
+                            .fontWeight(.medium)
+                    }
+                }
+            }
+        }
+        .buttonStyle(.plain)
+        .frame(height: 100)
+        .frame(maxWidth: .infinity)
+        .background(.ultraThinMaterial.opacity(isHovering ? 0.6 : 0.3), in: RoundedRectangle(cornerRadius: 10))
+        .overlay(
+            RoundedRectangle(cornerRadius: 10)
+                .strokeBorder(pillar.color.color.opacity(isHovering ? 0.5 : 0.2), lineWidth: 1)
+        )
+        .scaleEffect(isHovering ? 1.02 : 1.0)
+        // No animation to prevent flashing
+        .onHover { hovering in 
+            isHovering = hovering 
+        }
+        .sheet(isPresented: $showingPillarDetail) {
+            PillarDetailSheet(pillar: pillar)
         }
     }
 }
@@ -6135,54 +8317,54 @@ struct SimpleTimeBlockView: View {
     var body: some View {
         // Fixed draggable event card with proper gesture priority
         VStack(spacing: 0) {
-            HStack(spacing: 8) {
-                // Energy and flow indicators
-                VStack(spacing: 2) {
-                    Text(block.energy.rawValue)
-                        .font(.caption)
-                    Text(block.flow.rawValue)
-                        .font(.caption)
-                }
+                HStack(spacing: 8) {
+                    // Energy and flow indicators
+                    VStack(spacing: 2) {
+                        Text(block.energy.rawValue)
+                            .font(.caption)
+                        Text(block.flow.rawValue)
+                            .font(.caption)
+                    }
                 .opacity(0.8)
-                
-                // Block content
-                VStack(alignment: .leading, spacing: 2) {
-                    Text(block.title)
-                        .font(.subheadline)
-                        .fontWeight(.medium)
-                        .foregroundColor(.primary)
-                        .lineLimit(1)
                     
-                    HStack {
-                        Text(block.startTime.timeString)
-                            .font(.caption)
-                            .foregroundColor(.secondary)
+                    // Block content
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text(block.title)
+                            .font(.subheadline)
+                            .fontWeight(.medium)
+                            .foregroundColor(.primary)
+                        .lineLimit(1)
                         
-                        Text("•")
-                            .font(.caption)
-                            .foregroundColor(.secondary)
-                        
-                        Text("\(block.durationMinutes) min")
-                            .font(.caption)
-                            .foregroundColor(.secondary)
-                        
-                        Spacer()
+                                HStack {
+                                    Text(block.startTime.timeString)
+                                        .font(.caption)
+                                        .foregroundColor(.secondary)
+                                    
+                                    Text("•")
+                                        .font(.caption)
+                                        .foregroundColor(.secondary)
+                                    
+                                    Text("\(block.durationMinutes) min")
+                                        .font(.caption)
+                                        .foregroundColor(.secondary)
+                                    
+                                    Spacer()
                         
                         // Quick visual indicator of what's available
                         if canAddChainBefore || canAddChainAfter {
                             Text("⛓️")
-                                .font(.caption2)
+                                    .font(.caption2)
                                 .opacity(0.6)
+                            }
                         }
                     }
-                }
-                
-                Spacer()
-                
-                // Glass state indicator
-                Circle()
-                    .fill(stateColor)
-                    .frame(width: 6, height: 6)
+                    
+                    Spacer()
+                    
+                    // Glass state indicator
+                    Circle()
+                        .fill(stateColor)
+                        .frame(width: 6, height: 6)
                 
                 // Click to open details indicator
                 Button(action: { showingDetails = true }) {
@@ -6236,12 +8418,11 @@ struct SimpleTimeBlockView: View {
                         onDrop(newTime)
                     }
             )
-            .animation(.spring(response: 0.3, dampingFraction: 0.7), value: isDragging)
+            // No animation to prevent flashing
         }
         .sheet(isPresented: $showingDetails) {
-            EventDetailsSheet(
+            NoFlashEventDetailsSheet(
                 block: block,
-                activeTab: $activeTab,
                 allBlocks: getAllBlocks(),
                 onSave: { updatedBlock in
                     dataManager.updateTimeBlock(updatedBlock)
@@ -6250,11 +8431,10 @@ struct SimpleTimeBlockView: View {
                 onDelete: {
                     dataManager.removeTimeBlock(block.id)
                     showingDetails = false
-                },
-                onAddChain: { position in
-                    activeTab = .chains // Switch to chains tab when chain button is pressed
                 }
             )
+            .presentationDetents([.large])
+            .presentationDragIndicator(.hidden)
         }
     }
     

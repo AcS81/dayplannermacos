@@ -142,6 +142,123 @@ class AppDataManager: ObservableObject {
         save()
     }
     
+    // MARK: - Pillar Operations
+    
+    func addPillar(_ pillar: Pillar) {
+        appState.pillars.append(pillar)
+        save()
+        
+        // Award XP for creating a pillar
+        appState.addXP(15, reason: "Created pillar: \(pillar.name)")
+        
+        // If auto-staging is enabled, start suggesting this pillar
+        if pillar.autoStageEnabled {
+            schedulePillarSuggestions(for: pillar)
+        }
+    }
+    
+    func updatePillar(_ pillar: Pillar) {
+        if let index = appState.pillars.firstIndex(where: { $0.id == pillar.id }) {
+            appState.pillars[index] = pillar
+            save()
+        }
+    }
+    
+    func removePillar(_ pillarId: UUID) {
+        appState.pillars.removeAll { $0.id == pillarId }
+        save()
+    }
+    
+    private func schedulePillarSuggestions(for pillar: Pillar) {
+        // Find available time slots that match the pillar's preferences
+        let availableSlots = findAvailableSlots(for: pillar)
+        
+        // Create staging suggestions based on pillar rules
+        for slot in availableSlots.prefix(2) { // Limit to 2 suggestions per pillar
+            let duration = min(slot.duration, pillar.maxDuration)
+            if duration >= pillar.minDuration {
+                let suggestedBlock = TimeBlock(
+                    title: pillar.name,
+                    startTime: slot.startTime,
+                    duration: duration,
+                    energy: .daylight, // Default, could be enhanced
+                    flow: .crystal, // Default for pillar activities
+                    explanation: "Auto-suggested based on \(pillar.name) pillar"
+                )
+                
+                stageBlock(suggestedBlock, explanation: "Pillar suggestion: \(pillar.name)", stagedBy: "Pillar AI")
+            }
+        }
+        
+        // Set action bar message about pillar suggestions
+        if !availableSlots.isEmpty {
+            setActionBarMessage("I found \(availableSlots.count) good time slot\(availableSlots.count == 1 ? "" : "s") for your \(pillar.name) pillar. Want to add them?")
+        }
+    }
+    
+    private func findAvailableSlots(for pillar: Pillar) -> [TimeSlot] {
+        var availableSlots: [TimeSlot] = []
+        let calendar = Calendar.current
+        let today = Date()
+        
+        // Check today and next few days
+        for dayOffset in 0..<3 {
+            guard let targetDate = calendar.date(byAdding: .day, value: dayOffset, to: today) else { continue }
+            
+            // Get existing blocks for that day
+            let existingBlocks = appState.currentDay.blocks + appState.stagedBlocks
+            
+            // Check each preferred time window
+            for timeWindow in pillar.preferredTimeWindows {
+                guard let windowStart = calendar.date(bySettingHour: timeWindow.startHour, minute: timeWindow.startMinute, second: 0, of: targetDate),
+                      let windowEnd = calendar.date(bySettingHour: timeWindow.endHour, minute: timeWindow.endMinute, second: 0, of: targetDate) else { continue }
+                
+                // Find gaps within this time window
+                let gapsInWindow = findGaps(in: DateInterval(start: windowStart, end: windowEnd), existingBlocks: existingBlocks)
+                
+                for gap in gapsInWindow {
+                    if gap.duration >= pillar.minDuration {
+                        availableSlots.append(TimeSlot(
+                            startTime: gap.start,
+                            endTime: gap.end,
+                            duration: gap.duration
+                        ))
+                    }
+                }
+            }
+        }
+        
+        return availableSlots
+    }
+    
+    private func findGaps(in interval: DateInterval, existingBlocks: [TimeBlock]) -> [DateInterval] {
+        let blocksInInterval = existingBlocks.filter { block in
+            block.startTime < interval.end && block.endTime > interval.start
+        }.sorted { $0.startTime < $1.startTime }
+        
+        var gaps: [DateInterval] = []
+        var currentTime = interval.start
+        
+        for block in blocksInInterval {
+            if currentTime < block.startTime {
+                gaps.append(DateInterval(start: currentTime, end: block.startTime))
+            }
+            currentTime = max(currentTime, block.endTime)
+        }
+        
+        if currentTime < interval.end {
+            gaps.append(DateInterval(start: currentTime, end: interval.end))
+        }
+        
+        return gaps
+    }
+    
+    struct TimeSlot {
+        let startTime: Date
+        let endTime: Date
+        let duration: TimeInterval
+    }
+    
     func markChainCompleted(_ chainId: UUID) {
         guard let index = appState.recentChains.firstIndex(where: { $0.id == chainId }) else { return }
         
