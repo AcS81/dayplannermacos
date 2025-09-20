@@ -65,6 +65,9 @@ struct LiquidGlassView<Content: View>: View {
                 .onChanged { value in
                     hoverPoint = value.location
                 }
+                .onEnded { _ in
+                    // Complete the gesture properly
+                }
         )
     }
     

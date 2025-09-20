@@ -36,6 +36,7 @@ struct DayPlannerApp: App {
             }
             .frame(minWidth: 1000, minHeight: 700)
             .background(.ultraThinMaterial)
+            .clipped() // Prevent UI from moving outside bounds
         }
         .windowStyle(.hiddenTitleBar)
         .windowToolbarStyle(.unified)
@@ -215,7 +216,7 @@ struct ContentView: View {
     private func setupAppAppearance() {
         // Configure the app's visual appearance
         if let window = NSApplication.shared.windows.first {
-            window.isMovableByWindowBackground = true
+            window.isMovableByWindowBackground = false // Prevent window drag interference
             window.titlebarAppearsTransparent = true
             window.backgroundColor = NSColor.clear
         }
@@ -1757,6 +1758,7 @@ struct EnhancedDayView: View {
                             },
                             onBlockDrop: { block, newTime in
                                 handleBlockDrop(block: block, newTime: newTime)
+                                draggedBlock = nil // Clear drag state
                             }
                         )
                     }
@@ -1765,6 +1767,7 @@ struct EnhancedDayView: View {
                 .padding(.vertical, 8)
             }
             .scrollIndicators(.hidden)
+            .scrollDisabled(draggedBlock != nil) // Disable scroll when dragging an event
         }
         .onChange(of: selectedDate) { oldValue, newValue in
             updateDataManagerDate()
@@ -1817,6 +1820,7 @@ struct EnhancedHourSlot: View {
     let onBlockDrag: (TimeBlock, CGPoint) -> Void
     let onBlockDrop: (TimeBlock, Date) -> Void
     
+    @EnvironmentObject private var dataManager: AppDataManager
     @State private var isHovering = false
     
     private var hourTime: Date {
@@ -1903,7 +1907,8 @@ struct EnhancedHourSlot: View {
                         },
                         onDrop: { newTime in
                             onBlockDrop(block, newTime)
-                        }
+                        },
+                        allBlocks: blocksForCurrentDay()
                     )
                 }
                 
@@ -1964,6 +1969,11 @@ struct EnhancedHourSlot: View {
             }
         )
     }
+    
+    private func blocksForCurrentDay() -> [TimeBlock] {
+        // Return all blocks for the current day for gap checking
+        return dataManager.appState.currentDay.blocks + dataManager.appState.stagedBlocks
+    }
 }
 
 // MARK: - Enhanced Time Block Card
@@ -1973,19 +1983,20 @@ struct EnhancedTimeBlockCard: View {
     let onTap: () -> Void
     let onDrag: (CGPoint) -> Void
     let onDrop: (Date) -> Void
+    let allBlocks: [TimeBlock] // For chain gap checking
     
+    @EnvironmentObject private var dataManager: AppDataManager
     @State private var dragOffset: CGSize = .zero
     @State private var isDragging = false
-    @State private var isHovering = false
-    @State private var isResizing = false
-    @State private var showingChainInput = false
-    @State private var originalDuration: TimeInterval = 0
+    @State private var showingDetails = false
+    @State private var activeTab: EventTab = .details
     
     var body: some View {
         VStack(spacing: 0) {
-            // Main event card with enhanced dragging
+            // Main clickable event card (no edge resize)
+            Button(action: { showingDetails = true }) {
             HStack(spacing: 10) {
-                // Energy & flow indicators with enhanced styling
+                    // Energy & flow indicators
                 VStack(spacing: 2) {
                     Text(block.energy.rawValue)
                         .font(.title3)
@@ -1994,7 +2005,7 @@ struct EnhancedTimeBlockCard: View {
                 }
                 .opacity(0.8)
                 
-                // Enhanced block content
+                    // Block content
                 VStack(alignment: .leading, spacing: 2) {
                     Text(block.title)
                         .font(.subheadline)
@@ -2017,7 +2028,7 @@ struct EnhancedTimeBlockCard: View {
                         
                         Spacer()
                         
-                        // Glass state indicator with enhanced styling
+                            // Glass state indicator
                         Circle()
                             .fill(stateColor.opacity(0.8))
                             .frame(width: 6, height: 6)
@@ -2028,7 +2039,16 @@ struct EnhancedTimeBlockCard: View {
                             )
                     }
                 }
+                    
+                    Spacer()
+                    
+                    // Quick action indicator
+                    Image(systemName: "chevron.right")
+                        .font(.caption)
+                        .foregroundStyle(.tertiary)
+                }
             }
+            .buttonStyle(.plain)
             .padding(.horizontal, 12)
             .padding(.vertical, 8)
             .background(
@@ -2037,8 +2057,11 @@ struct EnhancedTimeBlockCard: View {
                     .overlay(
                         RoundedRectangle(cornerRadius: 10, style: .continuous)
                             .strokeBorder(
-                                borderColor.opacity(isDragging ? 1.0 : 0.6),
-                                lineWidth: isDragging ? 2 : 1
+                                borderColor.opacity(isDragging ? 1.0 : (block.isStaged ? 0.4 : 0.6)),
+                                style: StrokeStyle(
+                                    lineWidth: isDragging ? 2 : 1,
+                                    dash: block.isStaged ? [4, 4] : []
+                                )
                             )
                     )
                     .shadow(
@@ -2047,23 +2070,14 @@ struct EnhancedTimeBlockCard: View {
                         y: isDragging ? 4 : 1
                     )
             )
-            .contentShape(Rectangle()) // Ensure proper hit testing
-            .onTapGesture { 
-                withAnimation(.easeInOut(duration: 0.1)) {
-                    onTap()
-                }
-            }
-            .onHover { hovering in
-                withAnimation(.easeInOut(duration: 0.2)) {
-                    isHovering = hovering
-                }
-            }
-            .simultaneousGesture(
-                // Main drag gesture for moving events
-                DragGesture(minimumDistance: 15, coordinateSpace: .local)
+            // PRD: Staged items have 50% opacity
+            .opacity(block.isStaged ? 0.5 : 1.0)
+            .scaleEffect(isDragging ? 0.95 : 1.0)
+            .offset(dragOffset)
+            .gesture(
+                // Single, clean drag gesture for moving events
+                DragGesture(minimumDistance: 10, coordinateSpace: .global)
                     .onChanged { value in
-                        guard !isResizing else { return }
-                        
                         if !isDragging { 
                             withAnimation(.easeInOut(duration: 0.2)) {
                                 isDragging = true
@@ -2077,120 +2091,31 @@ struct EnhancedTimeBlockCard: View {
                             isDragging = false
                             dragOffset = .zero
                         }
-                        onDrop(Date()) // TODO: Calculate proper new time based on position
+                        // Calculate proper new time based on drag distance
+                        let newTime = calculateNewTime(from: value.translation)
+                        onDrop(newTime)
                     }
             )
-            
-            // Duration resize handle (bottom of event)
-            if isHovering || isResizing {
-                HStack {
-                    Spacer()
-                    
-                    // Resize handle with clear visual feedback
-                    VStack(spacing: 2) {
-                        Rectangle()
-                            .fill(.gray.opacity(0.4))
-                            .frame(width: 16, height: 1)
-                        Rectangle()
-                            .fill(.gray.opacity(0.6))
-                            .frame(width: 20, height: 2)
-                        Rectangle()
-                            .fill(.gray.opacity(0.4))
-                            .frame(width: 16, height: 1)
-                    }
-                    .padding(.vertical, 4)
-                    .padding(.horizontal, 8)
-                    .background(.ultraThinMaterial.opacity(0.9), in: RoundedRectangle(cornerRadius: 6))
-                    .overlay(
-                        RoundedRectangle(cornerRadius: 6)
-                            .strokeBorder(.gray.opacity(0.3), lineWidth: 1)
-                    )
-                    .scaleEffect(isResizing ? 1.1 : 1.0)
-                    .gesture(
-                        DragGesture(coordinateSpace: .local)
-                            .onChanged { value in
-                                if !isResizing {
-                                    isResizing = true
-                                    originalDuration = block.duration
-                                }
-                                
-                                // Convert vertical drag to duration change (rough calculation)
-                                let deltaMinutes = Int(value.translation.height / 3)
-                                let newDurationMinutes = max(15, block.durationMinutes + deltaMinutes)
-                                
-                                // TODO: Update block duration in real-time
-                                // For now, just visual feedback
-                            }
-                            .onEnded { _ in
-                                withAnimation(.easeInOut(duration: 0.2)) {
-                                    isResizing = false
-                                }
-                                // TODO: Commit duration change
-                            }
-                    )
-                    .onHover { hovering in
-                        if hovering {
-                            NSCursor.resizeUpDown.set()
-                        } else {
-                            NSCursor.arrow.set()
-                        }
-                    }
-                    
-                    Spacer()
-                }
-                .frame(height: isHovering || isResizing ? 20 : 0)
-                .clipped()
-                .transition(.opacity.combined(with: .scale))
-            }
-            
-            // Chain input section (appears on hover for eligible events)
-            if shouldShowChainInputs && (isHovering || showingChainInput) {
-                HStack(spacing: 0) {
-                    // Leading chain input (before this event)
-                    if canChainBefore {
-                        ChainInputButton(
-                            position: .before,
-                            isActive: showingChainInput,
-                            onToggle: { 
-                                withAnimation(.spring(response: 0.4, dampingFraction: 0.8)) {
-                                    showingChainInput.toggle()
-                                }
-                            }
-                        )
-                        .transition(.asymmetric(
-                            insertion: .opacity.combined(with: .move(edge: .leading)),
-                            removal: .opacity.combined(with: .move(edge: .leading))
-                        ))
-                    }
-                    
-                    Spacer()
-                    
-                    // Trailing chain input (after this event)
-                    if canChainAfter {
-                        ChainInputButton(
-                            position: .after,
-                            isActive: showingChainInput,
-                            onToggle: { 
-                                withAnimation(.spring(response: 0.4, dampingFraction: 0.8)) {
-                                    showingChainInput.toggle()
-                                }
-                            }
-                        )
-                        .transition(.asymmetric(
-                            insertion: .opacity.combined(with: .move(edge: .trailing)),
-                            removal: .opacity.combined(with: .move(edge: .trailing))
-                        ))
-                    }
-                }
-                .padding(.horizontal, 12)
-                .frame(height: shouldShowChainInputs ? 32 : 0)
-                .clipped()
-            }
+            .animation(.spring(response: 0.3, dampingFraction: 0.7), value: isDragging)
         }
-        .scaleEffect(isDragging ? 0.98 : (isHovering ? 1.02 : 1.0))
-        .offset(dragOffset)
-        .animation(.spring(response: 0.3, dampingFraction: 0.7), value: isHovering)
-        .animation(.spring(response: 0.4, dampingFraction: 0.8), value: isDragging)
+        .sheet(isPresented: $showingDetails) {
+            EventDetailsSheet(
+                block: block,
+                activeTab: $activeTab,
+                allBlocks: allBlocks,
+                onSave: { updatedBlock in
+                    dataManager.updateTimeBlock(updatedBlock)
+                    showingDetails = false
+                },
+                onDelete: {
+                    dataManager.removeTimeBlock(block.id)
+                    showingDetails = false
+                },
+                onAddChain: { position in
+                    activeTab = .chains // Switch to chains tab when chain button is pressed
+                }
+            )
+        }
     }
     
     private var stateColor: Color {
@@ -2211,32 +2136,712 @@ struct EnhancedTimeBlockCard: View {
         }
     }
     
-    // Event chaining logic
-    private var shouldShowChainInputs: Bool {
-        // Only show for events that aren't in the past and have space for chaining
-        !isEventInPast && (canChainBefore || canChainAfter)
-    }
-    
-    private var isEventInPast: Bool {
-        block.endTime < Date()
-    }
-    
-    private var canChainBefore: Bool {
-        // TODO: Check if there's enough space before this event (at least 15 minutes)
-        // and no adjacent event
-        true
-    }
-    
-    private var canChainAfter: Bool {
-        // TODO: Check if there's enough space after this event (at least 15 minutes)
-        // and no adjacent event
-        true
-    }
-    
     private func timeString(from date: Date) -> String {
         let formatter = DateFormatter()
         formatter.timeStyle = .short
         return formatter.string(from: date)
+    }
+    
+    private func calculateNewTime(from translation: CGSize) -> Date {
+        // Calculate time change based on vertical drag distance
+        // Assume each 60 pixels = 1 hour (this can be adjusted)
+        let pixelsPerHour: CGFloat = 60
+        let hourChange = translation.height / pixelsPerHour
+        
+        // Convert to minutes for more precision
+        let minuteChange = Int(hourChange * 60)
+        
+        // Apply the change to the current start time
+        let newTime = Calendar.current.date(byAdding: .minute, value: minuteChange, to: block.startTime) ?? block.startTime
+        
+        // Round to nearest 15-minute interval for cleaner scheduling
+        let calendar = Calendar.current
+        let minute = calendar.component(.minute, from: newTime)
+        let roundedMinute = (minute / 15) * 15
+        
+        return calendar.date(bySettingHour: calendar.component(.hour, from: newTime), 
+                           minute: roundedMinute, 
+                           second: 0, 
+                           of: newTime) ?? newTime
+    }
+    
+    private func showChainSelector(position: ChainPosition) {
+        // TODO: Implement chain selector
+    }
+}
+
+// MARK: - Event Details Sheet
+
+enum EventTab: String, CaseIterable {
+    case details = "Details"
+    case chains = "Chains"
+    case duration = "Duration"
+    
+    var icon: String {
+        switch self {
+        case .details: return "info.circle"
+        case .chains: return "link"
+        case .duration: return "clock"
+        }
+    }
+}
+
+struct EventDetailsSheet: View {
+    let block: TimeBlock
+    @Binding var activeTab: EventTab
+    let allBlocks: [TimeBlock]
+    let onSave: (TimeBlock) -> Void
+    let onDelete: () -> Void
+    let onAddChain: (ChainPosition) -> Void
+    
+    @Environment(\.dismiss) private var dismiss
+    @State private var editedBlock: TimeBlock
+    @State private var showingDeleteConfirmation = false
+    
+    init(block: TimeBlock, activeTab: Binding<EventTab>, allBlocks: [TimeBlock], onSave: @escaping (TimeBlock) -> Void, onDelete: @escaping () -> Void, onAddChain: @escaping (ChainPosition) -> Void) {
+        self.block = block
+        self._activeTab = activeTab
+        self.allBlocks = allBlocks
+        self.onSave = onSave
+        self.onDelete = onDelete
+        self.onAddChain = onAddChain
+        self._editedBlock = State(initialValue: block)
+    }
+    
+    var body: some View {
+        NavigationView {
+            VStack(spacing: 0) {
+                // Tab selector
+                EventTabSelector(activeTab: $activeTab)
+                
+                Divider()
+                
+                // Tab content
+                ScrollView {
+                    switch activeTab {
+                    case .details:
+                        EventDetailsTab(block: $editedBlock)
+                    case .chains:
+                        EventChainsTab(
+                            block: block,
+                            allBlocks: allBlocks,
+                            onAddChain: onAddChain
+                        )
+                    case .duration:
+                        EventDurationTab(block: $editedBlock)
+                    }
+                }
+                .frame(maxHeight: .infinity)
+                
+                Divider()
+                
+                // Bottom actions
+                HStack {
+                    Button("Delete", role: .destructive) {
+                        showingDeleteConfirmation = true
+                    }
+                    .buttonStyle(.bordered)
+                    
+                    Spacer()
+                    
+                    Button("Cancel") {
+                        dismiss()
+                    }
+                    .buttonStyle(.bordered)
+                    
+                    Button("Save") {
+                        onSave(editedBlock)
+                    }
+                    .buttonStyle(.borderedProminent)
+                    .disabled(editedBlock.title.isEmpty)
+                }
+                .padding()
+                .background(.ultraThinMaterial)
+            }
+            .navigationTitle(block.title)
+        }
+        .frame(width: 600, height: 500)
+        .alert("Delete Event", isPresented: $showingDeleteConfirmation) {
+            Button("Cancel", role: .cancel) { }
+            Button("Delete", role: .destructive) {
+                onDelete()
+            }
+        } message: {
+            Text("Are you sure you want to delete '\(block.title)'? This action cannot be undone.")
+        }
+    }
+}
+
+struct EventTabSelector: View {
+    @Binding var activeTab: EventTab
+    
+    var body: some View {
+        HStack(spacing: 0) {
+            ForEach(EventTab.allCases, id: \.self) { tab in
+                Button(action: { 
+                    withAnimation(.spring(response: 0.4, dampingFraction: 0.8)) {
+                        activeTab = tab
+                    }
+                }) {
+                    HStack(spacing: 8) {
+                        Image(systemName: tab.icon)
+                            .font(.system(size: 14))
+                        
+                        Text(tab.rawValue)
+                            .font(.subheadline)
+                            .fontWeight(.medium)
+                    }
+                    .foregroundStyle(activeTab == tab ? .white : .primary)
+                    .frame(maxWidth: .infinity, minHeight: 44) // Full width and consistent height
+                    .padding(.vertical, 8)
+                    .background(
+                        activeTab == tab ? .blue : .clear,
+                        in: Rectangle() // Use Rectangle for full coverage
+                    )
+                }
+                .buttonStyle(.plain)
+            }
+        }
+        .background(.quaternary.opacity(0.3)) // Fill the entire container
+        .frame(maxWidth: .infinity) // Ensure it fills the sheet width
+    }
+}
+
+struct EventDetailsTab: View {
+    @Binding var block: TimeBlock
+    
+    var body: some View {
+        VStack(alignment: .leading, spacing: 20) {
+            // Title editing
+            VStack(alignment: .leading, spacing: 8) {
+                Text("Activity")
+                    .font(.headline)
+                    .fontWeight(.semibold)
+                
+                TextField("Activity title", text: $block.title)
+                    .textFieldStyle(.roundedBorder)
+                    .font(.body)
+            }
+            
+            // Time and duration
+            VStack(alignment: .leading, spacing: 8) {
+                Text("Timing")
+                    .font(.headline)
+                    .fontWeight(.semibold)
+                
+                VStack(spacing: 12) {
+                    DatePicker("Start Time", selection: $block.startTime, displayedComponents: [.date, .hourAndMinute])
+                        .datePickerStyle(.compact)
+                    
+                    HStack {
+                        Text("Duration: \(block.durationMinutes) minutes")
+                            .font(.subheadline)
+                    
+                    Spacer()
+                    
+                        Text("Ends at \(block.endTime.timeString)")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                }
+            }
+            
+            // Energy and flow selection
+            VStack(alignment: .leading, spacing: 8) {
+                Text("Type")
+                    .font(.headline)
+                    .fontWeight(.semibold)
+                
+                HStack(spacing: 16) {
+                    VStack(alignment: .leading, spacing: 8) {
+                        Text("Energy")
+                            .font(.subheadline)
+                        
+                        Picker("Energy", selection: $block.energy) {
+                            ForEach(EnergyType.allCases, id: \.self) { energy in
+                                Label(energy.description, systemImage: energy.rawValue)
+                                    .tag(energy)
+                            }
+                        }
+                        .pickerStyle(.menu)
+                    }
+                    
+                    VStack(alignment: .leading, spacing: 8) {
+                        Text("Flow")
+                            .font(.subheadline)
+                        
+                        Picker("Flow", selection: $block.flow) {
+                            ForEach(FlowState.allCases, id: \.self) { flow in
+                                Label(flow.description, systemImage: flow.rawValue)
+                                    .tag(flow)
+                            }
+                        }
+                        .pickerStyle(.menu)
+                    }
+                }
+            }
+            
+            // Status and explanation
+            if let explanation = block.explanation {
+                VStack(alignment: .leading, spacing: 8) {
+                    Text("AI Explanation")
+                        .font(.headline)
+                        .fontWeight(.semibold)
+                    
+                    Text(explanation)
+                        .font(.body)
+                        .foregroundStyle(.secondary)
+                        .padding()
+                        .background(.ultraThinMaterial.opacity(0.5), in: RoundedRectangle(cornerRadius: 8))
+                }
+            }
+            
+            Spacer()
+        }
+        .padding(24)
+    }
+}
+
+struct EventChainsTab: View {
+    let block: TimeBlock
+    let allBlocks: [TimeBlock]
+    let onAddChain: (ChainPosition) -> Void
+    
+    @EnvironmentObject private var dataManager: AppDataManager
+    @State private var showingChainSelector = false
+    @State private var selectedPosition: ChainPosition = .after
+    
+    var body: some View {
+        VStack(alignment: .leading, spacing: 20) {
+            Text("Chain Operations")
+                .font(.headline)
+                .fontWeight(.semibold)
+            
+            Text("Add activity sequences before or after this event")
+                .font(.body)
+                .foregroundStyle(.secondary)
+            
+            // Chain before section
+            VStack(alignment: .leading, spacing: 12) {
+                HStack {
+                    Text("Add Before")
+                        .font(.subheadline)
+                        .fontWeight(.medium)
+                    
+                    Spacer()
+                    
+                    if canChainBefore {
+                        Button("Add Chain") {
+                            selectedPosition = .before
+                            showingChainSelector = true
+                        }
+                        .buttonStyle(.borderedProminent)
+                        .controlSize(.small)
+                    } else {
+                        Text("No space")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                }
+                
+                Text(chainBeforeStatus)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+            .padding()
+            .background(.ultraThinMaterial.opacity(0.3), in: RoundedRectangle(cornerRadius: 10))
+            
+            // Chain after section
+            VStack(alignment: .leading, spacing: 12) {
+                HStack {
+                    Text("Add After")
+                        .font(.subheadline)
+                        .fontWeight(.medium)
+                    
+                    Spacer()
+                    
+                    if canChainAfter {
+                        Button("Add Chain") {
+                            selectedPosition = .after
+                            showingChainSelector = true
+                        }
+                        .buttonStyle(.borderedProminent)
+                        .controlSize(.small)
+                    } else {
+                        Text("No space")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                }
+                
+                Text(chainAfterStatus)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+            .padding()
+            .background(.ultraThinMaterial.opacity(0.3), in: RoundedRectangle(cornerRadius: 10))
+            
+            // Available chains section
+            if !dataManager.appState.recentChains.isEmpty {
+                VStack(alignment: .leading, spacing: 12) {
+                    Text("Your Chains")
+                        .font(.subheadline)
+                        .fontWeight(.medium)
+                    
+                    ScrollView {
+                        LazyVStack(spacing: 8) {
+                            ForEach(dataManager.appState.recentChains.prefix(5)) { chain in
+                                ChainOptionCard(
+                                    chain: chain,
+                                    canAddBefore: canChainBefore,
+                                    canAddAfter: canChainAfter,
+                                    onAdd: { position in
+                                        addChain(chain, at: position)
+                                    }
+                                )
+                            }
+                        }
+                    }
+                    .frame(maxHeight: 200)
+                }
+            }
+            
+            Spacer()
+        }
+        .padding(24)
+        .sheet(isPresented: $showingChainSelector) {
+            ChainCreatorSheet(
+                position: selectedPosition,
+                baseBlock: block,
+                onChainCreated: { chain in
+                    addChain(chain, at: selectedPosition)
+                    showingChainSelector = false
+                }
+            )
+        }
+    }
+    
+    private var canChainBefore: Bool {
+        let gapBefore = calculateGapBefore()
+        return gapBefore >= 300 // 5 minutes minimum
+    }
+    
+    private var canChainAfter: Bool {
+        let gapAfter = calculateGapAfter()
+        return gapAfter >= 300 // 5 minutes minimum
+    }
+    
+    private var chainBeforeStatus: String {
+        let gap = calculateGapBefore()
+        if gap < 300 {
+            return "Need at least 5 minutes gap (currently \(Int(gap/60))min available)"
+        }
+        return "Available space: \(Int(gap/60)) minutes"
+    }
+    
+    private var chainAfterStatus: String {
+        let gap = calculateGapAfter()
+        if gap < 300 {
+            return "Need at least 5 minutes gap (currently \(Int(gap/60))min available)"
+        }
+        return "Available space: \(Int(gap/60)) minutes"
+    }
+    
+    private func calculateGapBefore() -> TimeInterval {
+        // Find the previous event
+        let previousBlocks = allBlocks.filter { $0.endTime <= block.startTime }
+        guard let previousBlock = previousBlocks.max(by: { $0.endTime < $1.endTime }) else {
+            // No previous event, gap to start of day
+            let startOfDay = Calendar.current.startOfDay(for: block.startTime)
+            return block.startTime.timeIntervalSince(startOfDay)
+        }
+        
+        return block.startTime.timeIntervalSince(previousBlock.endTime)
+    }
+    
+    private func calculateGapAfter() -> TimeInterval {
+        // Find the next event  
+        let nextBlocks = allBlocks.filter { $0.startTime >= block.endTime }
+        guard let nextBlock = nextBlocks.min(by: { $0.startTime < $1.startTime }) else {
+            // No next event, gap to end of day
+            let endOfDay = Calendar.current.date(bySettingHour: 23, minute: 59, second: 59, of: block.startTime) ?? block.endTime
+            return endOfDay.timeIntervalSince(block.endTime)
+        }
+        
+        return nextBlock.startTime.timeIntervalSince(block.endTime)
+    }
+    
+    private func addChain(_ chain: Chain, at position: ChainPosition) {
+        let insertTime = position == .before 
+            ? block.startTime.addingTimeInterval(-chain.totalDuration - 300) // 5 min buffer
+            : block.endTime.addingTimeInterval(300) // 5 min buffer
+        
+        dataManager.applyChain(chain, startingAt: insertTime)
+    }
+}
+
+// MARK: - Chain Option Card
+
+struct ChainOptionCard: View {
+    let chain: Chain
+    let canAddBefore: Bool
+    let canAddAfter: Bool
+    let onAdd: (ChainPosition) -> Void
+    
+    var body: some View {
+        HStack(spacing: 12) {
+            VStack(alignment: .leading, spacing: 4) {
+                Text(chain.name)
+                    .font(.subheadline)
+                    .fontWeight(.medium)
+                
+                Text("\(chain.blocks.count) activities • \(chain.totalDurationMinutes)m")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                
+                if chain.completionCount >= 3 {
+                    Text("Routine")
+                        .font(.caption2)
+                        .padding(.horizontal, 6)
+                        .padding(.vertical, 2)
+                        .background(.green.opacity(0.2), in: Capsule())
+                        .foregroundStyle(.green)
+                }
+            }
+            
+            Spacer()
+            
+            HStack(spacing: 8) {
+                if canAddBefore {
+                    Button("Before") {
+                        onAdd(.before)
+                    }
+                    .buttonStyle(.bordered)
+                    .controlSize(.small)
+                }
+                
+                if canAddAfter {
+                    Button("After") {
+                        onAdd(.after)
+                    }
+                    .buttonStyle(.borderedProminent)
+                    .controlSize(.small)
+                }
+            }
+        }
+        .padding(.horizontal, 12)
+        .padding(.vertical, 8)
+        .background(.quaternary.opacity(0.2), in: RoundedRectangle(cornerRadius: 8))
+    }
+}
+
+// MARK: - Chain Creator Sheet
+
+struct ChainCreatorSheet: View {
+    let position: ChainPosition
+    let baseBlock: TimeBlock
+    let onChainCreated: (Chain) -> Void
+    
+    @Environment(\.dismiss) private var dismiss
+    @State private var chainName = ""
+    @State private var customDuration = 30
+    
+    var body: some View {
+        NavigationView {
+            VStack(spacing: 20) {
+                Text("Create Chain \(position == .before ? "Before" : "After") \(baseBlock.title)")
+                    .font(.headline)
+                    .multilineTextAlignment(.center)
+                
+                VStack(alignment: .leading, spacing: 12) {
+                    Text("Chain Name")
+                        .font(.subheadline)
+                        .fontWeight(.medium)
+                    
+                    TextField("e.g. Prep routine, Cool down", text: $chainName)
+                        .textFieldStyle(.roundedBorder)
+                }
+                
+                VStack(alignment: .leading, spacing: 12) {
+                    Text("Duration")
+                        .font(.subheadline)
+                        .fontWeight(.medium)
+                    
+                    HStack {
+                        Slider(value: Binding(
+                            get: { Double(customDuration) },
+                            set: { customDuration = Int($0) }
+                        ), in: 5...120, step: 5)
+                        
+                        Text("\(customDuration) min")
+                            .font(.caption)
+                            .frame(width: 50)
+                    }
+                }
+                
+                Spacer()
+                
+                Button("Create Chain") {
+                    createChain()
+                }
+                .buttonStyle(.borderedProminent)
+                .disabled(chainName.isEmpty)
+                .frame(maxWidth: .infinity)
+            }
+            .padding(24)
+            .navigationTitle("Create Chain")
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Cancel") {
+                        dismiss()
+                    }
+                }
+            }
+        }
+        .frame(width: 400, height: 300)
+    }
+    
+    private func createChain() {
+        let newChain = Chain(
+            name: chainName,
+            blocks: [
+                TimeBlock(
+                    title: chainName,
+                    startTime: Date(),
+                    duration: TimeInterval(customDuration * 60),
+                    energy: baseBlock.energy,
+                    flow: baseBlock.flow
+                )
+            ],
+            flowPattern: .waterfall
+        )
+        
+        onChainCreated(newChain)
+        dismiss()
+    }
+}
+
+struct EventDurationTab: View {
+    @Binding var block: TimeBlock
+    
+    private let presetDurations = [15, 30, 45, 60, 90, 120, 180, 240]
+    
+    var body: some View {
+        VStack(alignment: .leading, spacing: 20) {
+            titleSection
+            currentDurationSection
+            presetDurationSection
+            customDurationSection
+            Spacer()
+        }
+        .padding(24)
+    }
+    
+    private var titleSection: some View {
+        Text("Duration Control")
+            .font(.headline)
+            .fontWeight(.semibold)
+    }
+    
+    private var currentDurationSection: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text("Current Duration")
+                .font(.subheadline)
+                .fontWeight(.medium)
+            
+            HStack {
+                Text("\(block.durationMinutes) minutes")
+                    .font(.title2)
+                    .fontWeight(.semibold)
+                
+                Spacer()
+                
+                Text("Ends at \(block.endTime.timeString)")
+                    .font(.body)
+                    .foregroundStyle(.secondary)
+            }
+        }
+        .padding()
+        .background(.ultraThinMaterial.opacity(0.5), in: RoundedRectangle(cornerRadius: 10))
+    }
+    
+    private var presetDurationSection: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Text("Quick Durations")
+                .font(.subheadline)
+                .fontWeight(.medium)
+            
+            LazyVGrid(columns: Array(repeating: GridItem(.flexible()), count: 4), spacing: 8) {
+                ForEach(presetDurations, id: \.self) { minutes in
+                    presetDurationButton(minutes: minutes)
+                }
+            }
+        }
+    }
+    
+    private func presetDurationButton(minutes: Int) -> some View {
+        Button(action: { setDuration(minutes) }) {
+            VStack(spacing: 4) {
+                Text("\(minutes)")
+                    .font(.headline)
+                    .fontWeight(.semibold)
+                
+                Text("min")
+                    .font(.caption)
+            }
+            .frame(height: 50)
+            .frame(maxWidth: .infinity)
+            .background(
+                block.durationMinutes == minutes ? .blue.opacity(0.2) : .gray.opacity(0.2),
+                in: RoundedRectangle(cornerRadius: 8)
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: 8)
+                    .strokeBorder(
+                        block.durationMinutes == minutes ? .blue : .clear,
+                        lineWidth: 2
+                    )
+            )
+        }
+        .buttonStyle(.plain)
+    }
+    
+    private var customDurationSection: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Text("Custom Duration")
+                .font(.subheadline)
+                .fontWeight(.medium)
+            
+            VStack(spacing: 8) {
+                HStack {
+                    Text("15 min")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                    
+                    Spacer()
+                    
+                    Text("4 hours")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+                
+                Slider(
+                    value: Binding(
+                        get: { Double(block.durationMinutes) },
+                        set: { block.duration = TimeInterval($0 * 60) }
+                    ),
+                    in: 15...240,
+                    step: 15
+                )
+                .accentColor(.blue)
+            }
+        }
+    }
+    
+    private func setDuration(_ minutes: Int) {
+        withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
+            block.duration = TimeInterval(minutes * 60)
+        }
     }
 }
 
@@ -5310,12 +5915,14 @@ struct DayPlannerView: View {
                             },
                             onBlockDrop: { block, newTime in
                                 handleBlockDrop(block: block, newTime: newTime)
+                                draggedBlock = nil // Clear drag state
                             }
                         )
                     }
                 }
                 .padding(.horizontal, 16)
             }
+            .scrollDisabled(draggedBlock != nil) // Disable scroll when dragging an event
         }
         .onChange(of: selectedDate) { oldValue, newValue in
             updateDataManagerDate()
@@ -5470,7 +6077,7 @@ struct HourSlot: View {
             // Content area
             VStack(alignment: .leading, spacing: 4) {
                 ForEach(blocks) { block in
-                    TimeBlockView(
+                    SimpleTimeBlockView(
                         block: block,
                         onDrag: { location in
                             onBlockDrag(block, location)
@@ -5512,151 +6119,78 @@ struct HourSlot: View {
     }
 }
 
-struct TimeBlockView: View {
+// MARK: - Simple Time Block View (Replacement for old complex TimeBlockView)
+
+struct SimpleTimeBlockView: View {
     let block: TimeBlock
     let onDrag: (CGPoint) -> Void
     let onDrop: (Date) -> Void
-    let showAddChainStart: Bool = true
-    let showAddChainEnd: Bool = true
     
     @EnvironmentObject private var dataManager: AppDataManager
-    @EnvironmentObject private var aiService: AIService
     @State private var dragOffset: CGSize = .zero
     @State private var isDragging = false
-    @State private var isExpanded = false
-    @State private var showingChainSelector = false
-    @State private var addChainPosition: ChainTabPosition = .start
-    @State private var aiGeneratedSummary = ""
-    @State private var isResizing = false
-    @State private var resizeOffset: CGFloat = 0
+    @State private var showingDetails = false
+    @State private var activeTab: EventTab = .details
     
     var body: some View {
+        // Fixed draggable event card with proper gesture priority
         VStack(spacing: 0) {
-            // Pre-chain + tab
-            if showAddChainStart && !isDragging {
-                ChainAddTab(position: .start) {
-                    addChainPosition = .start
-                    showingChainSelector = true
+            HStack(spacing: 8) {
+                // Energy and flow indicators
+                VStack(spacing: 2) {
+                    Text(block.energy.rawValue)
+                        .font(.caption)
+                    Text(block.flow.rawValue)
+                        .font(.caption)
                 }
-            }
-            
-            // Main block content
-            VStack(spacing: 8) {
-                HStack(spacing: 8) {
-                    // Energy and flow indicators
-                    VStack(spacing: 2) {
-                        Text(block.energy.rawValue)
-                            .font(.caption)
-                        Text(block.flow.rawValue)
-                            .font(.caption)
-                    }
-                    
-                    // Block content
-                    VStack(alignment: .leading, spacing: 2) {
-                        Text(block.title)
-                            .font(.subheadline)
-                            .fontWeight(.medium)
-                            .foregroundColor(.primary)
-                        
-                        if isExpanded {
-                            // Expanded view with AI summary
-                            VStack(alignment: .leading, spacing: 6) {
-                                HStack {
-                                    Text(block.startTime.timeString)
-                                        .font(.caption)
-                                        .foregroundColor(.secondary)
-                                    
-                                    Text("•")
-                                        .font(.caption)
-                                        .foregroundColor(.secondary)
-                                    
-                                    Text("\(block.durationMinutes) min")
-                                        .font(.caption)
-                                        .foregroundColor(.secondary)
-                                    
-                                    Text("•")
-                                        .font(.caption)
-                                        .foregroundColor(.secondary)
-                                    
-                                    Text("Ends \(block.endTime.timeString)")
-                                        .font(.caption)
-                                        .foregroundColor(.secondary)
-                                }
-                                
-                                if !aiGeneratedSummary.isEmpty {
-                                    Text(aiGeneratedSummary)
-                                        .font(.caption)
-                                        .foregroundColor(.primary)
-                                        .padding(6)
-                                        .background(.ultraThinMaterial.opacity(0.5), in: RoundedRectangle(cornerRadius: 4))
-                                }
-                                
-                                // Additional details
-                                HStack {
-                                    Text("Energy: \(block.energy.description)")
-                                        .font(.caption2)
-                                        .padding(.horizontal, 4)
-                                        .padding(.vertical, 2)
-                                        .background(block.energy.color.opacity(0.2), in: Capsule())
-                                    
-                                    Text("Flow: \(block.flow.description)")
-                                        .font(.caption2)
-                                        .padding(.horizontal, 4)
-                                        .padding(.vertical, 2)
-                                        .background(.blue.opacity(0.2), in: Capsule())
-                                    
-                                    Spacer()
-                                }
-                            }
-                        } else {
-                            // Collapsed view with short summary
-                            HStack {
-                                Text(block.startTime.timeString)
-                                    .font(.caption)
-                                    .foregroundColor(.secondary)
-                                
-                                Text("•")
-                                    .font(.caption)
-                                    .foregroundColor(.secondary)
-                                
-                                Text("\(block.durationMinutes) min")
-                                    .font(.caption)
-                                    .foregroundColor(.secondary)
-                                
-                                Spacer()
-                                
-                                Text("tap to expand")
-                                    .font(.caption2)
-                                    .foregroundColor(.secondary.opacity(0.7))
-                            }
-                        }
-                    }
-                    
-                    Spacer()
-                    
-                    // Glass state indicator
-                    Circle()
-                        .fill(stateColor)
-                        .frame(width: 6, height: 6)
-                }
+                .opacity(0.8)
                 
-                // Chain indicators (if block is part of a chain)
-                if let chainInfo = getChainInfo() {
+                // Block content
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(block.title)
+                        .font(.subheadline)
+                        .fontWeight(.medium)
+                        .foregroundColor(.primary)
+                        .lineLimit(1)
+                    
                     HStack {
-                        Text("Part of: \(chainInfo.name)")
-                            .font(.caption2)
-                            .foregroundColor(.blue)
+                        Text(block.startTime.timeString)
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                        
+                        Text("•")
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                        
+                        Text("\(block.durationMinutes) min")
+                            .font(.caption)
+                            .foregroundColor(.secondary)
                         
                         Spacer()
                         
-                        Text("\(chainInfo.position)/\(chainInfo.totalBlocks)")
-                            .font(.caption2)
-                            .foregroundColor(.secondary)
+                        // Quick visual indicator of what's available
+                        if canAddChainBefore || canAddChainAfter {
+                            Text("⛓️")
+                                .font(.caption2)
+                                .opacity(0.6)
+                        }
                     }
-                    .padding(.horizontal, 8)
-                    .padding(.vertical, 2)
-                    .background(.blue.opacity(0.1), in: Capsule())
                 }
+                
+                Spacer()
+                
+                // Glass state indicator
+                Circle()
+                    .fill(stateColor)
+                    .frame(width: 6, height: 6)
+                
+                // Click to open details indicator
+                Button(action: { showingDetails = true }) {
+                    Image(systemName: "chevron.right")
+                        .font(.caption)
+                        .foregroundStyle(.tertiary)
+                }
+                .buttonStyle(.plain)
             }
             .padding(.horizontal, 12)
             .padding(.vertical, 8)
@@ -5668,7 +6202,7 @@ struct TimeBlockView: View {
                             .strokeBorder(
                                 block.isStaged ? .gray : borderColor, 
                                 style: StrokeStyle(
-                                    lineWidth: block.isStaged ? 2 : borderWidth,
+                                    lineWidth: block.isStaged ? 2 : 1,
                                     dash: block.isStaged ? [4, 4] : []
                                 )
                             )
@@ -5678,61 +6212,13 @@ struct TimeBlockView: View {
             .opacity(block.isStaged ? 0.5 : 1.0)
             .scaleEffect(isDragging ? 0.95 : 1.0)
             .offset(dragOffset)
-            // Visual feedback for resizing - stretch the block
-            .scaleEffect(x: 1.0, y: isResizing ? 1.0 + (resizeOffset / 200) : 1.0)
-            // Add visual feedback for resizing
-            .overlay(
-                // Resize handle at the bottom
-                Rectangle()
-                    .fill(.clear)
-                    .frame(height: 8)
-                    .overlay(
-                        HStack(spacing: 2) {
-                            ForEach(0..<3, id: \.self) { _ in
-                                RoundedRectangle(cornerRadius: 1)
-                                    .fill(.secondary.opacity(isResizing ? 0.8 : 0.4))
-                                    .frame(width: 8, height: 2)
-                            }
-                        }
-                        .scaleEffect(isResizing ? 1.2 : 1.0)
-                    )
-                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottom)
-                    .gesture(
-                        DragGesture()
-                            .onChanged { value in
-                                if !isResizing {
-                                    withAnimation(.spring(response: 0.2)) {
-                                        isResizing = true
-                                    }
-                                }
-                                resizeOffset = value.translation.height
-                            }
-                            .onEnded { value in
-                                withAnimation(.spring(response: 0.4)) {
-                                    isResizing = false
-                                    resizeOffset = 0
-                                }
-                                
-                                // Calculate new duration and update block
-                                let newDuration = calculateNewDuration(from: value.translation.height)
-                                updateBlockDuration(newDuration)
-                            }
-                    )
-            )
-            .onTapGesture {
-                withAnimation(.spring(response: 0.4, dampingFraction: 0.8)) {
-                    isExpanded.toggle()
-                }
-                
-                if isExpanded && aiGeneratedSummary.isEmpty {
-                    generateAISummary()
-                }
-            }
-            .gesture(
-                DragGesture(coordinateSpace: .global)
+            .contentShape(Rectangle()) // Ensure entire area is draggable
+            .highPriorityGesture(
+                // Exclusive drag gesture that overrides scroll
+                DragGesture(minimumDistance: 8, coordinateSpace: .global)
                     .onChanged { value in
                         if !isDragging {
-                            withAnimation(.spring(response: 0.3)) {
+                            withAnimation(.easeInOut(duration: 0.2)) {
                                 isDragging = true
                             }
                         }
@@ -5750,26 +6236,25 @@ struct TimeBlockView: View {
                         onDrop(newTime)
                     }
             )
-            
-            // Post-chain + tab
-            if showAddChainEnd && !isDragging {
-                ChainAddTab(position: .end) {
-                    addChainPosition = .end
-                    showingChainSelector = true
-                }
-            }
+            .animation(.spring(response: 0.3, dampingFraction: 0.7), value: isDragging)
         }
-        .sheet(isPresented: $showingChainSelector) {
-            ChainSelectorView(
-                position: addChainPosition,
-                baseBlock: block,
-                onChainSelected: { chain in
-                    attachChain(chain, at: addChainPosition)
-                    showingChainSelector = false
+        .sheet(isPresented: $showingDetails) {
+            EventDetailsSheet(
+                block: block,
+                activeTab: $activeTab,
+                allBlocks: getAllBlocks(),
+                onSave: { updatedBlock in
+                    dataManager.updateTimeBlock(updatedBlock)
+                    showingDetails = false
+                },
+                onDelete: {
+                    dataManager.removeTimeBlock(block.id)
+                    showingDetails = false
+                },
+                onAddChain: { position in
+                    activeTab = .chains // Switch to chains tab when chain button is pressed
                 }
             )
-            .environmentObject(dataManager)
-            .environmentObject(aiService)
         }
     }
     
@@ -5791,76 +6276,47 @@ struct TimeBlockView: View {
         }
     }
     
-    private var borderWidth: CGFloat {
-        switch block.glassState {
-        case .solid: return 0
-        case .liquid: return 2
-        case .mist: return 1
-        case .crystal: return 1.5
-        }
+    private var canAddChainBefore: Bool {
+        let gap = calculateGapBefore()
+        return gap >= 300 // 5 minutes minimum
     }
     
-    private func generateAISummary() {
-        Task {
-            let prompt = """
-            Generate a brief, insightful summary for this time block:
-            Activity: \(block.title)
-            Duration: \(block.durationMinutes) minutes
-            Energy: \(block.energy.description)
-            Flow: \(block.flow.description)
-            Time: \(block.startTime.timeString) - \(block.endTime.timeString)
-            
-            Provide a 1-2 sentence summary that gives context about what this activity involves, why it's scheduled at this time, or helpful tips. Keep it concise and useful.
-            """
-            
-            do {
-                let context = DayContext(
-                    date: block.startTime,
-                    existingBlocks: [block],
-                    currentEnergy: block.energy,
-                    preferredFlows: [block.flow],
-                    availableTime: block.duration,
-                    mood: .crystal
-                )
-                
-                let response = try await aiService.processMessage(prompt, context: context)
-                
-                await MainActor.run {
-                    aiGeneratedSummary = response.text
-                }
-            } catch {
-                await MainActor.run {
-                    aiGeneratedSummary = "A \(block.durationMinutes)-minute \(block.flow.description.lowercased()) activity scheduled for your \(block.energy.description.lowercased()) hours."
-                }
-            }
-        }
+    private var canAddChainAfter: Bool {
+        let gap = calculateGapAfter()
+        return gap >= 300 // 5 minutes minimum
     }
     
-    private func getChainInfo() -> ChainInfo? {
-        // Check if this block is part of any chain
-        for chain in dataManager.appState.recentChains {
-            if let index = chain.blocks.firstIndex(where: { $0.title == block.title }) {
-                return ChainInfo(
-                    name: chain.name,
-                    position: index + 1,
-                    totalBlocks: chain.blocks.count
-                )
-            }
-        }
-        return nil
+    private func getAllBlocks() -> [TimeBlock] {
+        return dataManager.appState.currentDay.blocks + dataManager.appState.stagedBlocks
     }
     
-    private func attachChain(_ chain: Chain, at position: ChainTabPosition) {
-        let insertTime = position == .start 
-            ? block.startTime.addingTimeInterval(-chain.totalDuration - 300) // 5 min buffer
-            : block.endTime.addingTimeInterval(300) // 5 min buffer
+    private func calculateGapBefore() -> TimeInterval {
+        let allBlocks = getAllBlocks()
+        let previousBlocks = allBlocks.filter { $0.endTime <= block.startTime && $0.id != block.id }
+        guard let previousBlock = previousBlocks.max(by: { $0.endTime < $1.endTime }) else {
+            // No previous event, gap to start of day
+            let startOfDay = Calendar.current.startOfDay(for: block.startTime)
+            return block.startTime.timeIntervalSince(startOfDay)
+        }
         
-        dataManager.applyChain(chain, startingAt: insertTime)
+        return block.startTime.timeIntervalSince(previousBlock.endTime)
+    }
+    
+    private func calculateGapAfter() -> TimeInterval {
+        let allBlocks = getAllBlocks()
+        let nextBlocks = allBlocks.filter { $0.startTime >= block.endTime && $0.id != block.id }
+        guard let nextBlock = nextBlocks.min(by: { $0.startTime < $1.startTime }) else {
+            // No next event, gap to end of day
+            let endOfDay = Calendar.current.date(bySettingHour: 23, minute: 59, second: 59, of: block.startTime) ?? block.endTime
+            return endOfDay.timeIntervalSince(block.endTime)
+        }
+        
+        return nextBlock.startTime.timeIntervalSince(block.endTime)
     }
     
     private func calculateNewTime(from translation: CGSize) -> Date {
         // Calculate time change based on vertical drag distance
-        // Assume each 60 pixels = 1 hour (this can be adjusted)
+        // Assume each 60 pixels = 1 hour (adjustable)
         let pixelsPerHour: CGFloat = 60
         let hourChange = translation.height / pixelsPerHour
         
@@ -5881,34 +6337,10 @@ struct TimeBlockView: View {
                            of: newTime) ?? newTime
     }
     
-    private func calculateNewDuration(from yTranslation: CGFloat) -> TimeInterval {
-        // Calculate duration change based on vertical drag distance
-        // Same ratio as drag: 60 pixels = 1 hour
-        let pixelsPerHour: CGFloat = 60
-        let hourChange = yTranslation / pixelsPerHour
-        let minuteChange = hourChange * 60
-        
-        // Apply the change to current duration
-        let currentDurationMinutes = block.duration / 60
-        let newDurationMinutes = max(15, currentDurationMinutes + Double(minuteChange)) // Minimum 15 minutes
-        
-        // Round to nearest 15-minute interval
-        let roundedMinutes = (Int(newDurationMinutes) / 15) * 15
-        
-        return TimeInterval(max(15, roundedMinutes) * 60) // Convert back to seconds
-    }
-    
-    private func updateBlockDuration(_ newDuration: TimeInterval) {
-        var updatedBlock = block
-        updatedBlock.duration = newDuration
-        
-        // Update the block in the data manager
-        dataManager.updateTimeBlock(updatedBlock)
-        
-        // Provide haptic feedback
-        #if os(iOS)
-        HapticStyle.medium.trigger()
-        #endif
+    private func showChainSelector(position: ChainPosition) {
+        // This will be handled by the EventDetailsSheet's onAddChain closure
+        // which is called from the EventChainsTab
+        print("Chain selector triggered for \(position) position - handled by details sheet")
     }
 }
 
