@@ -300,7 +300,7 @@ class AIService: ObservableObject {
         guard let patternEngine = patternEngine else { return }
         
         // Record successful AI actions for pattern improvement
-        if let _ = response.actionType, response.confidence > 0.7 {
+        if let actionType = response.actionType, response.confidence > 0.7 {
             let behaviorEvent = BehaviorEvent(
                 .suggestionAccepted(SuggestionData(
                     title: originalMessage.prefix(50).description,

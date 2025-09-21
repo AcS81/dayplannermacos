@@ -111,7 +111,7 @@ struct TodayGlass: View {
         draggedBlock = block
         
         // Enhanced drag handling with better time calculation
-        let _ = calculateTimeFromDragLocation(location, in: block.period)
+        let suggestedNewTime = calculateTimeFromDragLocation(location, in: block.period)
         
         // Update block position for visual feedback
         var updatedBlock = block

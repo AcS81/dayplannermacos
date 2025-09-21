@@ -3493,7 +3493,7 @@ struct EnhancedHourSlot: View {
     @State private var isHovering = false
     
     private var hourTime: Date {
-        let _ = Calendar.current
+        let calendar = Calendar.current
         let dayStart = calendar.startOfDay(for: selectedDate)
         return calendar.date(byAdding: .hour, value: hour, to: dayStart) ?? dayStart
     }
@@ -3812,7 +3812,7 @@ struct EnhancedTimeBlockCard: View {
         let newTime = Calendar.current.date(byAdding: .minute, value: minuteChange, to: block.startTime) ?? block.startTime
         
         // Round to nearest 15-minute interval for cleaner scheduling
-        let _ = Calendar.current
+        let calendar = Calendar.current
         let minute = calendar.component(.minute, from: newTime)
         let roundedMinute = (minute / 15) * 15
         
@@ -5495,7 +5495,7 @@ struct CalendarDropDelegate: DropDelegate {
                                 let duration = TimeInterval(Int(parts[1]) ?? 3600)
                                 let energy = EnergyType(rawValue: parts[2]) ?? .daylight
                                 let emoji = parts[3]
-                                let _ = Double(parts[4]) ?? 0.8
+                                let confidence = Double(parts[4]) ?? 0.8
                                 
                                 // Create a time block from the dropped template and add directly to timeline
                                 let newBlock = TimeBlock(
@@ -5517,7 +5517,7 @@ struct CalendarDropDelegate: DropDelegate {
                             if parts.count >= 3 {
                                 let name = parts[0]
                                 let duration = TimeInterval(Int(parts[1]) ?? 3600)
-                                let _ = parts[2]
+                                let icon = parts[2]
                                 
                                 // Create a time block from the dropped chain template and add directly to timeline
                                 let newBlock = TimeBlock(
@@ -5795,7 +5795,7 @@ struct SuperchargedChainsSection: View {
     private func findBestTimeForChain(_ chain: Chain) -> Date {
         // AI-powered time finding based on chain duration and current schedule
         let now = Date()
-        let _ = Calendar.current
+        let calendar = Calendar.current
         
         // Start with current time rounded to next 15-minute interval
         let minute = calendar.component(.minute, from: now)
@@ -7289,7 +7289,7 @@ struct EnhancedGoalsSection: View {
     }
     
     private func processGoalBreakdown(goal: Goal, actions: [GoalBreakdownAction]) {
-        var _ = false // hasStageableActions tracking removed
+        var hasStageableActions = false
         
         for action in actions {
             switch action {
@@ -9139,7 +9139,7 @@ struct EnhancedBackfillView: View {
     }
     
     private func findAvailableTimeSlots(existing: [TimeBlock]) -> [DateInterval] {
-        let _ = Calendar.current
+        let calendar = Calendar.current
         let dayStart = calendar.startOfDay(for: selectedDate)
         let dayEnd = calendar.date(byAdding: .day, value: 1, to: dayStart) ?? dayStart
         
@@ -9184,7 +9184,7 @@ struct EnhancedBackfillView: View {
         ]
         
         var suggestions: [TimeBlock] = []
-        let _ = Calendar.current
+        let calendar = Calendar.current
         
         // Place high-confidence activities in available slots
         for slot in availableSlots.prefix(4) { // Max 4 suggestions to keep it manageable
@@ -9209,7 +9209,7 @@ struct EnhancedBackfillView: View {
     }
     
     private func findBestTimeInSlot(slot: DateInterval, duration: TimeInterval, isWeekend: Bool) -> Date {
-        let _ = Calendar.current
+        let calendar = Calendar.current
         let hour = calendar.component(.hour, from: slot.start)
         
         // Smart placement based on activity type and time
@@ -9234,7 +9234,7 @@ struct EnhancedBackfillView: View {
         let isWeekend = dayOfWeek == 1 || dayOfWeek == 7
         
         var blocks: [TimeBlock] = []
-        let _ = Calendar.current
+        let calendar = Calendar.current
         
         if isWeekend {
             // Weekend reconstruction
@@ -9933,7 +9933,7 @@ struct PillarDayView: View {
             var suggestions: [TimeBlock] = []
             
             let now = Date()
-            let _ = Calendar.current
+            let calendar = Calendar.current
             
             for pillar in actionablePillars {
                 let daysSinceLastEvent = pillar.lastEventDate?.timeIntervalSince(now) ?? -99999999
@@ -9984,7 +9984,7 @@ struct PillarDayView: View {
     }
     
     private func findBestTimeSlot(for pillar: Pillar) -> (startTime: Date, duration: TimeInterval)? {
-        let _ = Calendar.current
+        let calendar = Calendar.current
         let today = Date()
         
         // Check preferred time windows
@@ -10013,7 +10013,7 @@ struct PillarDayView: View {
     }
     
     private func findNextAvailableSlot(duration: TimeInterval) -> (startTime: Date, duration: TimeInterval)? {
-        let _ = Calendar.current
+        let calendar = Calendar.current
         let now = Date()
         let roundedNow = calendar.date(byAdding: .minute, value: 15 - calendar.component(.minute, from: now) % 15, to: now) ?? now
         
@@ -10281,7 +10281,7 @@ struct GapFillerView: View {
         // If no blocks exist, treat the whole day as gaps
         if sortedBlocks.isEmpty {
             // Create gaps for typical work hours
-            let _ = Calendar.current
+            let calendar = Calendar.current
             let startOfDay = calendar.startOfDay(for: Date())
             gaps.append(ScheduleGap(
                 startTime: calendar.date(byAdding: .hour, value: 9, to: startOfDay)!,
@@ -10907,10 +10907,10 @@ struct ActionBarView: View {
                let goalData = createdItem.data as? [String: Any] {
                 
                 // Create fully populated goal with simplified fallbacks
-                let goal = Goal(
+                    let goal = Goal(
                     title: goalData["title"] as? String ?? "New Goal",
                     description: goalData["description"] as? String ?? "AI-created goal based on your request",
-                    state: .on,
+                        state: .on,
                     importance: goalData["importance"] as? Int ?? 3,
                     groups: [],
                     targetDate: nil,
@@ -10949,7 +10949,7 @@ struct ActionBarView: View {
                let pillarData = createdItem.data as? [String: Any] {
                 
                 // Create fully populated pillar with simplified fallbacks
-                let pillar = Pillar(
+                    let pillar = Pillar(
                     name: pillarData["name"] as? String ?? "New Pillar",
                     description: pillarData["description"] as? String ?? "AI-created pillar based on your request",
                     type: PillarType(rawValue: pillarData["type"] as? String ?? "actionable") ?? .actionable,
@@ -11158,7 +11158,7 @@ struct ActionBarView: View {
     
     private func extractDateFromMessage(_ message: String) -> Date? {
         let lowercased = message.lowercased()
-        let _ = Calendar.current
+        let calendar = Calendar.current
         let now = Date()
         
         // Check for "today"
@@ -11494,7 +11494,7 @@ struct DayPlannerView: View {
     }
     
     private func blocksForHour(_ hour: Int) -> [TimeBlock] {
-        let _ = Calendar.current
+        let calendar = Calendar.current
         let allBlocks = dataManager.appState.currentDay.blocks
         return allBlocks.filter { block in
             let blockHour = calendar.component(.hour, from: block.startTime)
@@ -11642,7 +11642,7 @@ struct HourSlot: View {
                         .frame(height: 60)
                         .contentShape(Rectangle())
                         .onTapGesture {
-                            let _ = Calendar.current
+                            let calendar = Calendar.current
                             let date = calendar.date(bySettingHour: hour, minute: 0, second: 0, of: Date()) ?? Date()
                             onTap(date)
                         }
@@ -11878,7 +11878,7 @@ struct SimpleTimeBlockView: View {
         let newTime = Calendar.current.date(byAdding: .minute, value: minuteChange, to: block.startTime) ?? block.startTime
         
         // Round to nearest 15-minute interval for cleaner scheduling
-        let _ = Calendar.current
+        let calendar = Calendar.current
         let minute = calendar.component(.minute, from: newTime)
         let roundedMinute = (minute / 15) * 15
         
@@ -14839,7 +14839,7 @@ struct IntakeSection: View {
     private func extractTimeFromMessage(_ message: String) -> Date? {
         // Enhanced time extraction with more patterns
         let lowerMessage = message.lowercased()
-        let _ = Calendar.current
+        let calendar = Calendar.current
         let now = Date()
         
         // Check for "at X:XX" patterns
@@ -14871,7 +14871,7 @@ struct IntakeSection: View {
     
     private func findNextAvailableTime() -> Date {
         let now = Date()
-        let _ = Calendar.current
+        let calendar = Calendar.current
         let currentMinute = calendar.component(.minute, from: now)
         let roundedMinute = ((currentMinute / 15) + 1) * 15
         
@@ -14991,7 +14991,7 @@ struct IntakeSection: View {
     
     private func inferTargetDate(from message: String) -> Date? {
         let lowerMessage = message.lowercased()
-        let _ = Calendar.current
+        let calendar = Calendar.current
         let now = Date()
         
         if lowerMessage.contains("this week") {
