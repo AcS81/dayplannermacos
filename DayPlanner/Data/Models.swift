@@ -21,9 +21,6 @@ struct TimeBlock: Identifiable, Codable, Equatable, Transferable {
     var emoji: String // Visual identifier - replaces old flow system
     var glassState: GlassState = .solid
     var position: CGPoint = .zero // for drag interactions
-    var isStaged: Bool = false // PRD requirement: staged until committed
-    var stagedBy: String? // What AI suggestion created this
-    var explanation: String? // One-line "Why this?" explanation
     var relatedGoalId: UUID? // Link to related goal
     var relatedPillarId: UUID? // Link to related pillar
     
@@ -51,7 +48,7 @@ struct TimeBlock: Identifiable, Codable, Equatable, Transferable {
     
     // MARK: - Initializers
     
-    init(id: UUID = UUID(), title: String, startTime: Date, duration: TimeInterval, energy: EnergyType, emoji: String, glassState: GlassState = .solid, position: CGPoint = .zero, isStaged: Bool = false, stagedBy: String? = nil, explanation: String? = nil, relatedGoalId: UUID? = nil, relatedPillarId: UUID? = nil) {
+    init(id: UUID = UUID(), title: String, startTime: Date, duration: TimeInterval, energy: EnergyType, emoji: String, glassState: GlassState = .solid, position: CGPoint = .zero, relatedGoalId: UUID? = nil, relatedPillarId: UUID? = nil) {
         self.id = id
         self.title = title
         self.startTime = startTime
@@ -60,9 +57,6 @@ struct TimeBlock: Identifiable, Codable, Equatable, Transferable {
         self.emoji = emoji
         self.glassState = glassState
         self.position = position
-        self.isStaged = isStaged
-        self.stagedBy = stagedBy
-        self.explanation = explanation
         self.relatedGoalId = relatedGoalId
         self.relatedPillarId = relatedPillarId
     }
@@ -70,7 +64,7 @@ struct TimeBlock: Identifiable, Codable, Equatable, Transferable {
     // MARK: - Backward Compatibility & Migration
     
     private enum CodingKeys: String, CodingKey {
-        case id, title, startTime, duration, energy, emoji, glassState, position, isStaged, stagedBy, explanation, relatedGoalId, relatedPillarId
+        case id, title, startTime, duration, energy, emoji, glassState, position, relatedGoalId, relatedPillarId
         case flow // Old system - for backward compatibility
     }
     
@@ -84,9 +78,6 @@ struct TimeBlock: Identifiable, Codable, Equatable, Transferable {
         energy = try container.decode(EnergyType.self, forKey: .energy)
         glassState = try container.decodeIfPresent(GlassState.self, forKey: .glassState) ?? .solid
         position = try container.decodeIfPresent(CGPoint.self, forKey: .position) ?? .zero
-        isStaged = try container.decodeIfPresent(Bool.self, forKey: .isStaged) ?? false
-        stagedBy = try container.decodeIfPresent(String.self, forKey: .stagedBy)
-        explanation = try container.decodeIfPresent(String.self, forKey: .explanation)
         relatedGoalId = try container.decodeIfPresent(UUID.self, forKey: .relatedGoalId)
         relatedPillarId = try container.decodeIfPresent(UUID.self, forKey: .relatedPillarId)
         
@@ -113,9 +104,6 @@ struct TimeBlock: Identifiable, Codable, Equatable, Transferable {
         try container.encode(emoji, forKey: .emoji)
         try container.encode(glassState, forKey: .glassState)
         try container.encode(position, forKey: .position)
-        try container.encode(isStaged, forKey: .isStaged)
-        try container.encodeIfPresent(stagedBy, forKey: .stagedBy)
-        try container.encodeIfPresent(explanation, forKey: .explanation)
         try container.encodeIfPresent(relatedGoalId, forKey: .relatedGoalId)
         try container.encodeIfPresent(relatedPillarId, forKey: .relatedPillarId)
     }
@@ -554,8 +542,6 @@ struct DayContext: Codable {
 struct AppState: Codable {
     var currentDay: Day = Day(date: Date())
     var historicalDays: [Day] = [] // Store previous days for persistence
-    var stagedBlocks: [TimeBlock] = [] // PRD: staged items awaiting commit
-    var currentActionBarMessage: String? // PRD: single visible message
     var recentChains: [Chain] = []
     var routines: [Routine] = [] // Promoted chains that became routines
     var userPatterns: [String] = [] // Simple pattern storage
@@ -608,10 +594,9 @@ struct UserPreferences: Codable {
     var enableVoice: Bool = true
     var enableAnimations: Bool = true
     
-    // PRD Required Settings
+    // PRD Required Settings  
     var showEphemeralInsights: Bool = true
-    var aiTrustLevel: Double = 0.7 // 0.0 to 1.0, "I trust it to stage X% of my day"
-    var safeMode: Bool = false // Safe Mode: stage only non-destructive suggestions
+    var safeMode: Bool = false // Safe Mode: only non-destructive suggestions
     
     // Calendar & Integration
     var eventKitEnabled: Bool = true
@@ -622,9 +607,6 @@ struct UserPreferences: Codable {
     var keepUndoHistory: Bool = true
     var historyRetentionDays: Int = 30
     
-    // Auto-staging preferences
-    var enableAutoStaging: Bool = true
-    var maxAutoStagedItemsPerDay: Int = 5
     
     // AI API Configuration
     var openaiApiKey: String = ""
@@ -678,7 +660,6 @@ struct Pillar: Identifiable, Codable {
     var preferredTimeWindows: [TimeWindow]
     var overlapRules: [OverlapRule]
     var quietHours: [TimeWindow] // When this pillar should not be suggested
-    var autoStageEnabled: Bool // For actionable pillars
     var eventConsiderationEnabled: Bool // New: for principles that inform AI but don't create events
     var wisdomText: String? // New: core wisdom/principles for AI guidance
     var color: CodableColor
@@ -686,7 +667,7 @@ struct Pillar: Identifiable, Codable {
     var relatedGoalId: UUID? // Link to related goal
     var lastEventDate: Date? // Track when pillar events were last created
     
-    init(id: UUID = UUID(), name: String, description: String, type: PillarType = .actionable, frequency: PillarFrequency, minDuration: TimeInterval = 1800, maxDuration: TimeInterval = 7200, preferredTimeWindows: [TimeWindow] = [], overlapRules: [OverlapRule] = [], quietHours: [TimeWindow] = [], autoStageEnabled: Bool = false, eventConsiderationEnabled: Bool = false, wisdomText: String? = nil, color: CodableColor = CodableColor(.blue), emoji: String = "🏛️", relatedGoalId: UUID? = nil) {
+    init(id: UUID = UUID(), name: String, description: String, type: PillarType = .actionable, frequency: PillarFrequency, minDuration: TimeInterval = 1800, maxDuration: TimeInterval = 7200, preferredTimeWindows: [TimeWindow] = [], overlapRules: [OverlapRule] = [], quietHours: [TimeWindow] = [], eventConsiderationEnabled: Bool = false, wisdomText: String? = nil, color: CodableColor = CodableColor(.blue), emoji: String = "🏛️", relatedGoalId: UUID? = nil) {
         self.id = id
         self.name = name
         self.description = description
@@ -697,7 +678,6 @@ struct Pillar: Identifiable, Codable {
         self.preferredTimeWindows = preferredTimeWindows
         self.overlapRules = overlapRules
         self.quietHours = quietHours
-        self.autoStageEnabled = autoStageEnabled
         self.eventConsiderationEnabled = eventConsiderationEnabled
         self.wisdomText = wisdomText
         self.color = color

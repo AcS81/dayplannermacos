@@ -151,10 +151,6 @@ class AppDataManager: ObservableObject {
         // Award XP for creating a pillar
         appState.addXP(15, reason: "Created pillar: \(pillar.name)")
         
-        // If auto-staging is enabled, start suggesting this pillar
-        if pillar.autoStageEnabled {
-            schedulePillarSuggestions(for: pillar)
-        }
     }
     
     func updatePillar(_ pillar: Pillar) {
@@ -175,35 +171,6 @@ class AppDataManager: ObservableObject {
         save()
     }
     
-    private func schedulePillarSuggestions(for pillar: Pillar) {
-        // Only schedule suggestions for actionable pillars
-        guard pillar.isActionable && pillar.autoStageEnabled else { return }
-        
-        // Find available time slots that match the pillar's preferences
-        let availableSlots = findAvailableSlots(for: pillar)
-        
-        // Create staging suggestions based on pillar rules
-        for slot in availableSlots.prefix(2) { // Limit to 2 suggestions per pillar
-            let duration = min(slot.duration, pillar.maxDuration)
-            if duration >= pillar.minDuration {
-                let suggestedBlock = TimeBlock(
-                    title: pillar.name,
-                    startTime: slot.startTime,
-                    duration: duration,
-                    energy: .daylight, // Default, could be enhanced
-                    emoji: "💎", // Default for pillar activities
-                    explanation: "Auto-suggested based on \(pillar.name) pillar"
-                )
-                
-                stageBlock(suggestedBlock, explanation: "Pillar suggestion: \(pillar.name)", stagedBy: "Pillar AI")
-            }
-        }
-        
-        // Set action bar message about pillar suggestions
-        if !availableSlots.isEmpty {
-            setActionBarMessage("I found \(availableSlots.count) good time slot\(availableSlots.count == 1 ? "" : "s") for your \(pillar.name) pillar. Want to add them?")
-        }
-    }
     
     /// Create enhanced context with pillar guidance for AI decisions
     func createEnhancedContext(date: Date = Date()) -> DayContext {
@@ -237,7 +204,7 @@ class AppDataManager: ObservableObject {
             guard let targetDate = calendar.date(byAdding: .day, value: dayOffset, to: today) else { continue }
             
             // Get existing blocks for that day
-            let existingBlocks = appState.currentDay.blocks + appState.stagedBlocks
+            let existingBlocks = appState.currentDay.blocks
             
             // Check each preferred time window
             for timeWindow in pillar.preferredTimeWindows {
@@ -381,138 +348,25 @@ class AppDataManager: ObservableObject {
                 duration: chainBlock.duration,
                 energy: chainBlock.energy,
                 emoji: chainBlock.emoji,
-                glassState: .mist, // Start as suggestion
-                isStaged: true,
-                stagedBy: "Chain Application",
-                explanation: "Part of '\(chain.name)' chain"
+                glassState: .solid
             )
             
             chainBlocks.append(newBlock)
             currentTime = newBlock.endTime.addingTimeInterval(300) // 5-minute buffer
         }
         
-        // Stage all blocks from the chain
+        // Add all blocks from the chain directly
         for block in chainBlocks {
-            stageBlock(block, explanation: "Part of '\(chain.name)' chain (\(block.durationMinutes)m)", stagedBy: "Chain")
-        }
-        
-        // Set action bar message for the entire chain
-        let totalDuration = chainBlocks.reduce(0) { $0 + $1.durationMinutes }
-        setActionBarMessage("I've staged the '\(chain.name)' chain (\(chainBlocks.count) activities, \(totalDuration)m total) starting at \(time.timeString). Ready to apply?")
-    }
-    
-    // MARK: - PRD Staging & Commit System
-    
-    /// Stage a block for user approval (PRD requirement)
-    func stageBlock(_ block: TimeBlock, explanation: String? = nil, stagedBy: String = "AI") {
-        var stagedBlock = block
-        stagedBlock.isStaged = true
-        stagedBlock.stagedBy = stagedBy
-        stagedBlock.explanation = explanation
-        stagedBlock.glassState = .mist // PRD: staged items are mist
-        
-        appState.stagedBlocks.append(stagedBlock)
-        save()
-    }
-    
-    /// Commit all staged blocks to the actual day (PRD requirement)
-    func commitAllStagedBlocks() {
-        for var block in appState.stagedBlocks {
-            block.isStaged = false
-            block.glassState = .solid
             addTimeBlock(block)
         }
-        appState.stagedBlocks.removeAll()
-        appState.currentActionBarMessage = nil
-        save()
     }
     
-    /// Reject all staged blocks (PRD requirement)
-    func rejectAllStagedBlocks() {
-        appState.stagedBlocks.removeAll()
-        appState.currentActionBarMessage = nil
-        save()
-    }
-    
-    /// Set Action Bar message with staged proposals (PRD requirement)
-    func setActionBarMessage(_ message: String) {
-        appState.currentActionBarMessage = message
-        save()
-    }
     
     func applySuggestion(_ suggestion: Suggestion) {
         let block = suggestion.toTimeBlock()
-        stageBlock(block, explanation: suggestion.explanation, stagedBy: "Suggestion")
-        setActionBarMessage("I suggest: \(suggestion.title) for \(suggestion.duration.minutes) minutes. \(suggestion.emoji) This aligns with your current energy pattern.")
+        addTimeBlock(block)
     }
     
-    // MARK: - Legacy Staging Support (deprecated - use stageBlock instead)
-    
-    func stageSuggestion(_ suggestion: Suggestion) {
-        // Convert to new staging system
-        let block = suggestion.toTimeBlock()
-        stageBlock(block, explanation: suggestion.explanation, stagedBy: "Legacy Suggestion")
-        setActionBarMessage("I suggest: \(suggestion.title) for \(suggestion.duration.minutes) minutes. Does this work?")
-    }
-    
-    func commitStagedItems() async {
-        guard !appState.stagedBlocks.isEmpty else { return }
-        
-        isLoading = true
-        defer { isLoading = false }
-        
-        // Track committed items for potential undo
-        let itemsToCommit = appState.stagedBlocks
-        
-        do {
-            // Create events in EventKit if authorized
-            if eventKitService.isAuthorized {
-                _ = try await eventKitService.createEvents(from: appState.stagedBlocks)
-            }
-            
-            // Update blocks with EventKit IDs and mark as committed
-            for block in appState.stagedBlocks {
-                var updatedBlock = block
-                updatedBlock.glassState = GlassState.solid // Mark as committed
-                updatedBlock.isStaged = false
-                addTimeBlock(updatedBlock)
-            }
-            
-            // Clear staging area using existing method
-            appState.stagedBlocks.removeAll()
-            appState.currentActionBarMessage = nil
-            
-            // Save to persistent storage
-            save()
-            
-            print("✅ Committed \(itemsToCommit.count) items successfully")
-            
-        } catch {
-            print("❌ Failed to commit to EventKit: \(error)")
-            
-            // Still save locally even if EventKit fails
-            for block in appState.stagedBlocks {
-                var updatedBlock = block
-                updatedBlock.glassState = GlassState.solid
-                updatedBlock.isStaged = false
-                addTimeBlock(updatedBlock)
-            }
-            
-            // Clear staging area
-            appState.stagedBlocks.removeAll()
-            appState.currentActionBarMessage = nil
-            
-            save()
-        }
-    }
-    
-    func undoStagedItems() {
-        let count = appState.stagedBlocks.count
-        // Use existing method to reject all staged blocks
-        rejectAllStagedBlocks()
-        
-        print("✅ Undid \(count) staged items")
-    }
     
     func rejectSuggestion(_ suggestion: Suggestion) {
         // Track rejection patterns for learning
@@ -740,12 +594,6 @@ class AppDataManager: ObservableObject {
             }
         }
         
-        // Update staged blocks
-        for i in 0..<appState.stagedBlocks.count {
-            if appState.stagedBlocks[i].relatedGoalId == goal.id {
-                appState.stagedBlocks[i].emoji = goal.emoji
-            }
-        }
         
         // Update related pillars
         for i in 0..<appState.pillars.count {
@@ -771,12 +619,6 @@ class AppDataManager: ObservableObject {
             }
         }
         
-        // Update staged blocks
-        for i in 0..<appState.stagedBlocks.count {
-            if appState.stagedBlocks[i].relatedPillarId == pillar.id {
-                appState.stagedBlocks[i].emoji = pillar.emoji
-            }
-        }
         
         // Update related goals
         for i in 0..<appState.goals.count {
@@ -841,13 +683,6 @@ class AppDataManager: ObservableObject {
             }
         }
         
-        // Update staged blocks
-        if let stagedIndex = appState.stagedBlocks.firstIndex(where: { $0.id == blockId }) {
-            appState.stagedBlocks[stagedIndex].relatedGoalId = goalId
-            if let goal = appState.goals.first(where: { $0.id == goalId }) {
-                appState.stagedBlocks[stagedIndex].emoji = goal.emoji
-            }
-        }
         
         save()
     }
@@ -862,13 +697,6 @@ class AppDataManager: ObservableObject {
             }
         }
         
-        // Update staged blocks
-        if let stagedIndex = appState.stagedBlocks.firstIndex(where: { $0.id == blockId }) {
-            appState.stagedBlocks[stagedIndex].relatedPillarId = pillarId
-            if let pillar = appState.pillars.first(where: { $0.id == pillarId }) {
-                appState.stagedBlocks[stagedIndex].emoji = pillar.emoji
-            }
-        }
         
         save()
     }

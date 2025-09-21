@@ -84,92 +84,6 @@ struct DayPlannerApp: App {
     }
 }
 
-// MARK: - PRD Action Bar (Global single message with Yes/No)
-
-struct ActionBar: View {
-    @EnvironmentObject private var dataManager: AppDataManager
-    @State private var showingEphemeralInsight = false
-    @State private var ephemeralText = ""
-    
-    var body: some View {
-        if let message = dataManager.appState.currentActionBarMessage {
-            VStack(spacing: 8) {
-                HStack {
-                    Text(message)
-                        .font(.body)
-                        .multilineTextAlignment(.leading)
-                        .foregroundColor(.primary)
-                    
-                    Spacer()
-                    
-                    // Yes/No buttons for actionable proposals
-                    if !dataManager.appState.stagedBlocks.isEmpty {
-                        HStack(spacing: 12) {
-                            Button("No") {
-                                withAnimation(.easeOut(duration: 0.3)) {
-                                    dataManager.rejectAllStagedBlocks()
-                                }
-                            }
-                            .buttonStyle(.bordered)
-                            .foregroundColor(.red)
-                            
-                            Button("Yes") {
-                                withAnimation(.easeIn(duration: 0.3)) {
-                                    dataManager.commitAllStagedBlocks()
-                                    showEphemeralInsight(reason: "Committed staged items")
-                                }
-                            }
-                            .buttonStyle(.borderedProminent)
-                        }
-                    } else if dataManager.appState.currentActionBarMessage != nil {
-                        // Show info icon when message exists but no staged items
-                        Image(systemName: "info.circle")
-                            .font(.caption)
-                            .foregroundStyle(.blue)
-                            .help("No actionable items to approve")
-                    }
-                }
-                
-                // PRD: Ephemeral "hmm..." reflection line (2s only)
-                if showingEphemeralInsight {
-                    HStack {
-                        Text("🔍 \(ephemeralText)")
-                            .font(.caption)
-                            .foregroundColor(.secondary)
-                            .opacity(0.7)
-                        Spacer()
-                    }
-                    .transition(.opacity.combined(with: .move(edge: .top)))
-                }
-            }
-            .padding(.horizontal, 16)
-            .padding(.vertical, 12)
-            .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 8))
-            .shadow(radius: 2)
-        }
-    }
-    
-    private func showEphemeralInsight(reason: String) {
-        let insights = [
-            "Your scheduling patterns suggest you work best in the morning",
-            "This fits well with your recent energy flow preferences", 
-            "Building consistency with your established routines",
-            "Optimizing for your typical \(Calendar.current.component(.hour, from: Date()) < 12 ? "morning" : "afternoon") productivity"
-        ]
-        
-        ephemeralText = insights.randomElement() ?? "Looks good for your schedule"
-        withAnimation(.easeIn(duration: 0.2)) {
-            showingEphemeralInsight = true
-        }
-        
-        // PRD: disappear after 2 seconds
-        DispatchQueue.main.asyncAfter(deadline: .now() + 2.0) {
-            withAnimation(.easeOut(duration: 0.3)) {
-                showingEphemeralInsight = false
-            }
-        }
-    }
-}
 
 // MARK: - Main Content View
 
@@ -192,10 +106,6 @@ struct ContentView: View {
                 onDiagnosticsTap: { showingAIDiagnostics = true }
             )
             
-            // PRD: Action Bar - Single visible message with Yes/No
-            ActionBar()
-                .padding(.horizontal, 16)
-                .padding(.vertical, 8)
             
             // Main unified split view - Both calendar and mind visible simultaneously
             UnifiedSplitView(selectedDate: $selectedDate)
@@ -593,7 +503,6 @@ struct GeneralSettingsView: View {
 
 struct AITrustSettingsView: View {
     @EnvironmentObject private var dataManager: AppDataManager
-    @State private var trustLevel: Double = 0.7
     @State private var safeMode = false
     @State private var openaiApiKey = ""
     @State private var whisperApiKey = ""
@@ -605,33 +514,6 @@ struct AITrustSettingsView: View {
                 .font(.title2)
                 .fontWeight(.semibold)
             
-            SettingsGroup("Trust Level") {
-                VStack(alignment: .leading, spacing: 12) {
-                    Text("I trust AI to stage up to \(Int(trustLevel * 100))% of my day")
-                        .font(.subheadline)
-                    
-                    HStack {
-                        Text("0%")
-                            .font(.caption)
-                            .foregroundColor(.secondary)
-                        
-                        Slider(value: $trustLevel, in: 0...1, step: 0.1)
-                            .onChange(of: trustLevel) {
-                                // Save trust level
-                                dataManager.appState.preferences.aiTrustLevel = trustLevel
-                                dataManager.save()
-                            }
-                        
-                        Text("100%")
-                            .font(.caption)
-                            .foregroundColor(.secondary)
-                    }
-                    
-                    Text("This controls how aggressive AI suggestions can be. Lower values mean more conservative suggestions.")
-                        .font(.caption)
-                        .foregroundColor(.secondary)
-                }
-            }
             
             SettingsGroup("Safety") {
                 Toggle("Safe Mode", isOn: $safeMode)
@@ -642,26 +524,6 @@ struct AITrustSettingsView: View {
                     }
             }
             
-            SettingsGroup("Auto-Staging") {
-                VStack(alignment: .leading, spacing: 8) {
-                    Text("Automatically stage suggestions for:")
-                        .font(.subheadline)
-                        .fontWeight(.medium)
-                    
-                    ForEach(dataManager.appState.pillars) { pillar in
-                        Toggle(pillar.name, isOn: Binding(
-                            get: { pillar.autoStageEnabled },
-                            set: { newValue in
-                                if let index = dataManager.appState.pillars.firstIndex(where: { $0.id == pillar.id }) {
-                                    dataManager.appState.pillars[index].autoStageEnabled = newValue
-                                    dataManager.save()
-                                }
-                            }
-                        ))
-                        .font(.caption)
-                    }
-                }
-            }
             
             SettingsGroup("API Configuration") {
                 VStack(alignment: .leading, spacing: 12) {
@@ -728,7 +590,6 @@ struct AITrustSettingsView: View {
             }
         }
         .onAppear {
-            trustLevel = dataManager.appState.preferences.aiTrustLevel
             safeMode = dataManager.appState.preferences.safeMode
             openaiApiKey = dataManager.appState.preferences.openaiApiKey
             whisperApiKey = dataManager.appState.preferences.whisperApiKey
@@ -1805,8 +1666,7 @@ struct EnhancedDayView: View {
             BlockCreationSheet(
                 suggestedTime: creationTime ?? Date(),
                 onCreate: { block in
-                    dataManager.stageBlock(block, explanation: "Time block created for \(block.startTime.timeString)")
-                    dataManager.setActionBarMessage("I've staged your activity '\(block.title)' at \(block.startTime.timeString). Does this work for you?")
+                    dataManager.addTimeBlock(block)
                     showingBlockCreation = false
                 }
             )
@@ -1814,7 +1674,7 @@ struct EnhancedDayView: View {
     }
     
     private var allBlocksForDay: [TimeBlock] {
-        return dataManager.appState.currentDay.blocks + dataManager.appState.stagedBlocks
+        return dataManager.appState.currentDay.blocks
     }
     
     private func handleBlockDrop(block: TimeBlock, newTime: Date) {
@@ -2008,6 +1868,8 @@ struct TimelineCanvas: View {
     let dayStartHour: Int
     let dayEndHour: Int
     let onTap: (Date) -> Void
+    @EnvironmentObject private var dataManager: AppDataManager
+    @EnvironmentObject private var aiService: AIService
     
     private let calendar = Calendar.current
     
@@ -2047,6 +1909,10 @@ struct TimelineCanvas: View {
                         let hourTime = calendar.date(bySettingHour: hour, minute: 0, second: 0, of: selectedDate) ?? selectedDate
                         onTap(hourTime)
                     }
+                    .onDrop(of: [.text], isTargeted: nil) { providers in
+                        let hourTime = calendar.date(bySettingHour: hour, minute: 0, second: 0, of: selectedDate) ?? selectedDate
+                        return handleTimeslotDrop(providers: providers, at: hourTime)
+                    }
             }
         }
     }
@@ -2075,6 +1941,132 @@ struct TimelineCanvas: View {
     private func isCurrentHour(_ hour: Int) -> Bool {
         return calendar.component(.hour, from: Date()) == hour &&
                calendar.isDate(selectedDate, inSameDayAs: Date())
+    }
+    
+    private func handleTimeslotDrop(providers: [NSItemProvider], at time: Date) -> Bool {
+        for provider in providers {
+            provider.loadObject(ofClass: NSString.self) { item, error in
+                if let payload = item as? String, error == nil {
+                    DispatchQueue.main.async {
+                        self.processDroppedItem(payload: payload, at: time)
+                    }
+                }
+            }
+        }
+        return true
+    }
+    
+    private func processDroppedItem(payload: String, at time: Date) {
+        // Handle backfill template drops
+        if payload.hasPrefix("backfill_template:") {
+            let parts = payload.dropFirst("backfill_template:".count).components(separatedBy: "|")
+            if parts.count >= 5 {
+                let title = parts[0]
+                let duration = TimeInterval(Int(parts[1]) ?? 3600)
+                let energy = EnergyType(rawValue: parts[2]) ?? .daylight
+                let emoji = parts[3]
+                
+                // Create enhanced title with AI context
+                let enhancedTitle = aiService.enhanceEventTitle(originalTitle: title, time: time, duration: duration)
+                
+                let newBlock = TimeBlock(
+                    title: enhancedTitle,
+                    startTime: time,
+                    duration: duration,
+                    energy: energy,
+                    emoji: emoji
+                )
+                
+                dataManager.addTimeBlock(newBlock)
+            }
+        }
+        // Handle chain template drops
+        else if payload.hasPrefix("chain_template:") {
+            let parts = payload.dropFirst("chain_template:".count).components(separatedBy: "|")
+            if parts.count >= 3 {
+                let name = parts[0]
+                let totalDuration = Int(parts[1]) ?? 120
+                let icon = parts[2]
+                
+                // Find the matching chain template
+                if let template = findChainTemplate(by: name) {
+                    // Create multiple time blocks based on the template's activities
+                    createChainEventsFromTemplate(template, startTime: time)
+                } else {
+                    // Fallback: create a single event if template not found
+                    let enhancedTitle = aiService.enhanceEventTitle(originalTitle: name, time: time, duration: TimeInterval(totalDuration * 60))
+                    
+                    let newBlock = TimeBlock(
+                        title: enhancedTitle,
+                        startTime: time,
+                        duration: TimeInterval(totalDuration * 60),
+                        energy: .daylight,
+                        emoji: icon
+                    )
+                    
+                    dataManager.addTimeBlock(newBlock)
+                }
+            }
+        }
+    }
+    
+    private func findChainTemplate(by name: String) -> ChainTemplate? {
+        // Define the same chain templates here for drop handling
+        let templates = [
+            ChainTemplate(
+                name: "Morning Routine",
+                icon: "🌅",
+                activities: ["Wake up routine", "Exercise", "Breakfast", "Plan day"],
+                totalDuration: 120, // 2 hours
+                energyFlow: [.sunrise, .sunrise, .daylight, .daylight]
+            ),
+            ChainTemplate(
+                name: "Deep Work",
+                icon: "🎯", 
+                activities: ["Setup workspace", "Focus session", "Break", "Review"],
+                totalDuration: 90, // 1.5 hours
+                energyFlow: [.daylight, .daylight, .moonlight, .daylight]
+            ),
+            ChainTemplate(
+                name: "Evening Wind-down",
+                icon: "🌙",
+                activities: ["Dinner", "Reflection", "Reading", "Sleep prep"],
+                totalDuration: 150, // 2.5 hours  
+                energyFlow: [.daylight, .moonlight, .moonlight, .moonlight]
+            ),
+            ChainTemplate(
+                name: "Creative Flow",
+                icon: "🎨",
+                activities: ["Inspiration gathering", "Brainstorm", "Create", "Refine"],
+                totalDuration: 180, // 3 hours
+                energyFlow: [.daylight, .sunrise, .sunrise, .daylight]
+            )
+        ]
+        
+        return templates.first { $0.name == name }
+    }
+    
+    private func createChainEventsFromTemplate(_ template: ChainTemplate, startTime: Date) {
+        var currentTime = startTime
+        let activityDuration = TimeInterval(template.totalDuration * 60 / template.activities.count)
+        
+        for (index, activity) in template.activities.enumerated() {
+            let energy = index < template.energyFlow.count ? template.energyFlow[index] : .daylight
+            let enhancedTitle = aiService.enhanceEventTitle(originalTitle: activity, time: currentTime, duration: activityDuration)
+            
+            let newBlock = TimeBlock(
+                title: enhancedTitle,
+                startTime: currentTime,
+                duration: activityDuration,
+                energy: energy,
+                emoji: template.icon
+            )
+            
+            dataManager.addTimeBlock(newBlock)
+            
+            // Move to next time slot (with small buffer)
+            currentTime = currentTime.addingTimeInterval(activityDuration + 300) // 5 minute buffer
+        }
     }
 }
 
@@ -2184,15 +2176,13 @@ struct PreciseEventCard: View {
                 .overlay(
                     RoundedRectangle(cornerRadius: 8)
                         .strokeBorder(
-                            block.isStaged ? .gray.opacity(0.6) : borderColor, 
+                            borderColor, 
                             style: StrokeStyle(
-                                lineWidth: block.isStaged ? 2 : 1,
-                                dash: block.isStaged ? [4, 4] : []
+                                lineWidth: 1
                             )
                         )
                 )
         )
-        .opacity(block.isStaged ? 0.5 : 1.0)
         .scaleEffect(isDragging ? 0.98 : 1.0)
         .offset(x: dragOffset.width, y: dragOffset.height + yPosition)
         .onHover { hovering in
@@ -2388,15 +2378,13 @@ struct FixedPositionEventCard: View {
                     .overlay(
                         RoundedRectangle(cornerRadius: 8)
                             .strokeBorder(
-                                block.isStaged ? .gray.opacity(0.6) : borderColor, 
+                                borderColor, 
                                 style: StrokeStyle(
-                                    lineWidth: block.isStaged ? 2 : 1,
-                                    dash: block.isStaged ? [4, 4] : []
+                                    lineWidth: 1
                                 )
                             )
                     )
             )
-            .opacity(block.isStaged ? 0.5 : 1.0)
             .scaleEffect(isDragging ? 0.98 : 1.0)
             .offset(dragOffset)
             .highPriorityGesture(
@@ -2941,10 +2929,17 @@ struct StaticEventChainsTab: View {
                         .fontWeight(.medium)
                     
                     if canChainBefore {
-                        Button("Add Chain") {
-                            onAddChain(.before)
+                        HStack(spacing: 8) {
+                            Button("Add Chain") {
+                                onAddChain(.before)
+                            }
+                            .buttonStyle(.borderedProminent)
+                            
+                            Button("Generate") {
+                                generateAndStageChain(.before)
+                            }
+                            .buttonStyle(.bordered)
                         }
-                        .buttonStyle(.borderedProminent)
                     } else {
                         Text("No space")
                             .font(.caption)
@@ -2966,10 +2961,17 @@ struct StaticEventChainsTab: View {
                         .fontWeight(.medium)
                     
                     if canChainAfter {
-                        Button("Add Chain") {
-                            onAddChain(.after)
+                        HStack(spacing: 8) {
+                            Button("Add Chain") {
+                                onAddChain(.after)
+                            }
+                            .buttonStyle(.borderedProminent)
+                            
+                            Button("Generate") {
+                                generateAndStageChain(.after)
+                            }
+                            .buttonStyle(.bordered)
                         }
-                        .buttonStyle(.borderedProminent)
                     } else {
                         Text("No space")
                             .font(.caption)
@@ -3031,6 +3033,79 @@ struct StaticEventChainsTab: View {
             return endOfDay.timeIntervalSince(block.endTime)
         }
         return nextBlock.startTime.timeIntervalSince(block.endTime)
+    }
+    
+    private func generateAndStageChain(_ position: ChainPosition) {
+        // Generate appropriate chain based on context
+        let availableTime = position == .before ? calculateGapBefore() : calculateGapAfter()
+        
+        // Create a context-appropriate chain
+        let suggestedDuration = min(availableTime * 0.8, 3600) // Use 80% of available time, max 1 hour
+        
+        // Generate a time block that fits the context
+        let chainBlock = TimeBlock(
+            title: generateContextualActivity(for: block, position: position),
+            startTime: position == .before ? 
+                block.startTime.addingTimeInterval(-suggestedDuration) : 
+                block.endTime,
+            duration: suggestedDuration,
+            energy: block.energy,
+            emoji: selectContextualEmoji(for: block, position: position),
+        )
+        
+        // Add to staged blocks (assuming access to data manager)
+        // This would need to be passed down or accessed through environment
+        // For now, we'll trigger the onAddChain callback which should handle staging
+        onAddChain(position)
+        
+        // Note: chainBlock is created but not directly used here since we're using the callback
+        _ = chainBlock
+    }
+    
+    private func generateContextualActivity(for event: TimeBlock, position: ChainPosition) -> String {
+        let eventTitle = event.title.lowercased()
+        
+        if position == .before {
+            if eventTitle.contains("meeting") || eventTitle.contains("call") {
+                return "Meeting Prep"
+            } else if eventTitle.contains("workout") || eventTitle.contains("exercise") {
+                return "Warm-up"
+            } else if eventTitle.contains("work") || eventTitle.contains("project") {
+                return "Focus Setup"
+            } else {
+                return "Preparation"
+            }
+        } else {
+            if eventTitle.contains("meeting") || eventTitle.contains("call") {
+                return "Follow-up Notes"
+            } else if eventTitle.contains("workout") || eventTitle.contains("exercise") {
+                return "Cool-down"
+            } else if eventTitle.contains("work") || eventTitle.contains("project") {
+                return "Wrap-up"
+            } else {
+                return "Transition"
+            }
+        }
+    }
+    
+    private func selectContextualEmoji(for event: TimeBlock, position: ChainPosition) -> String {
+        let eventEmoji = event.emoji
+        
+        if position == .before {
+            switch eventEmoji {
+            case "💼": return "📋"
+            case "🏃‍♀️", "💪": return "🔥"
+            case "👥": return "📝"
+            default: return "⚡"
+            }
+        } else {
+            switch eventEmoji {
+            case "💼": return "✅"
+            case "🏃‍♀️", "💪": return "🧘"
+            case "👥": return "📝"
+            default: return "🔄"
+            }
+        }
     }
 }
 
@@ -3293,15 +3368,13 @@ struct CleanEventCard: View {
                 .overlay(
                     RoundedRectangle(cornerRadius: 8)
                         .strokeBorder(
-                            block.isStaged ? .gray.opacity(0.6) : borderColor, 
+                            borderColor, 
                             style: StrokeStyle(
-                                lineWidth: block.isStaged ? 2 : 1,
-                                dash: block.isStaged ? [4, 4] : []
+                                lineWidth: 1
                             )
                         )
                 )
         )
-        .opacity(block.isStaged ? 0.5 : 1.0)
         .scaleEffect(isDragging ? 0.98 : 1.0)
         .offset(dragOffset)
         .highPriorityGesture(
@@ -3324,7 +3397,7 @@ struct CleanEventCard: View {
         .sheet(isPresented: $showingDetails) {
             NoFlashEventDetailsSheet(
                 block: block,
-                allBlocks: dataManager.appState.currentDay.blocks + dataManager.appState.stagedBlocks,
+                allBlocks: dataManager.appState.currentDay.blocks,
                 onSave: { updatedBlock in
                     dataManager.updateTimeBlock(updatedBlock)
                     showingDetails = false
@@ -3544,7 +3617,7 @@ struct EnhancedHourSlot: View {
     
     private func blocksForCurrentDay() -> [TimeBlock] {
         // Return all blocks for the current day for gap checking
-        return dataManager.appState.currentDay.blocks + dataManager.appState.stagedBlocks
+        return dataManager.appState.currentDay.blocks
     }
 }
 
@@ -3629,10 +3702,9 @@ struct EnhancedTimeBlockCard: View {
                     .overlay(
                         RoundedRectangle(cornerRadius: 10, style: .continuous)
                             .strokeBorder(
-                                borderColor.opacity(isDragging ? 1.0 : (block.isStaged ? 0.4 : 0.6)),
+                                borderColor.opacity(isDragging ? 1.0 : 0.6),
                                 style: StrokeStyle(
-                                    lineWidth: isDragging ? 2 : 1,
-                                    dash: block.isStaged ? [4, 4] : []
+                                    lineWidth: isDragging ? 2 : 1
                                 )
                             )
                     )
@@ -3642,8 +3714,6 @@ struct EnhancedTimeBlockCard: View {
                         y: isDragging ? 4 : 1
                     )
             )
-            // PRD: Staged items have 50% opacity
-            .opacity(block.isStaged ? 0.5 : 1.0)
             .scaleEffect(isDragging ? 0.95 : 1.0)
             .offset(dragOffset)
             .gesture(
@@ -3976,20 +4046,6 @@ struct EventDetailsTab: View {
                 }
             }
             
-            // Status and explanation
-            if let explanation = block.explanation {
-                VStack(alignment: .leading, spacing: 8) {
-                    Text("AI Explanation")
-                        .font(.headline)
-                        .fontWeight(.semibold)
-                    
-                    Text(explanation)
-                        .font(.body)
-                        .foregroundStyle(.secondary)
-                        .padding()
-                        .background(.ultraThinMaterial.opacity(0.5), in: RoundedRectangle(cornerRadius: 8))
-                }
-            }
             
             Spacer()
         }
@@ -4063,12 +4119,20 @@ struct EventChainsTab: View {
                     Spacer()
                     
                     if canChainBefore {
-                        Button("Add Chain") {
-                            selectedPosition = .before
-                            showingChainSelector = true
+                        HStack(spacing: 8) {
+                            Button("Add Chain") {
+                                selectedPosition = .before
+                                showingChainSelector = true
+                            }
+                            .buttonStyle(.borderedProminent)
+                            .controlSize(.small)
+                            
+                            Button("Generate") {
+                                generateAndStageChain(.before)
+                            }
+                            .buttonStyle(.bordered)
+                            .controlSize(.small)
                         }
-                        .buttonStyle(.borderedProminent)
-                        .controlSize(.small)
                     } else {
                         Text("No space")
                             .font(.caption)
@@ -4093,12 +4157,20 @@ struct EventChainsTab: View {
                     Spacer()
                     
                     if canChainAfter {
-                        Button("Add Chain") {
-                            selectedPosition = .after
-                            showingChainSelector = true
+                        HStack(spacing: 8) {
+                            Button("Add Chain") {
+                                selectedPosition = .after
+                                showingChainSelector = true
+                            }
+                            .buttonStyle(.borderedProminent)
+                            .controlSize(.small)
+                            
+                            Button("Generate") {
+                                generateAndStageChain(.after)
+                            }
+                            .buttonStyle(.bordered)
+                            .controlSize(.small)
                         }
-                        .buttonStyle(.borderedProminent)
-                        .controlSize(.small)
                     } else {
                         Text("No space")
                             .font(.caption)
@@ -4227,25 +4299,17 @@ struct EventChainsTab: View {
         isGeneratingChains = true
         
         Task {
-            do {
-                let context = dataManager.createEnhancedContext()
-                let prompt = buildChainGenerationPrompt(for: block, context: context)
-                
-                // Note: aiService should be accessed as @EnvironmentObject, not through dataManager
-                // let _ = try await aiService.processMessage(prompt, context: context)
-                let chains: [Chain] = [] // Placeholder - would parse AI response
-                
-                await MainActor.run {
-                    self.generatedChains = chains
-                    self.showingGeneratedChains = true
-                    self.isGeneratingChains = false
-                }
-            } catch {
-                await MainActor.run {
-                    self.isGeneratingChains = false
-                    // TODO: Show error to user
-                    print("Chain generation error: \(error)")
-                }
+            let context = dataManager.createEnhancedContext()
+            let _ = buildChainGenerationPrompt(for: block, context: context)
+            
+            // Note: aiService should be accessed as @EnvironmentObject, not through dataManager
+            // let _ = try await aiService.processMessage(prompt, context: context)
+            let chains: [Chain] = [] // Placeholder - would parse AI response
+            
+            await MainActor.run {
+                self.generatedChains = chains
+                self.showingGeneratedChains = true
+                self.isGeneratingChains = false
             }
         }
     }
@@ -4293,6 +4357,74 @@ struct EventChainsTab: View {
         let formatter = DateFormatter()
         formatter.timeStyle = .short
         return formatter.string(from: date)
+    }
+    
+    private func generateAndStageChain(_ position: ChainPosition) {
+        // Generate appropriate chain based on context
+        let availableTime = position == .before ? calculateGapBefore() : calculateGapAfter()
+        
+        // Create a context-appropriate chain
+        let suggestedDuration = min(availableTime * 0.8, 3600) // Use 80% of available time, max 1 hour
+        
+        // Generate a time block that fits the context
+        let chainBlock = TimeBlock(
+            title: generateContextualActivity(for: block, position: position),
+            startTime: position == .before ? 
+                block.startTime.addingTimeInterval(-suggestedDuration) : 
+                block.endTime,
+            duration: suggestedDuration,
+            energy: block.energy,
+            emoji: selectContextualEmoji(for: block, position: position),
+        )
+        
+        // Add to staged blocks through data manager
+        dataManager.addTimeBlock(chainBlock)
+    }
+    
+    private func generateContextualActivity(for event: TimeBlock, position: ChainPosition) -> String {
+        let eventTitle = event.title.lowercased()
+        
+        if position == .before {
+            if eventTitle.contains("meeting") || eventTitle.contains("call") {
+                return "Meeting Prep"
+            } else if eventTitle.contains("workout") || eventTitle.contains("exercise") {
+                return "Warm-up"
+            } else if eventTitle.contains("work") || eventTitle.contains("project") {
+                return "Focus Setup"
+            } else {
+                return "Preparation"
+            }
+        } else {
+            if eventTitle.contains("meeting") || eventTitle.contains("call") {
+                return "Follow-up Notes"
+            } else if eventTitle.contains("workout") || eventTitle.contains("exercise") {
+                return "Cool-down"
+            } else if eventTitle.contains("work") || eventTitle.contains("project") {
+                return "Wrap-up"
+            } else {
+                return "Transition"
+            }
+        }
+    }
+    
+    private func selectContextualEmoji(for event: TimeBlock, position: ChainPosition) -> String {
+        let eventEmoji = event.emoji
+        
+        if position == .before {
+            switch eventEmoji {
+            case "💼": return "📋"
+            case "🏃‍♀️", "💪": return "🔥"
+            case "👥": return "📝"
+            default: return "⚡"
+            }
+        } else {
+            switch eventEmoji {
+            case "💼": return "✅"
+            case "🏃‍♀️", "💪": return "🧘"
+            case "👥": return "📝"
+            default: return "🔄"
+            }
+        }
     }
 }
 
@@ -5348,27 +5480,18 @@ struct CalendarDropDelegate: DropDelegate {
                                 let emoji = parts[3]
                                 let confidence = Double(parts[4]) ?? 0.8
                                 
-                                // Create a time block from the dropped template with proper data
+                                // Create a time block from the dropped template and add directly to timeline
                                 let newBlock = TimeBlock(
                                     title: title,
                                     startTime: self.targetTime,
                                     duration: duration,
                                     energy: energy,
                                     emoji: emoji,
-                                    isStaged: true,
-                                    stagedBy: "Backfill Drop",
-                                    explanation: "Backfill template: \(Int(confidence * 100))% confidence"
                                 )
                                 
-                                self.dataManager.stageBlock(
-                                    newBlock,
-                                    explanation: "Dropped backfill template: \(title)",
-                                    stagedBy: "Template Drop"
-                                )
+                                // Add directly to the timeline instead of staging
+                                self.dataManager.addTimeBlock(newBlock)
                                 
-                                self.dataManager.setActionBarMessage(
-                                    "I've staged '\(newBlock.title)' (\(newBlock.durationMinutes)m) at \(self.targetTime.timeString). Ready to add?"
-                                )
                             }
                         }
                         // Parse chain template payload
@@ -5379,30 +5502,21 @@ struct CalendarDropDelegate: DropDelegate {
                                 let duration = TimeInterval(Int(parts[1]) ?? 3600)
                                 let icon = parts[2]
                                 
-                                // Create a time block from the dropped chain template
+                                // Create a time block from the dropped chain template and add directly to timeline
                                 let newBlock = TimeBlock(
                                     title: name,
                                     startTime: self.targetTime,
                                     duration: duration,
                                     energy: .daylight,
-                                    emoji: "🌊",
-                                    isStaged: true,
-                                    stagedBy: "Chain Template Drop",
-                                    explanation: "Chain template: \(icon) \(name)"
+                                    emoji: "🌊"
                                 )
                                 
-                                self.dataManager.stageBlock(
-                                    newBlock,
-                                    explanation: "Dropped chain template: \(icon) \(name)",
-                                    stagedBy: "Template Drop"
-                                )
+                                // Add directly to the timeline instead of staging
+                                self.dataManager.addTimeBlock(newBlock)
                                 
-                                self.dataManager.setActionBarMessage(
-                                    "I've staged chain '\(newBlock.title)' (\(newBlock.durationMinutes)m) at \(self.targetTime.timeString). Ready to add?"
-                                )
                             }
                         }
-                        // Handle legacy chain template drops
+                        // Handle legacy chain template drops - now add directly to timeline
                         else if payload.contains("template") || payload.contains("chain") {
                             // Create a time block from the dropped template
                             let newBlock = TimeBlock(
@@ -5410,21 +5524,12 @@ struct CalendarDropDelegate: DropDelegate {
                                 startTime: self.targetTime,
                                 duration: 3600, // Default 1 hour - could be improved
                                 energy: .daylight,
-                                emoji: "🌊",
-                                isStaged: true,
-                                stagedBy: "Drag & Drop",
-                                explanation: "Dropped from template"
+                                emoji: "🌊"
                             )
                             
-                            self.dataManager.stageBlock(
-                                newBlock,
-                                explanation: "Dropped template: \(payload)",
-                                stagedBy: "Template Drop"
-                            )
+                            // Add directly to the timeline instead of staging
+                            self.dataManager.addTimeBlock(newBlock)
                             
-                            self.dataManager.setActionBarMessage(
-                                "I've staged '\(newBlock.title)' at \(self.targetTime.timeString). Ready to add?"
-                            )
                         }
                     }
                 }
@@ -5635,8 +5740,7 @@ struct SuperchargedChainsSection: View {
                 startTime: Date(),
                 duration: duration,
                 energy: template.energyFlow[index],
-                emoji: "💎",
-                explanation: "From \(template.name) template"
+                emoji: "💎"
             )
         }
         
@@ -5651,7 +5755,6 @@ struct SuperchargedChainsSection: View {
         )
         
         dataManager.addChain(newChain)
-        dataManager.setActionBarMessage("Created '\(template.name)' chain. Apply it to your schedule?")
     }
     
     private func applyChainToToday(_ chain: Chain) {
@@ -5708,14 +5811,12 @@ struct SuperchargedChainsSection: View {
                     // Add to templates area instead of user chains
                     let startTime = findBestTimeForChain(contextualChain)
                     dataManager.applyChain(contextualChain, startingAt: startTime)
-                    dataManager.setActionBarMessage("Generated contextual chain '\(contextualChain.name)' for current situation. Apply?")
                 }
             } catch {
                 await MainActor.run {
                     let fallbackChain = createTimeBasedUniqueChain()
                     let startTime = findBestTimeForChain(fallbackChain)
                     dataManager.applyChain(fallbackChain, startingAt: startTime)
-                    dataManager.setActionBarMessage("Generated '\(fallbackChain.name)' chain for this time period. Apply?")
                 }
             }
         }
@@ -5724,11 +5825,9 @@ struct SuperchargedChainsSection: View {
     private func createAndStageChainFromTemplate(_ template: ChainTemplate) {
         let chain = createChainFromTemplateHelper(template)
         
-        // Stage the chain for immediate application
+        // Apply the chain directly
         let startTime = findBestTimeForChain(chain)
         dataManager.applyChain(chain, startingAt: startTime)
-        
-        dataManager.setActionBarMessage("Applied '\(template.name)' template as chain starting at \(startTime.timeString). Ready to commit?")
     }
     
     private func createChainFromTemplateHelper(_ template: ChainTemplate) -> Chain {
@@ -5738,9 +5837,8 @@ struct SuperchargedChainsSection: View {
                 title: activity,
                 startTime: Date(),
                 duration: duration,
-                energy: template.energyFlow[safe: index] ?? .daylight,
-                emoji: template.icon,
-                explanation: "From \(template.name) template"
+                energy: index < template.energyFlow.count ? template.energyFlow[index] : .daylight,
+                emoji: template.icon
             )
         }
         
@@ -5761,7 +5859,6 @@ struct SuperchargedChainsSection: View {
                 
                 await MainActor.run {
                     dataManager.addChain(aiChain)
-                    dataManager.setActionBarMessage("Created unique AI chain '\(aiChain.name)' based on your current context. Apply it?")
                 }
             } catch {
                 await MainActor.run {
@@ -6048,7 +6145,7 @@ struct ChainTemplateEditorSheet: View {
             EditableActivity(
                 title: activity,
                 duration: template.totalDuration / template.activities.count,
-                energy: template.energyFlow[safe: index] ?? .daylight
+                energy: index < template.energyFlow.count ? template.energyFlow[index] : .daylight
             )
         })
     }
@@ -6485,7 +6582,6 @@ struct ComprehensivePillarEditorSheet: View {
     @State private var frequency: PillarFrequency
     @State private var minDuration: TimeInterval
     @State private var maxDuration: TimeInterval
-    @State private var autoStageEnabled: Bool
     @State private var eventConsiderationEnabled: Bool
     @State private var wisdomText: String
     @State private var emoji: String
@@ -6500,7 +6596,6 @@ struct ComprehensivePillarEditorSheet: View {
         self._frequency = State(initialValue: pillar.frequency)
         self._minDuration = State(initialValue: pillar.minDuration)
         self._maxDuration = State(initialValue: pillar.maxDuration)
-        self._autoStageEnabled = State(initialValue: pillar.autoStageEnabled)
         self._eventConsiderationEnabled = State(initialValue: pillar.eventConsiderationEnabled)
         self._wisdomText = State(initialValue: pillar.wisdomText ?? "")
         self._emoji = State(initialValue: pillar.emoji)
@@ -6533,10 +6628,7 @@ struct ComprehensivePillarEditorSheet: View {
                                     .font(.caption)
                                     .fontWeight(.medium)
                                 
-                                TextField("🏛️", text: $emoji)
-                                    .font(.title2)
-                                    .textFieldStyle(.roundedBorder)
-                                    .frame(width: 60)
+                                EmojiPickerButton(selectedEmoji: $emoji)
                             }
                             
                             VStack(alignment: .leading, spacing: 4) {
@@ -6616,8 +6708,6 @@ struct ComprehensivePillarEditorSheet: View {
                                 }
                             }
                             
-                            Toggle("Auto-staging enabled", isOn: $autoStageEnabled)
-                                .font(.caption)
                         }
                         
                         if type == .principle {
@@ -6676,7 +6766,6 @@ struct ComprehensivePillarEditorSheet: View {
             preferredTimeWindows: pillar.preferredTimeWindows,
             overlapRules: pillar.overlapRules,
             quietHours: pillar.quietHours,
-            autoStageEnabled: autoStageEnabled,
             eventConsiderationEnabled: eventConsiderationEnabled,
             wisdomText: wisdomText.isEmpty ? nil : wisdomText,
             color: color,
@@ -6701,7 +6790,6 @@ struct ComprehensivePillarCreatorSheet: View {
     @State private var minDuration = 30
     @State private var maxDuration = 120
     @State private var isPrincipleOnly = false
-    @State private var autoStageEnabled = false
     @State private var selectedColor: Color = .blue
     @State private var selectedEmoji = "🏛️"
     @State private var relatedGoalId: UUID?
@@ -6726,9 +6814,7 @@ struct ComprehensivePillarCreatorSheet: View {
                                 }
                             
                             // Emoji picker
-                            TextField("🏛️", text: $selectedEmoji)
-                                    .textFieldStyle(.roundedBorder)
-                                .frame(width: 60)
+                            EmojiPickerButton(selectedEmoji: $selectedEmoji)
                         }
                         
                         TextField("Description", text: $pillarDescription, axis: .vertical)
@@ -6789,8 +6875,6 @@ struct ComprehensivePillarCreatorSheet: View {
                                 }
                             }
                             
-                            Toggle("Auto-staging enabled", isOn: $autoStageEnabled)
-                                .help("AI automatically suggests time slots for this pillar")
                         }
                     }
                     
@@ -6891,7 +6975,6 @@ struct ComprehensivePillarCreatorSheet: View {
             frequency: selectedFrequency,
                 minDuration: isPrincipleOnly ? 0 : TimeInterval(minDuration * 60),
                 maxDuration: isPrincipleOnly ? 0 : TimeInterval(maxDuration * 60),
-                autoStageEnabled: isPrincipleOnly ? false : autoStageEnabled,
                 eventConsiderationEnabled: true,
                 wisdomText: isPrincipleOnly ? wisdomText : nil,
                 color: CodableColor(selectedColor),
@@ -7061,18 +7144,12 @@ struct EnhancedPillarCard: View {
                     .foregroundStyle(.primary)
                     .lineLimit(2)
                 
-                // Frequency and auto-stage status
+                // Frequency status
                 VStack(spacing: 2) {
                     Text(pillar.frequencyDescription)
                         .font(.caption2)
                         .foregroundStyle(.secondary)
-                    
-                    if pillar.autoStageEnabled {
-                        Text("Auto-staging ON")
-                            .font(.caption2)
-                            .foregroundStyle(.green)
-                            .fontWeight(.medium)
-                    }
+                        .fontWeight(.medium)
                 }
             }
         }
@@ -7202,14 +7279,14 @@ struct EnhancedGoalsSection: View {
             case .createChain(let chain):
                 // Stage chains as potential actions instead of applying immediately
                 for block in chain.blocks {
-                    dataManager.stageBlock(block, explanation: "Chain '\(chain.name)' from goal: \(goal.title)")
+                    dataManager.addTimeBlock(block)
                     hasStageableActions = true
                 }
             case .createPillar(let pillar):
                 // Apply pillars immediately as they don't need staging
                 dataManager.addPillar(pillar)
             case .createEvent(let timeBlock):
-                dataManager.stageBlock(timeBlock, explanation: "Event from goal: \(goal.title)")
+                dataManager.addTimeBlock(timeBlock)
                 hasStageableActions = true
             case .updateGoal(let updatedGoal):
                 // Apply goal updates immediately
@@ -7218,12 +7295,6 @@ struct EnhancedGoalsSection: View {
         }
         
         // Only show "Ready to apply?" message if there are staged items
-        if hasStageableActions {
-            let stagedCount = dataManager.appState.stagedBlocks.count
-            dataManager.setActionBarMessage("I've broken down '\(goal.title)' and staged \(stagedCount) time blocks. Ready to apply?")
-        } else {
-            dataManager.setActionBarMessage("I've processed '\(goal.title)' breakdown - \(actions.count) items updated.")
-        }
     }
 }
 
@@ -8485,9 +8556,7 @@ struct ManualCreationSection: View {
         }
         .sheet(isPresented: $showingBlockCreation) {
             BlockCreationSheet(suggestedTime: Date()) { block in
-                // PRD: Stage blocks for approval instead of direct commit
-                dataManager.stageBlock(block, explanation: "Manually created time block")
-                dataManager.setActionBarMessage("I've staged your new activity '\(block.title)' for \(block.durationMinutes) minutes. Ready to add it?")
+                dataManager.addTimeBlock(block)
                 showingBlockCreation = false
             }
         }
@@ -8554,7 +8623,7 @@ struct SuggestionsSection: View {
                 LazyVStack(spacing: 8) {
                     ForEach(suggestions) { suggestion in
                         SuggestionRailCard(suggestion: suggestion) {
-                            dataManager.stageSuggestion(suggestion)
+                            dataManager.applySuggestion(suggestion)
                             suggestions.removeAll { $0.id == suggestion.id }
                         }
                     }
@@ -8643,9 +8712,8 @@ struct RescheduleSection: View {
     }
     
     private var incompletedBlocks: [TimeBlock] {
-        // PRD: Only committed blocks can be incomplete (staged blocks are proposals)
         dataManager.appState.currentDay.blocks.filter { block in
-            block.endTime < Date() && block.glassState != .solid && !block.isStaged
+            block.endTime < Date() && block.glassState != .solid
         }
     }
     
@@ -8985,7 +9053,6 @@ struct EnhancedBackfillView: View {
                 duration: 3600, // 1 hour default
                 energy: .daylight,
                 emoji: "💎",
-                explanation: "Added manually"
             )
             
             stagedBackfillBlocks.append(newBlock)
@@ -9003,7 +9070,6 @@ struct EnhancedBackfillView: View {
             duration: template.duration,
             energy: template.energy,
             emoji: template.emoji,
-            explanation: "From \(template.title) template"
         )
         
         stagedBackfillBlocks.append(newBlock)
@@ -9116,7 +9182,6 @@ struct EnhancedBackfillView: View {
                         energy: activity.energy,
                         emoji: activity.emoji,
                         glassState: .crystal,
-                        explanation: "High confidence (\(Int(activity.confidence * 100))%) typical \(isWeekend ? "weekend" : "weekday") activity"
                     ))
                     break
                 }
@@ -9183,7 +9248,6 @@ struct EnhancedBackfillView: View {
         // Mark all as explanatory AI reconstructions
         return blocks.map { block in
             var updatedBlock = block
-            updatedBlock.explanation = "AI reconstructed based on typical \(isWeekend ? "weekend" : "weekday") patterns"
             updatedBlock.glassState = .crystal // AI-generated
             return updatedBlock
         }
@@ -9317,7 +9381,7 @@ struct BackfillTimeline: View {
                     BackfillHourSlot(
                         hour: hour,
                         date: date,
-                        stagedBlocks: stagedBlocks.filter { blocksForHour($0, hour) },
+                        stagedBlocks: [],
                         onBlockMove: onBlockMove,
                         onBlockRemove: onBlockRemove
                     )
@@ -9712,8 +9776,7 @@ struct DraggableBackfillTemplate: View {
             startTime: Date(),
             duration: template.duration,
             energy: template.energy,
-            emoji: template.emoji,
-            explanation: "Backfill template: \(Int(template.confidence * 100))% confidence"
+            emoji: template.emoji
         )
         
         // Create a more detailed drag payload
@@ -9873,7 +9936,6 @@ struct PillarDayView: View {
                         duration: pillar.minDuration,
                         energy: .daylight,
                         emoji: pillar.emoji,
-                        explanation: "Pillar day suggestion: overdue \(pillar.frequencyDescription) activity",
                         relatedPillarId: pillar.id
                     )
                     suggestions.append(suggestedEvent)
@@ -9924,7 +9986,7 @@ struct PillarDayView: View {
     
     private func isTimeSlotAvailable(start: Date, duration: TimeInterval) -> Bool {
         let end = start.addingTimeInterval(duration)
-        let allBlocks = dataManager.appState.currentDay.blocks + dataManager.appState.stagedBlocks
+        let allBlocks = dataManager.appState.currentDay.blocks
         
         return !allBlocks.contains { block in
             let blockInterval = DateInterval(start: block.startTime, end: block.endTime)
@@ -9966,7 +10028,7 @@ struct PillarDayView: View {
     }
     
     private func stagePillarEvent(_ event: TimeBlock) {
-        dataManager.stageBlock(event, explanation: event.explanation ?? "Pillar day suggestion")
+        dataManager.addTimeBlock(event)
         suggestedEvents.removeAll { $0.id == event.id }
     }
     
@@ -9975,7 +10037,6 @@ struct PillarDayView: View {
             stagePillarEvent(event)
         }
         
-        dataManager.setActionBarMessage("Added \(suggestedEvents.count) pillar activities to catch up on your routines. Ready to apply?")
         dismiss()
     }
 }
@@ -10054,13 +10115,6 @@ struct DraggableSuggestedEventCard: View {
                         .foregroundStyle(.secondary)
                 }
                 
-                if let explanation = event.explanation {
-                    Text(explanation)
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                        .italic()
-                        .lineLimit(2)
-                }
             }
             
             Spacer()
@@ -10107,7 +10161,7 @@ struct DraggableSuggestedEventCard: View {
     
     private func createEventDragProvider() -> NSItemProvider {
         // Stage the event immediately when drag starts
-        dataManager.stageBlock(event, explanation: "Pillar event: \(event.title)")
+        dataManager.addTimeBlock(event)
         return NSItemProvider(object: event.title as NSString)
     }
 }
@@ -10203,8 +10257,7 @@ struct GapFillerView: View {
     }
     
     private func findScheduleGaps() -> [ScheduleGap] {
-        // PRD: Consider both committed and staged blocks for gap analysis
-        let allBlocks = dataManager.appState.currentDay.blocks + dataManager.appState.stagedBlocks
+        let allBlocks = dataManager.appState.currentDay.blocks
         let sortedBlocks = allBlocks.sortedByTime
         var gaps: [ScheduleGap] = []
         
@@ -10309,9 +10362,7 @@ struct GapFillerView: View {
             glassState: .liquid
         )
         
-        // PRD: Stage gap filler suggestions instead of direct commit
-        dataManager.stageBlock(newBlock, explanation: "Gap filler suggestion for available time slot")
-        dataManager.setActionBarMessage("I found a gap in your schedule and suggest: \(newBlock.title) (\(newBlock.durationMinutes)m). Add it?")
+        dataManager.addTimeBlock(newBlock)
         
         // Remove the applied suggestion
         if let index = gapSuggestions.firstIndex(where: { $0.id == suggestion.id }) {
@@ -10426,8 +10477,6 @@ struct ActionBarView: View {
     @State private var lastResponse = ""
     @State private var messageHistory: [AIMessage] = []
     @State private var showHistory = false
-    @State private var undoCountdown: Int? = nil
-    @State private var undoTimer: Timer?
     
     var body: some View {
         VStack(spacing: 8) {
@@ -10595,25 +10644,6 @@ struct ActionBarView: View {
             }
             
             // Undo countdown (10-second window)
-            if let countdown = undoCountdown {
-                HStack {
-                    Text("Added to calendar")
-                        .font(.caption)
-                        .foregroundColor(.green)
-                    
-                    Spacer()
-                    
-                    Button("Undo (\(countdown)s)") {
-                        performUndo()
-                    }
-                    .font(.caption)
-                    .buttonStyle(.bordered)
-                    .controlSize(.small)
-                }
-                .padding(.horizontal, 16)
-                .padding(.vertical, 4)
-                .background(.green.opacity(0.1), in: RoundedRectangle(cornerRadius: 6))
-            }
         }
         .sheet(isPresented: $showHistory) {
             MessageHistoryView(messages: messageHistory, onDismiss: { showHistory = false })
@@ -10662,13 +10692,12 @@ struct ActionBarView: View {
                             let suggestedTime = findNextAvailableTime(after: targetDate.addingTimeInterval(Double(index * 30 * 60)))
                             var stagedBlock = suggestion.toTimeBlock()
                             stagedBlock.startTime = suggestedTime
-                            dataManager.stageBlock(stagedBlock, explanation: "AI suggestion based on: '\(message)'", stagedBy: "Chat AI")
+                            dataManager.addTimeBlock(stagedBlock)
                         }
                         
                         let count = response.suggestions.count
                         let dateString = Calendar.current.isDate(targetDate, inSameDayAs: Date()) ? "today" : targetDate.dayString
-                        dataManager.setActionBarMessage("I've staged \(count) suggestion\(count == 1 ? "" : "s") for \(dateString) based on '\(message)'. Does this look right?")
-                        showEphemeralInsight("Staged \(count) item\(count == 1 ? "" : "s") for \(dateString)!")
+                        showEphemeralInsight("Added \(count) item\(count == 1 ? "" : "s") for \(dateString)!")
                         
                         // Clear pending suggestions since they're now staged
                         pendingSuggestions = []
@@ -10732,42 +10761,6 @@ struct ActionBarView: View {
         showEphemeralInsight("All rejected - I'll remember this")
     }
     
-    // MARK: - Undo System (10-second window)
-    
-    private func startUndoCountdown() {
-        undoCountdown = 10
-        undoTimer?.invalidate()
-        undoTimer = Timer.scheduledTimer(withTimeInterval: 1.0, repeats: true) { _ in
-            guard let countdown = undoCountdown else { return }
-            
-            if countdown > 1 {
-                undoCountdown = countdown - 1
-            } else {
-                // Commit to EventKit after 10 seconds
-                commitStagedItems()
-                undoCountdown = nil
-                undoTimer?.invalidate()
-                undoTimer = nil
-            }
-        }
-    }
-    
-    private func performUndo() {
-        dataManager.undoStagedItems()
-        undoCountdown = nil
-        undoTimer?.invalidate()
-        undoTimer = nil
-        showEphemeralInsight("Undone - changes reverted")
-    }
-    
-    private func commitStagedItems() {
-        Task {
-            await dataManager.commitStagedItems()
-            await MainActor.run {
-                showEphemeralInsight("Committed to your calendar")
-            }
-        }
-    }
     
     // MARK: - Helper Methods
     
@@ -10905,7 +10898,7 @@ struct ActionBarView: View {
     }
     
     private func findNextAvailableTime(after startTime: Date) -> Date {
-        let allBlocks = dataManager.appState.currentDay.blocks + dataManager.appState.stagedBlocks
+        let allBlocks = dataManager.appState.currentDay.blocks
         let sortedBlocks = allBlocks.sorted { $0.startTime < $1.startTime }
         
         var searchTime = startTime
@@ -11120,9 +11113,7 @@ struct DayPlannerView: View {
             BlockCreationSheet(
                 suggestedTime: creationTime ?? Date(),
                 onCreate: { block in
-                    // PRD: Stage blocks for approval instead of direct commit
-                    dataManager.stageBlock(block, explanation: "Time block created for \(block.startTime.timeString)")
-                    dataManager.setActionBarMessage("I've staged your activity '\(block.title)' at \(block.startTime.timeString). Does this work for you?")
+                    dataManager.addTimeBlock(block)
                     showingBlockCreation = false
                     creationTime = nil
                 }
@@ -11132,8 +11123,7 @@ struct DayPlannerView: View {
     
     private func blocksForHour(_ hour: Int) -> [TimeBlock] {
         let calendar = Calendar.current
-        // PRD: Include both committed blocks AND staged blocks for display
-        let allBlocks = dataManager.appState.currentDay.blocks + dataManager.appState.stagedBlocks
+        let allBlocks = dataManager.appState.currentDay.blocks
         return allBlocks.filter { block in
             let blockHour = calendar.component(.hour, from: block.startTime)
             return blockHour == hour
@@ -11394,16 +11384,13 @@ struct SimpleTimeBlockView: View {
                     .overlay(
                         RoundedRectangle(cornerRadius: 8)
                             .strokeBorder(
-                                block.isStaged ? .gray : borderColor, 
+                                borderColor, 
                                 style: StrokeStyle(
-                                    lineWidth: block.isStaged ? 2 : 1,
-                                    dash: block.isStaged ? [4, 4] : []
+                                    lineWidth: 1
                                 )
                             )
                     )
             )
-            // PRD: Staged items have 50% opacity
-            .opacity(block.isStaged ? 0.5 : 1.0)
             .scaleEffect(isDragging ? 0.95 : 1.0)
             .offset(dragOffset)
             .contentShape(Rectangle()) // Ensure entire area is draggable
@@ -11479,7 +11466,7 @@ struct SimpleTimeBlockView: View {
     }
     
     private func getAllBlocks() -> [TimeBlock] {
-        return dataManager.appState.currentDay.blocks + dataManager.appState.stagedBlocks
+        return dataManager.appState.currentDay.blocks
     }
     
     private func calculateGapBefore() -> TimeInterval {
@@ -12811,15 +12798,6 @@ struct PillarRowView: View {
             
             Spacer()
             
-            Toggle("Auto-stage", isOn: Binding(
-                get: { pillar.autoStageEnabled },
-                set: { newValue in
-                    if let index = dataManager.appState.pillars.firstIndex(where: { $0.id == pillar.id }) {
-                        dataManager.appState.pillars[index].autoStageEnabled = newValue
-                        dataManager.save()
-                    }
-                }
-            ))
             .controlSize(.mini)
         }
         .padding(.horizontal, 12)
@@ -14854,6 +14832,83 @@ struct IntakeQuestionDetailView: View {
             }
         }
         .frame(width: 500, height: 600)
+    }
+}
+
+// MARK: - Emoji Picker Button
+
+struct EmojiPickerButton: View {
+    @Binding var selectedEmoji: String
+    @State private var showingEmojiPicker = false
+    
+    private let commonEmojis = [
+        "🏛️", "💪", "🧠", "❤️", "🎯", "📚", "🏃‍♀️", "🍎",
+        "💼", "🎨", "🌱", "⚡", "🔥", "🌊", "☀️", "🌙",
+        "🎵", "📝", "💡", "🚀", "🏆", "🎪", "🌈", "⭐",
+        "🔮", "💎", "🌸", "🍀", "🦋", "🌺", "🌻", "🌹"
+    ]
+    
+    var body: some View {
+        Button(action: {
+            showingEmojiPicker.toggle()
+        }) {
+            Text(selectedEmoji.isEmpty ? "🏛️" : selectedEmoji)
+                .font(.title2)
+                .frame(width: 60, height: 40)
+                .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 8))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 8)
+                        .strokeBorder(.secondary.opacity(0.3), lineWidth: 1)
+                )
+        }
+        .buttonStyle(.plain)
+        .popover(isPresented: $showingEmojiPicker) {
+            EmojiPickerView(selectedEmoji: $selectedEmoji, emojis: commonEmojis) {
+                showingEmojiPicker = false
+            }
+        }
+    }
+}
+
+struct EmojiPickerView: View {
+    @Binding var selectedEmoji: String
+    let emojis: [String]
+    let onSelection: () -> Void
+    
+    private let columns = Array(repeating: GridItem(.flexible(), spacing: 8), count: 8)
+    
+    var body: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            Text("Choose Emoji")
+                .font(.headline)
+                .padding(.horizontal)
+            
+            ScrollView {
+                LazyVGrid(columns: columns, spacing: 8) {
+                    ForEach(emojis, id: \.self) { emoji in
+                        Button(action: {
+                            selectedEmoji = emoji
+                            onSelection()
+                        }) {
+                            Text(emoji)
+                                .font(.title2)
+                                .frame(width: 40, height: 40)
+                                .background(
+                                    selectedEmoji == emoji ? 
+                                        .blue.opacity(0.2) : 
+                                        .clear,
+                                    in: RoundedRectangle(cornerRadius: 8)
+                                )
+                        }
+                        .buttonStyle(.plain)
+                    }
+                }
+                .padding(.horizontal)
+            }
+            .frame(maxHeight: 300)
+        }
+        .padding(.vertical)
+        .frame(width: 360)
     }
 }
 

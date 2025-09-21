@@ -607,7 +607,6 @@ extension AppDataManager {
                 energy: .sunrise,
                 emoji: "🌅",
                 glassState: .solid,
-                explanation: "☀️ Perfect morning kickstart for sharp focus energy"
             ),
             TimeBlock(
                 title: "Deep Work Session",
@@ -616,7 +615,6 @@ extension AppDataManager {
                 energy: .sunrise,
                 emoji: "💎",
                 glassState: .solid,
-                explanation: "💎 AI-optimized for peak morning performance"
             ),
             TimeBlock(
                 title: "Team Standup",
@@ -625,7 +623,6 @@ extension AppDataManager {
                 energy: .daylight,
                 emoji: "👥",
                 glassState: .solid,
-                explanation: "👥 Collaborative meeting for team alignment"
             ),
             TimeBlock(
                 title: "Lunch & Walk",
@@ -634,7 +631,6 @@ extension AppDataManager {
                 energy: .daylight,
                 emoji: "🚶‍♀️",
                 glassState: .solid,
-                explanation: "🚶‍♀️ Mindful midday reset for sustained energy"
             ),
             TimeBlock(
                 title: "Client Presentation",
@@ -643,9 +639,6 @@ extension AppDataManager {
                 energy: .daylight,
                 emoji: "📊",
                 glassState: .mist,
-                isStaged: true,
-                stagedBy: "AI Schedule Assistant",
-                explanation: "📊 High-energy afternoon slot for important presentations"
             ),
             TimeBlock(
                 title: "Creative Brainstorming",
@@ -654,7 +647,6 @@ extension AppDataManager {
                 energy: .daylight,
                 emoji: "💡",
                 glassState: .crystal,
-                explanation: "💡 Late afternoon creative flow optimization"
             ),
             TimeBlock(
                 title: "Email & Admin",
@@ -663,7 +655,6 @@ extension AppDataManager {
                 energy: .moonlight,
                 emoji: "📧",
                 glassState: .solid,
-                explanation: "📧 Gentle evening task for winding down"
             ),
             TimeBlock(
                 title: "Evening Exercise",
@@ -672,9 +663,6 @@ extension AppDataManager {
                 energy: .moonlight,
                 emoji: "🏃‍♀️",
                 glassState: .mist,
-                isStaged: true,
-                stagedBy: "Health Pillar",
-                explanation: "🏃‍♀️ Perfect evening activity for gentle flow energy"
             )
         ]
         

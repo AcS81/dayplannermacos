@@ -93,11 +93,7 @@ struct CalendarDayView: View {
                 EventCreationSheet(
                     startTime: creationTime,
                     onSave: { block in
-                        var newBlock = block
-                        newBlock.isStaged = true
-                        newBlock.stagedBy = "Manual Creation"
-                        newBlock.explanation = generateAIExplanation(for: newBlock)
-                        dataManager.addTimeBlock(newBlock)
+                        dataManager.addTimeBlock(block)
                         showingBlockCreation = false
                     },
                     onCancel: {
@@ -156,13 +152,8 @@ struct CalendarDayView: View {
         dragOffset = .zero
         
         // Provide feedback
-        dataManager.setActionBarMessage("Moved '\(block.title)' to \(newStartTime.formatted(date: .omitted, time: .shortened))")
-        
-        // Auto-clear message
-        DispatchQueue.main.asyncAfter(deadline: .now() + 3) {
-            dataManager.appState.currentActionBarMessage = nil
-            dataManager.save()
-        }
+        // Event moved successfully
+        dataManager.save()
     }
     
     private func handleEventResize(_ block: TimeBlock, newDuration: TimeInterval) {
@@ -180,14 +171,6 @@ struct CalendarDayView: View {
         }
     }
     
-    private func generateAIExplanation(for block: TimeBlock) -> String {
-        // Generate contextual AI explanation based on time, energy, and flow
-        let timeContext = getTimeContext(for: block.startTime)
-        let energyContext = block.energy.description.lowercased()
-        let flowContext = "focused" // Simplified since flow property was removed
-        
-        return "Perfect \(timeContext) activity for \(energyContext) energy and \(flowContext) focus"
-    }
     
     private func getTimeContext(for date: Date) -> String {
         let hour = Calendar.current.component(.hour, from: date)
@@ -360,23 +343,14 @@ struct EventCard: View {
                             .foregroundColor(block.energy.color)
                     }
                     
-                    // AI explanation (show when expanded or hovering)
+                    // AI description (show when expanded or hovering)
                     if isHovering || eventHeight > 60 {
-                        if let explanation = block.explanation {
-                            Text(explanation)
-                                .font(.caption2)
-                                .italic()
-                                .foregroundColor(.secondary)
-                                .lineLimit(2)
-                                .transition(.opacity.combined(with: .scale(scale: 0.9)))
-                        } else {
-                            Text(generateAIDescription())
-                                .font(.caption2)
-                                .italic()
-                                .foregroundColor(block.energy.color.opacity(0.8))
-                                .lineLimit(2)
-                                .transition(.opacity.combined(with: .scale(scale: 0.9)))
-                        }
+                        Text(generateAIDescription())
+                            .font(.caption2)
+                            .italic()
+                            .foregroundColor(block.energy.color.opacity(0.8))
+                            .lineLimit(2)
+                            .transition(.opacity.combined(with: .scale(scale: 0.9)))
                     }
                 }
                 
@@ -575,14 +549,10 @@ struct EventCard: View {
             duration: 15 * 60, // 15 minutes
             energy: block.energy,
             emoji: block.emoji,
-            glassState: .mist,
-            isStaged: true,
-            stagedBy: "Chain Creation",
-            explanation: direction == .before ? "Get ready for \(block.title)" : "Process insights from \(block.title)"
+            glassState: .solid
         )
         
-        dataManager.stageBlock(prepBlock, explanation: "Added \(chainName.lowercased())")
-        dataManager.setActionBarMessage("Added '\(prepBlock.title)' \(direction == .before ? "before" : "after") '\(block.title)'. Ready to apply?")
+        dataManager.addTimeBlock(prepBlock)
     }
 }
 

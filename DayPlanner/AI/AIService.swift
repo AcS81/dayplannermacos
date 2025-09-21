@@ -560,6 +560,26 @@ extension AIService {
         
         return diagnostics
     }
+    
+    /// Enhance an event title with AI-generated context-aware details
+    func enhanceEventTitle(originalTitle: String, time: Date, duration: TimeInterval) -> String {
+        // Simple enhancement with contextual emojis only, no duration/time info
+        if originalTitle.lowercased().contains("breakfast") {
+            return "🥐 \(originalTitle)"
+        } else if originalTitle.lowercased().contains("lunch") {
+            return "🥪 \(originalTitle)"
+        } else if originalTitle.lowercased().contains("dinner") {
+            return "🍽️ \(originalTitle)"
+        } else if originalTitle.lowercased().contains("meeting") {
+            return "📋 \(originalTitle)"
+        } else if originalTitle.lowercased().contains("exercise") || originalTitle.lowercased().contains("workout") {
+            return "💪 \(originalTitle)"
+        } else if originalTitle.lowercased().contains("work") || originalTitle.lowercased().contains("deep") {
+            return "🎯 \(originalTitle)"
+        } else {
+            return originalTitle
+        }
+    }
 }
 
 // MARK: - Preview Support

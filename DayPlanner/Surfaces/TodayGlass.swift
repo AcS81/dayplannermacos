@@ -119,8 +119,7 @@ struct TodayGlass: View {
         updatedBlock.glassState = .liquid // Show liquid state while dragging
         dataManager.updateTimeBlock(updatedBlock)
         
-        // Provide visual feedback about the new time
-        dataManager.appState.currentActionBarMessage = "Moving '\(block.title)' to \(formatTime(suggestedNewTime))"
+        // Block moved successfully
         dataManager.save()
     }
     
@@ -139,14 +138,7 @@ struct TodayGlass: View {
         draggedBlock = nil
         
         // Confirm the change
-        dataManager.appState.currentActionBarMessage = "Moved '\(block.title)' to \(formatTime(newTime)). Looking good!"
         dataManager.save()
-        
-        // Auto-clear message after 3 seconds
-        DispatchQueue.main.asyncAfter(deadline: .now() + 3) {
-            dataManager.appState.currentActionBarMessage = nil
-            dataManager.save()
-        }
     }
     
     private func calculateTimeFromDragLocation(_ location: CGPoint, in period: TimePeriod) -> Date {
@@ -371,13 +363,6 @@ struct TimeBlockCard: View {
                     
                     Spacer()
                     
-                    // Staged indicator
-                    if block.isStaged {
-                        Image(systemName: "clock.badge.questionmark")
-                            .font(.caption)
-                            .foregroundColor(.orange)
-                            .help("Staged - awaiting confirmation")
-                    }
                 }
                 
                 HStack(spacing: 8) {
@@ -399,15 +384,6 @@ struct TimeBlockCard: View {
                         .cornerRadius(4)
                 }
                 
-                // Show explanation if available and hovering
-                if isHovering, let explanation = block.explanation {
-                    Text(explanation)
-                        .font(.caption)
-                        .foregroundColor(.secondary)
-                        .italic()
-                        .lineLimit(2)
-                        .transition(.opacity.combined(with: .scale(scale: 0.8)))
-                }
             }
             
             Spacer()
@@ -580,10 +556,7 @@ struct TimeBlockCard: View {
         duplicatedBlock.id = UUID()
         duplicatedBlock.title = "\(block.title) (Copy)"
         duplicatedBlock.startTime = block.endTime // Schedule right after original
-        duplicatedBlock.isStaged = true
-        duplicatedBlock.stagedBy = "User duplication"
-        duplicatedBlock.explanation = "Duplicated from '\(block.title)'"
-        dataManager.stageBlock(duplicatedBlock, explanation: "Duplicated event scheduled after original")
+        dataManager.addTimeBlock(duplicatedBlock)
     }
     
     private func deleteEvent() {
@@ -881,15 +854,11 @@ struct EmptyPeriodView: View {
             var newBlock = block
             newBlock.id = UUID()
             newBlock.startTime = currentTime
-            newBlock.isStaged = true
-            newBlock.stagedBy = "Chain: \(chain.name)"
-            newBlock.explanation = "Added from \(chain.name) chain"
-            
-            dataManager.stageBlock(newBlock, explanation: "Applied \(chain.name) chain to \(period.rawValue)")
+            dataManager.addTimeBlock(newBlock)
             currentTime = newBlock.endTime
         }
         
-        dataManager.appState.currentActionBarMessage = "Applied '\(chain.name)' chain to your \(period.rawValue.lowercased()). Does this schedule work?"
+        // Chain applied successfully
         dataManager.save()
     }
 }
@@ -1073,19 +1042,6 @@ struct EventBasicInfoSection: View {
                         .textFieldStyle(.roundedBorder)
                 }
                 
-                if let explanation = block.explanation {
-                    HStack {
-                        Text("Purpose:")
-                            .font(.subheadline)
-                            .foregroundColor(.secondary)
-                            .frame(width: 80, alignment: .leading)
-                        
-                        Text(explanation)
-                            .font(.subheadline)
-                            .foregroundColor(.primary)
-                            .frame(maxWidth: .infinity, alignment: .leading)
-                    }
-                }
             }
             .padding(16)
             .background(
