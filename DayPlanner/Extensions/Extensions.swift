@@ -343,6 +343,12 @@ extension String {
     var isNotEmptyTrimmed: Bool {
         !self.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
     }
+    
+    /// Return nil if string is empty after trimming, otherwise return self
+    var nilIfEmpty: String? {
+        let trimmed = self.trimmingCharacters(in: .whitespacesAndNewlines)
+        return trimmed.isEmpty ? nil : trimmed
+    }
 }
 
 // MARK: - CGPoint Extensions

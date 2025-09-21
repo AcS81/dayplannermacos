@@ -96,26 +96,41 @@ struct ContentView: View {
     @State private var selectedDate = Date() // Shared date state across tabs
     
     var body: some View {
-        VStack(spacing: 0) {
-            // Top bar with XP/XXP and status
-            TopBarView(
-                xp: dataManager.appState.userXP,
-                xxp: dataManager.appState.userXXP,
-                aiConnected: aiService.isConnected,
-                onSettingsTap: { showingSettings = true },
-                onDiagnosticsTap: { showingAIDiagnostics = true }
-            )
+        ZStack {
+            VStack(spacing: 0) {
+                // Top bar with XP/XXP and status
+                TopBarView(
+                    xp: dataManager.appState.userXP,
+                    xxp: dataManager.appState.userXXP,
+                    aiConnected: aiService.isConnected,
+                    onSettingsTap: { showingSettings = true },
+                    onDiagnosticsTap: { showingAIDiagnostics = true }
+                )
+                
+                
+                // Main unified split view - Both calendar and mind visible simultaneously
+                UnifiedSplitView(selectedDate: $selectedDate)
+                    .environmentObject(dataManager)
+                    .environmentObject(aiService)
+                
+                // Global Action Bar at bottom
+                ActionBarView()
+                    .environmentObject(dataManager)
+                    .environmentObject(aiService)
+            }
             
-            
-            // Main unified split view - Both calendar and mind visible simultaneously
-            UnifiedSplitView(selectedDate: $selectedDate)
-                .environmentObject(dataManager)
-                .environmentObject(aiService)
-            
-            // Global Action Bar at bottom
-            ActionBarView()
-                .environmentObject(dataManager)
-                .environmentObject(aiService)
+            // Floating AI Orb
+            VStack {
+                Spacer()
+                HStack {
+                    Spacer()
+                    AIOrb()
+                        .environmentObject(aiService)
+                        .environmentObject(dataManager)
+                        .padding(.trailing, 20)
+                        .padding(.bottom, 100) // Above the action bar
+                }
+            }
         }
         .sheet(isPresented: $showingSettings) {
             SettingsView()
@@ -126,6 +141,8 @@ struct ContentView: View {
         }
         .onAppear {
             setupAppAppearance()
+            // Connect pattern engine to AI service
+            aiService.setPatternEngine(dataManager.patternEngine)
         }
     }
     
@@ -3476,7 +3493,7 @@ struct EnhancedHourSlot: View {
     @State private var isHovering = false
     
     private var hourTime: Date {
-        let calendar = Calendar.current
+        let _ = Calendar.current
         let dayStart = calendar.startOfDay(for: selectedDate)
         return calendar.date(byAdding: .hour, value: hour, to: dayStart) ?? dayStart
     }
@@ -3795,7 +3812,7 @@ struct EnhancedTimeBlockCard: View {
         let newTime = Calendar.current.date(byAdding: .minute, value: minuteChange, to: block.startTime) ?? block.startTime
         
         // Round to nearest 15-minute interval for cleaner scheduling
-        let calendar = Calendar.current
+        let _ = Calendar.current
         let minute = calendar.component(.minute, from: newTime)
         let roundedMinute = (minute / 15) * 15
         
@@ -5478,7 +5495,7 @@ struct CalendarDropDelegate: DropDelegate {
                                 let duration = TimeInterval(Int(parts[1]) ?? 3600)
                                 let energy = EnergyType(rawValue: parts[2]) ?? .daylight
                                 let emoji = parts[3]
-                                let confidence = Double(parts[4]) ?? 0.8
+                                let _ = Double(parts[4]) ?? 0.8
                                 
                                 // Create a time block from the dropped template and add directly to timeline
                                 let newBlock = TimeBlock(
@@ -5500,7 +5517,7 @@ struct CalendarDropDelegate: DropDelegate {
                             if parts.count >= 3 {
                                 let name = parts[0]
                                 let duration = TimeInterval(Int(parts[1]) ?? 3600)
-                                let icon = parts[2]
+                                let _ = parts[2]
                                 
                                 // Create a time block from the dropped chain template and add directly to timeline
                                 let newBlock = TimeBlock(
@@ -5778,7 +5795,7 @@ struct SuperchargedChainsSection: View {
     private func findBestTimeForChain(_ chain: Chain) -> Date {
         // AI-powered time finding based on chain duration and current schedule
         let now = Date()
-        let calendar = Calendar.current
+        let _ = Calendar.current
         
         // Start with current time rounded to next 15-minute interval
         let minute = calendar.component(.minute, from: now)
@@ -7272,7 +7289,7 @@ struct EnhancedGoalsSection: View {
     }
     
     private func processGoalBreakdown(goal: Goal, actions: [GoalBreakdownAction]) {
-        var hasStageableActions = false
+        var _ = false // hasStageableActions tracking removed
         
         for action in actions {
             switch action {
@@ -9122,7 +9139,7 @@ struct EnhancedBackfillView: View {
     }
     
     private func findAvailableTimeSlots(existing: [TimeBlock]) -> [DateInterval] {
-        let calendar = Calendar.current
+        let _ = Calendar.current
         let dayStart = calendar.startOfDay(for: selectedDate)
         let dayEnd = calendar.date(byAdding: .day, value: 1, to: dayStart) ?? dayStart
         
@@ -9167,7 +9184,7 @@ struct EnhancedBackfillView: View {
         ]
         
         var suggestions: [TimeBlock] = []
-        let calendar = Calendar.current
+        let _ = Calendar.current
         
         // Place high-confidence activities in available slots
         for slot in availableSlots.prefix(4) { // Max 4 suggestions to keep it manageable
@@ -9192,7 +9209,7 @@ struct EnhancedBackfillView: View {
     }
     
     private func findBestTimeInSlot(slot: DateInterval, duration: TimeInterval, isWeekend: Bool) -> Date {
-        let calendar = Calendar.current
+        let _ = Calendar.current
         let hour = calendar.component(.hour, from: slot.start)
         
         // Smart placement based on activity type and time
@@ -9217,7 +9234,7 @@ struct EnhancedBackfillView: View {
         let isWeekend = dayOfWeek == 1 || dayOfWeek == 7
         
         var blocks: [TimeBlock] = []
-        let calendar = Calendar.current
+        let _ = Calendar.current
         
         if isWeekend {
             // Weekend reconstruction
@@ -9916,7 +9933,7 @@ struct PillarDayView: View {
             var suggestions: [TimeBlock] = []
             
             let now = Date()
-            let calendar = Calendar.current
+            let _ = Calendar.current
             
             for pillar in actionablePillars {
                 let daysSinceLastEvent = pillar.lastEventDate?.timeIntervalSince(now) ?? -99999999
@@ -9967,7 +9984,7 @@ struct PillarDayView: View {
     }
     
     private func findBestTimeSlot(for pillar: Pillar) -> (startTime: Date, duration: TimeInterval)? {
-        let calendar = Calendar.current
+        let _ = Calendar.current
         let today = Date()
         
         // Check preferred time windows
@@ -9996,7 +10013,7 @@ struct PillarDayView: View {
     }
     
     private func findNextAvailableSlot(duration: TimeInterval) -> (startTime: Date, duration: TimeInterval)? {
-        let calendar = Calendar.current
+        let _ = Calendar.current
         let now = Date()
         let roundedNow = calendar.date(byAdding: .minute, value: 15 - calendar.component(.minute, from: now) % 15, to: now) ?? now
         
@@ -10264,7 +10281,7 @@ struct GapFillerView: View {
         // If no blocks exist, treat the whole day as gaps
         if sortedBlocks.isEmpty {
             // Create gaps for typical work hours
-            let calendar = Calendar.current
+            let _ = Calendar.current
             let startOfDay = calendar.startOfDay(for: Date())
             gaps.append(ScheduleGap(
                 startTime: calendar.date(byAdding: .hour, value: 9, to: startOfDay)!,
@@ -10475,6 +10492,7 @@ struct ActionBarView: View {
     @State private var ephemeralInsight: String?
     @State private var showInsightTimer: Timer?
     @State private var lastResponse = ""
+    @State private var lastConfidence: Double = 0.0
     @State private var messageHistory: [AIMessage] = []
     @State private var showHistory = false
     
@@ -10593,11 +10611,26 @@ struct ActionBarView: View {
             
             // AI Response (if available)
             if !lastResponse.isEmpty {
-                HStack {
-                    Text(lastResponse)
-                        .font(.subheadline)
-                        .foregroundColor(.primary)
-                        .frame(maxWidth: .infinity, alignment: .leading)
+                VStack(alignment: .leading, spacing: 4) {
+                    HStack {
+                        Text(lastResponse)
+                            .font(.subheadline)
+                            .foregroundColor(.primary)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                        
+                        // Confidence indicator
+                        if lastConfidence > 0 {
+                            HStack(spacing: 4) {
+                                Circle()
+                                    .fill(confidenceColor(lastConfidence))
+                                    .frame(width: 6, height: 6)
+                                
+                                Text("\(Int(lastConfidence * 100))%")
+                                    .font(.caption2)
+                                    .foregroundColor(.secondary)
+                            }
+                        }
+                    }
                     
                     // TTS button
                     Button(speechService.isSpeaking ? "🔇" : "🔊") {
@@ -10679,37 +10712,17 @@ struct ActionBarView: View {
                 
                 let response = try await aiService.processMessage(message, context: context)
                 
-                await MainActor.run {
-                    lastResponse = response.text
-                    
-                    // Check if this is a scheduling request - if so, stage it for approval
-                    if isSchedulingRequest(message) && !response.suggestions.isEmpty {
-                        // Check if user specified a particular date/time
-                        let targetDate = extractDateFromMessage(message) ?? Date()
-                        
-                        // Stage all suggestions with proper timing
-                        for (index, suggestion) in response.suggestions.enumerated() {
-                            let suggestedTime = findNextAvailableTime(after: targetDate.addingTimeInterval(Double(index * 30 * 60)))
-                            var stagedBlock = suggestion.toTimeBlock()
-                            stagedBlock.startTime = suggestedTime
-                            dataManager.addTimeBlock(stagedBlock)
-                        }
-                        
-                        let count = response.suggestions.count
-                        let dateString = Calendar.current.isDate(targetDate, inSameDayAs: Date()) ? "today" : targetDate.dayString
-                        showEphemeralInsight("Added \(count) item\(count == 1 ? "" : "s") for \(dateString)!")
-                        
-                        // Clear pending suggestions since they're now staged
-                        pendingSuggestions = []
-                    } else {
-                        // Regular suggestion flow
-                        pendingSuggestions = response.suggestions
-                        if !response.suggestions.isEmpty {
-                            showEphemeralInsight("Found \(response.suggestions.count) option\(response.suggestions.count == 1 ? "" : "s") for you")
-                        } else {
-                            showEphemeralInsight("Here's what I think...")
-                        }
-                    }
+                   await MainActor.run {
+                       lastResponse = response.text
+                       lastConfidence = response.confidence
+
+                       // Handle different types of AI responses based on confidence and action type
+                       if let actionType = response.actionType {
+                           handleSmartAIResponse(response, actionType: actionType, message: message)
+                       } else {
+                           // Fallback to legacy behavior
+                           handleLegacyResponse(response, message: message)
+                       }
                     
                     // Add AI response to history
                     messageHistory.append(AIMessage(text: response.text, isUser: false, timestamp: Date()))
@@ -10825,6 +10838,318 @@ struct ActionBarView: View {
         }
     }
     
+    // MARK: - Smart AI Response Handlers
+    
+    private func handleSmartAIResponse(_ response: AIResponse, actionType: AIActionType, message: String) {
+        switch actionType {
+        case .createEvent:
+            handleEventCreation(response, message: message)
+        case .createGoal:
+            handleGoalCreation(response, message: message)
+        case .createPillar:
+            handlePillarCreation(response, message: message)
+        case .createChain:
+            handleChainCreation(response, message: message)
+        case .suggestActivities:
+            handleActivitySuggestions(response, message: message)
+        case .generalChat:
+            handleGeneralChat(response, message: message)
+        }
+    }
+    
+    private func handleEventCreation(_ response: AIResponse, message: String) {
+        if response.confidence >= 0.7 { // Lowered threshold for better UX
+            // High confidence - create the event directly with full details
+            if let firstSuggestion = response.suggestions.first {
+                let targetTime = extractDateFromMessage(message) ?? findNextAvailableTime(after: Date())
+                
+                // Create fully populated time block
+                let timeBlock = TimeBlock(
+                    title: firstSuggestion.title,
+                    startTime: targetTime,
+                    duration: firstSuggestion.duration,
+                    energy: firstSuggestion.energy,
+                    emoji: firstSuggestion.emoji,
+                    glassState: .crystal, // AI-created
+                    relatedGoalId: findRelatedGoal(for: firstSuggestion.title)?.id,
+                    relatedPillarId: findRelatedPillar(for: firstSuggestion.title)?.id
+                )
+                
+                dataManager.addTimeBlock(timeBlock)
+                
+                // Award XP for successful AI scheduling
+                dataManager.appState.addXP(5, reason: "AI scheduled event")
+                
+                let dateString = Calendar.current.isDate(targetTime, inSameDayAs: Date()) ? "today" : targetTime.dayString
+                showEphemeralInsight("✨ Created \(timeBlock.title) for \(dateString) at \(targetTime.timeString)!")
+                
+                // Create related suggestions if this event could be part of a chain
+                suggestRelatedActivities(for: timeBlock, confidence: response.confidence)
+            }
+        } else if response.confidence >= 0.5 {
+            // Medium confidence - show enhanced suggestion with more context
+            pendingSuggestions = response.suggestions.map { suggestion in
+                var enhanced = suggestion
+                enhanced.explanation = "\(suggestion.explanation) (Confidence: \(Int(response.confidence * 100))%)"
+                return enhanced
+            }
+            showEphemeralInsight("💡 I think you want to create an event. Here's my best guess:")
+        } else {
+            // Low confidence - ask for clarification
+            showEphemeralInsight("🤔 Could you be more specific about what you'd like to schedule?")
+        }
+    }
+    
+    private func handleGoalCreation(_ response: AIResponse, message: String) {
+        if response.confidence >= 0.8 { // Lowered threshold for better UX
+            // High confidence - create the goal directly with full population
+            if let createdItem = response.createdItems?.first(where: { $0.type == .goal }),
+               let goalData = createdItem.data as? [String: Any] {
+                
+                // Create fully populated goal with simplified fallbacks
+                let goal = Goal(
+                    title: goalData["title"] as? String ?? "New Goal",
+                    description: goalData["description"] as? String ?? "AI-created goal based on your request",
+                    state: .on,
+                    importance: goalData["importance"] as? Int ?? 3,
+                    groups: [],
+                    targetDate: nil,
+                    emoji: goalData["emoji"] as? String ?? "🎯",
+                    relatedPillarIds: []
+                )
+                
+                    dataManager.addGoal(goal)
+                
+                // Award XP for goal creation
+                dataManager.appState.addXP(15, reason: "AI created goal")
+                
+                showEphemeralInsight("🎯 Created goal: \(goal.title) (Importance: \(goal.importance)/5)")
+                
+                // Suggest immediate actions with delay
+                Task {
+                    try? await Task.sleep(nanoseconds: 3_000_000_000)
+                    await MainActor.run {
+                        showEphemeralInsight("💡 Create supporting activities for '\(goal.title)'?")
+                    }
+                }
+            }
+        } else if response.confidence >= 0.6 {
+            // Medium confidence - show clarification with suggestions
+            showEphemeralInsight("🤔 I think you want to create a goal. What's the main outcome you're hoping for?")
+        } else {
+            // Low confidence - ask for more details
+            showEphemeralInsight("💭 I'd love to help you create a goal! Tell me what you want to achieve.")
+        }
+    }
+    
+    private func handlePillarCreation(_ response: AIResponse, message: String) {
+        if response.confidence >= 0.85 { // Lowered threshold slightly
+            // High confidence - create the pillar directly with full details
+            if let createdItem = response.createdItems?.first(where: { $0.type == .pillar }),
+               let pillarData = createdItem.data as? [String: Any] {
+                
+                // Create fully populated pillar with simplified fallbacks
+                let pillar = Pillar(
+                    name: pillarData["name"] as? String ?? "New Pillar",
+                    description: pillarData["description"] as? String ?? "AI-created pillar based on your request",
+                    type: PillarType(rawValue: pillarData["type"] as? String ?? "actionable") ?? .actionable,
+                    frequency: PillarFrequency.daily,
+                    minDuration: TimeInterval((pillarData["minDuration"] as? Int ?? 30) * 60),
+                    maxDuration: TimeInterval((pillarData["maxDuration"] as? Int ?? 120) * 60),
+                    preferredTimeWindows: [],
+                    overlapRules: [],
+                    quietHours: [],
+                    eventConsiderationEnabled: true,
+                    wisdomText: pillarData["wisdomText"] as? String,
+                    emoji: pillarData["emoji"] as? String ?? "🏛️",
+                    relatedGoalId: nil
+                )
+                
+                    dataManager.addPillar(pillar)
+                
+                // Award XP for pillar creation
+                dataManager.appState.addXP(20, reason: "AI created pillar")
+                
+                showEphemeralInsight("🏛️ Created \(pillar.type.rawValue.lowercased()) pillar: \(pillar.name)")
+                
+                // Suggest scheduling if it's actionable
+                if pillar.isActionable {
+                    Task {
+                        try? await Task.sleep(nanoseconds: 2_000_000_000)
+                        await MainActor.run {
+                            showEphemeralInsight("📅 Schedule '\(pillar.name)' activity?")
+                        }
+                    }
+                }
+            }
+        } else if response.confidence >= 0.6 {
+            // Medium confidence - ask for clarification
+            showEphemeralInsight("🤔 I think you want to create a pillar. Is this a recurring activity or a guiding principle?")
+        } else {
+            // Low confidence - ask for more details
+            showEphemeralInsight("💭 Tell me more about this pillar - is it something you want to do regularly or a principle to guide decisions?")
+        }
+    }
+    
+    private func handleChainCreation(_ response: AIResponse, message: String) {
+        if response.confidence >= 0.75 {
+            // High confidence - create the chain directly with full details
+            if let createdItem = response.createdItems?.first(where: { $0.type == .chain }),
+               let chainData = createdItem.data as? [String: Any] {
+                
+                // Create fully populated chain with simplified fallbacks
+                let chain = Chain(
+                    name: chainData["name"] as? String ?? "New Chain",
+                    blocks: [TimeBlock(title: "Activity", startTime: Date(), duration: 1800, energy: .daylight, emoji: "🌊")],
+                    flowPattern: FlowPattern(rawValue: chainData["flowPattern"] as? String ?? "waterfall") ?? .waterfall,
+                    emoji: chainData["emoji"] as? String ?? "🔗",
+                    relatedGoalId: nil,
+                    relatedPillarId: nil
+                )
+                
+                dataManager.addChain(chain)
+                
+                // Award XP for chain creation
+                dataManager.appState.addXP(10, reason: "AI created chain")
+                
+                showEphemeralInsight("🔗 Created chain: \(chain.name) with \(chain.blocks.count) activities")
+                
+                // Suggest applying the chain
+                Task {
+                    try? await Task.sleep(nanoseconds: 2_000_000_000)
+                    await MainActor.run {
+                        showEphemeralInsight("⚡ Apply '\(chain.name)' now?")
+                    }
+                }
+            }
+        } else if response.confidence >= 0.6 {
+            // Medium confidence - show suggestions but ask for clarification
+            pendingSuggestions = response.suggestions
+            showEphemeralInsight("💡 I think you want to create a chain. Should these activities be linked together?")
+        } else {
+            // Low confidence - ask for more details
+            showEphemeralInsight("🤔 Tell me more about this chain - what activities should be connected?")
+        }
+    }
+    
+    private func handleActivitySuggestions(_ response: AIResponse, message: String) {
+        pendingSuggestions = response.suggestions
+        if !response.suggestions.isEmpty {
+            showEphemeralInsight("💡 Found \(response.suggestions.count) suggestion\(response.suggestions.count == 1 ? "" : "s") for you")
+        } else {
+            showEphemeralInsight("Here's what I think...")
+        }
+    }
+    
+    private func handleGeneralChat(_ response: AIResponse, message: String) {
+        // For general chat, just show suggestions if any
+        if !response.suggestions.isEmpty {
+            pendingSuggestions = response.suggestions
+            showEphemeralInsight("💭 Here's a thought...")
+        } else {
+            showEphemeralInsight("💬 Thanks for sharing!")
+        }
+    }
+    
+    private func handleLegacyResponse(_ response: AIResponse, message: String) {
+        // Enhanced legacy handling with smart confidence-based decisions
+        if isSchedulingRequest(message) && !response.suggestions.isEmpty {
+            // Determine if we should create directly or stage based on multiple factors
+            let shouldCreateDirectly = shouldCreateEventsDirectly(response: response, message: message)
+            
+            if shouldCreateDirectly {
+                // Create events directly with enhanced details
+            let targetDate = extractDateFromMessage(message) ?? Date()
+                var createdCount = 0
+            
+            for (index, suggestion) in response.suggestions.enumerated() {
+                let suggestedTime = findNextAvailableTime(after: targetDate.addingTimeInterval(Double(index * 30 * 60)))
+                    
+                    // Create fully populated time block with relationships
+                    let timeBlock = TimeBlock(
+                        title: suggestion.title,
+                        startTime: suggestedTime,
+                        duration: suggestion.duration,
+                        energy: suggestion.energy,
+                        emoji: suggestion.emoji,
+                        glassState: .crystal, // AI-created
+                        relatedGoalId: findRelatedGoal(for: suggestion.title)?.id,
+                        relatedPillarId: findRelatedPillar(for: suggestion.title)?.id
+                    )
+                    
+                    dataManager.addTimeBlock(timeBlock)
+                    createdCount += 1
+                }
+                
+            let dateString = Calendar.current.isDate(targetDate, inSameDayAs: Date()) ? "today" : targetDate.dayString
+                showEphemeralInsight("✨ Created \(createdCount) event\(createdCount == 1 ? "" : "s") for \(dateString)!")
+            
+                // Award XP for successful AI scheduling
+                dataManager.appState.addXP(createdCount * 5, reason: "AI direct scheduling")
+                
+            pendingSuggestions = []
+        } else {
+                // Stage for user approval with enhanced context
+                pendingSuggestions = response.suggestions.map { suggestion in
+                    var enhanced = suggestion
+                    enhanced.explanation = "\(suggestion.explanation) (Auto-suggested based on your request)"
+                    return enhanced
+                }
+                showEphemeralInsight("💡 Here's what I suggest for your request:")
+            }
+        } else {
+            // Regular suggestion flow with confidence indication
+            pendingSuggestions = response.suggestions
+            if !response.suggestions.isEmpty {
+                let avgConfidence = response.suggestions.map(\.confidence).reduce(0, +) / Double(response.suggestions.count)
+                let confidenceText = avgConfidence > 0.8 ? "strong" : avgConfidence > 0.6 ? "good" : "rough"
+                showEphemeralInsight("💡 Found \(response.suggestions.count) \(confidenceText) suggestion\(response.suggestions.count == 1 ? "" : "s") for you")
+            } else {
+                showEphemeralInsight("💬 I understand, but need more details to help you")
+            }
+        }
+    }
+    
+    // MARK: - Smart Decision Making
+    
+    private func shouldCreateEventsDirectly(response: AIResponse, message: String) -> Bool {
+        // Multiple factors determine if we should create directly
+        let factors: [Double] = [
+            response.confidence, // Base confidence
+            isSchedulingRequest(message) ? 0.2 : 0.0, // Clear scheduling intent
+            hasSpecificTime(message) ? 0.2 : 0.0, // Time specified
+            hasUrgencyIndicators(message) ? 0.15 : 0.0, // Urgency words
+            response.suggestions.count == 1 ? 0.1 : 0.0, // Single clear suggestion
+            lastConfidence > 0.7 ? 0.1 : 0.0 // Recent successful interactions
+        ]
+        
+        let combinedConfidence = factors.reduce(0, +) / Double(factors.count)
+        return combinedConfidence >= 0.65 // Lower threshold for better UX
+    }
+    
+    private func hasSpecificTime(_ message: String) -> Bool {
+        let timePatterns = ["at ", ":\\d{2}", "am", "pm", "tomorrow", "today", "now", "in \\d+"]
+        return timePatterns.contains { pattern in
+            message.range(of: pattern, options: .regularExpression) != nil
+        }
+    }
+    
+    private func hasUrgencyIndicators(_ message: String) -> Bool {
+        let urgencyWords = ["urgent", "asap", "immediately", "now", "quickly", "soon", "today"]
+        let lowerMessage = message.lowercased()
+        return urgencyWords.contains { lowerMessage.contains($0) }
+    }
+    
+    private func confidenceColor(_ confidence: Double) -> Color {
+        if confidence >= 0.8 {
+            return .green
+        } else if confidence >= 0.6 {
+            return .orange
+        } else {
+            return .red
+        }
+    }
+    
     private func createContext() -> DayContext {
         dataManager.createEnhancedContext()
     }
@@ -10833,7 +11158,7 @@ struct ActionBarView: View {
     
     private func extractDateFromMessage(_ message: String) -> Date? {
         let lowercased = message.lowercased()
-        let calendar = Calendar.current
+        let _ = Calendar.current
         let now = Date()
         
         // Check for "today"
@@ -10919,6 +11244,53 @@ struct ActionBarView: View {
         
         // If no gaps found, return the time after the last block
         return searchTime
+    }
+    
+    // MARK: - Smart Relationship Detection
+    
+    private func findRelatedGoal(for eventTitle: String) -> Goal? {
+        let lowercaseTitle = eventTitle.lowercased()
+        
+        return dataManager.appState.goals.first { goal in
+            let goalWords = goal.title.lowercased().split(separator: " ")
+            let titleWords = lowercaseTitle.split(separator: " ")
+            
+            // Check for word overlap
+            let overlap = Set(goalWords).intersection(Set(titleWords))
+            return overlap.count >= 1 && goal.isActive
+        }
+    }
+    
+    private func findRelatedPillar(for eventTitle: String) -> Pillar? {
+        let lowercaseTitle = eventTitle.lowercased()
+        
+        return dataManager.appState.pillars.first { pillar in
+            let pillarWords = pillar.name.lowercased().split(separator: " ")
+            let titleWords = lowercaseTitle.split(separator: " ")
+            
+            // Check for word overlap or category match
+            let overlap = Set(pillarWords).intersection(Set(titleWords))
+            if overlap.count >= 1 { return true }
+            
+            // Check for category matches
+            if lowercaseTitle.contains("work") && pillar.name.lowercased().contains("work") { return true }
+            if lowercaseTitle.contains("exercise") && pillar.name.lowercased().contains("exercise") { return true }
+            if lowercaseTitle.contains("meeting") && pillar.name.lowercased().contains("meeting") { return true }
+            
+            return false
+        }
+    }
+    
+    private func suggestRelatedActivities(for timeBlock: TimeBlock, confidence: Double) {
+        // If confidence is high, suggest creating a chain around this event
+        if confidence >= 0.8 {
+            Task {
+                try? await Task.sleep(nanoseconds: 2_000_000_000) // 2 seconds delay
+                await MainActor.run {
+                    showEphemeralInsight("💡 Want to create a chain around '\(timeBlock.title)'?")
+                }
+            }
+        }
     }
 }
 
@@ -11122,7 +11494,7 @@ struct DayPlannerView: View {
     }
     
     private func blocksForHour(_ hour: Int) -> [TimeBlock] {
-        let calendar = Calendar.current
+        let _ = Calendar.current
         let allBlocks = dataManager.appState.currentDay.blocks
         return allBlocks.filter { block in
             let blockHour = calendar.component(.hour, from: block.startTime)
@@ -11270,7 +11642,7 @@ struct HourSlot: View {
                         .frame(height: 60)
                         .contentShape(Rectangle())
                         .onTapGesture {
-                            let calendar = Calendar.current
+                            let _ = Calendar.current
                             let date = calendar.date(bySettingHour: hour, minute: 0, second: 0, of: Date()) ?? Date()
                             onTap(date)
                         }
@@ -11506,7 +11878,7 @@ struct SimpleTimeBlockView: View {
         let newTime = Calendar.current.date(byAdding: .minute, value: minuteChange, to: block.startTime) ?? block.startTime
         
         // Round to nearest 15-minute interval for cleaner scheduling
-        let calendar = Calendar.current
+        let _ = Calendar.current
         let minute = calendar.component(.minute, from: newTime)
         let roundedMinute = (minute / 15) * 15
         
@@ -14186,18 +14558,575 @@ struct IntakeSection: View {
     }
     
     private func processCoreActions(message: String, response: AIResponse) {
-        // Parse the message for core actions (simplified implementation)
+        // Smart core actions based on confidence thresholds and AI response
+        guard let actionType = response.actionType else {
+            analyzeMessageForCoreAction(message)
+            return
+        }
+        
+        // Handle smart AI responses with confidence-based decision making
+        switch actionType {
+        case .createPillar:
+            if response.confidence >= 0.85 {
+                createPillarFromAI(response)
+            } else {
+                coreInsight = "Need more details for pillar - specify type and frequency"
+            }
+            
+        case .createGoal:
+            if response.confidence >= 0.8 {
+                createGoalFromAI(response)
+            } else {
+                coreInsight = "Need more details for goal - specify importance and timeline"
+            }
+            
+        case .createChain:
+            if response.confidence >= 0.75 {
+                createChainFromAI(response)
+            } else {
+                coreInsight = "Need more details for chain - specify activities and flow"
+            }
+            
+        case .createEvent:
+            if response.confidence >= 0.7 {
+                createEventFromAI(response, message: message)
+            } else {
+                coreInsight = "Need more details for event - specify time and duration"
+            }
+            
+        case .suggestActivities:
+            coreInsight = "Generated \(response.suggestions.count) activity suggestions"
+            
+        case .generalChat:
+            if let createdItems = response.createdItems, !createdItems.isEmpty {
+                handleCreatedItems(createdItems)
+            } else {
+                coreInsight = "Core system processed your request"
+            }
+        }
+    }
+    
+    // MARK: - Smart Item Creation
+    
+    private func createPillarFromAI(_ response: AIResponse) {
+        guard let createdItem = response.createdItems?.first(where: { $0.type == .pillar }),
+              let pillarData = createdItem.data as? [String: Any] else {
+            coreInsight = "Error creating pillar"
+            return
+        }
+        
+        let pillar = Pillar(
+            name: pillarData["name"] as? String ?? "New Pillar",
+            description: pillarData["description"] as? String ?? "AI-created pillar",
+            type: PillarType(rawValue: pillarData["type"] as? String ?? "actionable") ?? .actionable,
+            frequency: parseFrequency(pillarData["frequency"] as? String ?? "daily"),
+            minDuration: TimeInterval((pillarData["minDuration"] as? Int ?? 30) * 60),
+            maxDuration: TimeInterval((pillarData["maxDuration"] as? Int ?? 120) * 60),
+            preferredTimeWindows: parseTimeWindows(pillarData["preferredTimeWindows"] as? [[String: Any]] ?? []),
+            eventConsiderationEnabled: true,
+            wisdomText: pillarData["wisdomText"] as? String,
+            emoji: pillarData["emoji"] as? String ?? "🏛️"
+        )
+        
+        dataManager.addPillar(pillar)
+        coreInsight = "✅ Created pillar: \(pillar.name)"
+    }
+    
+    private func createGoalFromAI(_ response: AIResponse) {
+        guard let createdItem = response.createdItems?.first(where: { $0.type == .goal }),
+              let goalData = createdItem.data as? [String: Any] else {
+            coreInsight = "Error creating goal"
+            return
+        }
+        
+        let goal = Goal(
+            title: goalData["title"] as? String ?? "New Goal",
+            description: goalData["description"] as? String ?? "AI-created goal",
+            state: .on,
+            importance: goalData["importance"] as? Int ?? 3,
+            groups: parseGoalGroups(goalData["groups"] as? [[String: Any]] ?? []),
+            targetDate: parseTargetDate(goalData["targetDate"] as? String),
+            emoji: goalData["emoji"] as? String ?? "🎯",
+            relatedPillarIds: goalData["relatedPillarIds"] as? [UUID] ?? []
+        )
+        
+        dataManager.addGoal(goal)
+        coreInsight = "✅ Created goal: \(goal.title)"
+    }
+    
+    private func createChainFromAI(_ response: AIResponse) {
+        guard let createdItem = response.createdItems?.first(where: { $0.type == .chain }),
+              let chainData = createdItem.data as? [String: Any] else {
+            coreInsight = "Error creating chain"
+            return
+        }
+        
+        let blocks = parseChainBlocks(chainData["blocks"] as? [[String: Any]] ?? [])
+        let chain = Chain(
+            name: chainData["name"] as? String ?? "New Chain",
+            blocks: blocks,
+            flowPattern: FlowPattern(rawValue: chainData["flowPattern"] as? String ?? "waterfall") ?? .waterfall,
+            emoji: chainData["emoji"] as? String ?? "🔗"
+        )
+        
+        dataManager.addChain(chain)
+        coreInsight = "✅ Created chain: \(chain.name) with \(chain.blocks.count) activities"
+    }
+    
+    private func createEventFromAI(_ response: AIResponse, message: String) {
+        guard let firstSuggestion = response.suggestions.first else {
+            coreInsight = "Error creating event"
+            return
+        }
+        
+        // Extract time from message or use smart default
+        let targetTime = extractTimeFromMessage(message) ?? findNextAvailableTime()
+        
+        var timeBlock = firstSuggestion.toTimeBlock()
+        timeBlock.startTime = targetTime
+        
+        dataManager.addTimeBlock(timeBlock)
+        coreInsight = "✅ Created event: \(timeBlock.title) at \(targetTime.timeString)"
+    }
+    
+    private func handleCreatedItems(_ items: [CreatedItem]) {
+        var createdCount = 0
+        var lastItemTitle = ""
+        
+        for item in items {
+            switch item.type {
+            case .pillar:
+                if let pillarData = item.data as? [String: Any] {
+                    let pillar = Pillar(
+                        name: pillarData["name"] as? String ?? "New Pillar",
+                        description: pillarData["description"] as? String ?? "AI-created pillar",
+                        frequency: .daily,
+                        minDuration: 1800,
+                        maxDuration: 7200,
+                        preferredTimeWindows: [],
+                        overlapRules: [],
+                        quietHours: []
+                    )
+                    dataManager.addPillar(pillar)
+                    createdCount += 1
+                    lastItemTitle = pillar.name
+                }
+            case .goal:
+                if let goalData = item.data as? [String: Any] {
+                    let goal = Goal(
+                        title: goalData["title"] as? String ?? "New Goal",
+                        description: goalData["description"] as? String ?? "AI-created goal",
+                        state: .on,
+                        importance: goalData["importance"] as? Int ?? 3,
+                        groups: []
+                    )
+                    dataManager.addGoal(goal)
+                    createdCount += 1
+                    lastItemTitle = goal.title
+                }
+            case .chain:
+                if let chainData = item.data as? [String: Any] {
+                    let chain = Chain(
+                        name: chainData["name"] as? String ?? "New Chain",
+                        blocks: [],
+                        flowPattern: .waterfall
+                    )
+                    dataManager.addChain(chain)
+                    createdCount += 1
+                    lastItemTitle = chain.name
+                }
+            case .event:
+                if let suggestion = item.data as? Suggestion {
+                    let timeBlock = suggestion.toTimeBlock()
+                    dataManager.addTimeBlock(timeBlock)
+                    createdCount += 1
+                    lastItemTitle = timeBlock.title
+                }
+            }
+        }
+        
+        if createdCount > 0 {
+            coreInsight = "✅ Created \(createdCount) item\(createdCount == 1 ? "" : "s"): \(lastItemTitle)"
+        }
+    }
+    
+    // MARK: - Smart Analysis Fallback
+    
+    private func analyzeMessageForCoreAction(_ message: String) {
         let lowerMessage = message.lowercased()
         
         if lowerMessage.contains("create pillar") || lowerMessage.contains("add pillar") {
-            // Extract pillar creation intent
-            coreInsight = "Ready to create pillar - use UI or specify details"
+            coreInsight = "💡 Ready to create pillar - specify name, type (actionable/principle), and frequency"
         } else if lowerMessage.contains("create goal") || lowerMessage.contains("add goal") {
-            coreInsight = "Ready to create goal - use UI or specify details"
+            coreInsight = "💡 Ready to create goal - specify title, importance (1-5), and target date"
+        } else if lowerMessage.contains("create chain") || lowerMessage.contains("add chain") {
+            coreInsight = "💡 Ready to create chain - specify name and list of activities"
+        } else if lowerMessage.contains("schedule") || lowerMessage.contains("create event") {
+            coreInsight = "💡 Ready to schedule event - specify what, when, and duration"
         } else if lowerMessage.contains("break down") || lowerMessage.contains("breakdown") {
-            coreInsight = "Analyzing goals for breakdown opportunities"
+            coreInsight = "🎯 Analyzing goals for breakdown opportunities"
+        } else {
+            coreInsight = "Core system processed your request"
         }
     }
+    
+    // MARK: - Parsing Helpers
+    
+    private func parseFrequency(_ frequency: String) -> PillarFrequency {
+        switch frequency.lowercased() {
+        case "daily": return .daily
+        case "weekly": return .weekly(1)
+        case "as needed": return .asNeeded
+        default: return .daily
+        }
+    }
+    
+    private func parseTimeWindows(_ windowsData: [[String: Any]]) -> [TimeWindow] {
+        return windowsData.compactMap { window in
+            guard let startHour = window["startHour"] as? Int,
+                  let startMinute = window["startMinute"] as? Int,
+                  let endHour = window["endHour"] as? Int,
+                  let endMinute = window["endMinute"] as? Int else { return nil }
+            
+            return TimeWindow(startHour: startHour, startMinute: startMinute, endHour: endHour, endMinute: endMinute)
+        }
+    }
+    
+    private func parseGoalGroups(_ groupsData: [[String: Any]]) -> [GoalGroup] {
+        return groupsData.compactMap { group in
+            guard let name = group["name"] as? String,
+                  let tasksData = group["tasks"] as? [[String: Any]] else { return nil }
+            
+            let tasks = tasksData.compactMap { taskData -> GoalTask? in
+                guard let title = taskData["title"] as? String,
+                      let description = taskData["description"] as? String else { return nil }
+                
+                return GoalTask(
+                    title: title,
+                    description: description,
+                    estimatedDuration: TimeInterval((taskData["estimatedDuration"] as? Int ?? 3600)),
+                    suggestedChains: [],
+                    actionQuality: taskData["actionQuality"] as? Int ?? 3
+                )
+            }
+            
+            return GoalGroup(name: name, tasks: tasks)
+        }
+    }
+    
+    private func parseTargetDate(_ dateString: String?) -> Date? {
+        guard let dateString = dateString else { return nil }
+        
+        let formatter = ISO8601DateFormatter()
+        return formatter.date(from: dateString)
+    }
+    
+    private func parseChainBlocks(_ blocksData: [[String: Any]]) -> [TimeBlock] {
+        return blocksData.compactMap { blockData in
+            guard let title = blockData["title"] as? String,
+                  let duration = blockData["duration"] as? TimeInterval else { return nil }
+            
+            return TimeBlock(
+                title: title,
+                startTime: Date(),
+                duration: duration,
+                energy: EnergyType(rawValue: blockData["energy"] as? String ?? "daylight") ?? .daylight,
+                emoji: blockData["emoji"] as? String ?? "🌊"
+            )
+        }
+    }
+    
+    private func extractTimeFromMessage(_ message: String) -> Date? {
+        // Enhanced time extraction with more patterns
+        let lowerMessage = message.lowercased()
+        let _ = Calendar.current
+        let now = Date()
+        
+        // Check for "at X:XX" patterns
+        let timeRegex = try? NSRegularExpression(pattern: "at\\s+(\\d{1,2})(?::(\\d{2}))?\\s*(am|pm)?", options: .caseInsensitive)
+        if let regex = timeRegex {
+            let range = NSRange(location: 0, length: message.count)
+            if let match = regex.firstMatch(in: message, options: [], range: range) {
+                let hourRange = match.range(at: 1)
+                if let hourString = Range(hourRange, in: message).map({ String(message[$0]) }),
+                   let hour = Int(hourString) {
+                    return calendar.date(bySettingHour: hour, minute: 0, second: 0, of: now)
+                }
+            }
+        }
+        
+        // Check for relative time patterns
+        if lowerMessage.contains("now") || lowerMessage.contains("immediately") {
+            return now
+        } else if lowerMessage.contains("in 1 hour") || lowerMessage.contains("in an hour") {
+            return calendar.date(byAdding: .hour, value: 1, to: now)
+        } else if lowerMessage.contains("in 30 minutes") || lowerMessage.contains("in half hour") {
+            return calendar.date(byAdding: .minute, value: 30, to: now)
+        } else if lowerMessage.contains("tomorrow") {
+            return calendar.date(byAdding: .day, value: 1, to: now)
+        }
+        
+        return nil
+    }
+    
+    private func findNextAvailableTime() -> Date {
+        let now = Date()
+        let _ = Calendar.current
+        let currentMinute = calendar.component(.minute, from: now)
+        let roundedMinute = ((currentMinute / 15) + 1) * 15
+        
+        return calendar.date(byAdding: .minute, value: roundedMinute - currentMinute, to: now) ?? now
+    }
+    
+    // MARK: - Smart Extraction Functions
+    
+    private func extractGoalTitle(from message: String) -> String {
+        let lowerMessage = message.lowercased()
+        
+        // Try to extract goal from common patterns
+        if let range = lowerMessage.range(of: "goal") {
+            let afterGoal = String(lowerMessage[range.upperBound...]).trimmingCharacters(in: .whitespacesAndNewlines)
+            if let firstWord = afterGoal.split(separator: " ").first {
+                return String(firstWord).capitalized
+            }
+        }
+        
+        // Look for "want to", "hope to", etc.
+        let goalPatterns = ["want to", "hope to", "need to", "plan to", "goal is"]
+        for pattern in goalPatterns {
+            if let range = lowerMessage.range(of: pattern) {
+                let afterPattern = String(lowerMessage[range.upperBound...]).trimmingCharacters(in: .whitespacesAndNewlines)
+                if !afterPattern.isEmpty {
+                    return afterPattern.prefix(20).capitalized
+                }
+            }
+        }
+        
+        return "New Goal"
+    }
+    
+    private func extractPillarName(from message: String) -> String {
+        let lowerMessage = message.lowercased()
+        
+        // Look for pillar indicators
+        if let range = lowerMessage.range(of: "pillar") {
+            let afterPillar = String(lowerMessage[range.upperBound...]).trimmingCharacters(in: .whitespacesAndNewlines)
+            if let firstWords = afterPillar.split(separator: " ").prefix(2).map(String.init).first {
+                return firstWords.capitalized
+            }
+        }
+        
+        // Look for activity words
+        let activityWords = ["exercise", "work", "reading", "meditation", "planning", "learning"]
+        for word in activityWords {
+            if lowerMessage.contains(word) {
+                return word.capitalized
+            }
+        }
+        
+        return "New Pillar"
+    }
+    
+    private func extractChainName(from message: String) -> String {
+        let lowerMessage = message.lowercased()
+        
+        // Look for chain indicators
+        if let range = lowerMessage.range(of: "chain") {
+            let afterChain = String(lowerMessage[range.upperBound...]).trimmingCharacters(in: .whitespacesAndNewlines)
+            if !afterChain.isEmpty {
+                return afterChain.prefix(15).capitalized
+            }
+        }
+        
+        // Look for routine/sequence words
+        let routineWords = ["routine", "sequence", "flow", "series"]
+        for word in routineWords {
+            if lowerMessage.contains(word) {
+                return "\(word.capitalized) Chain"
+            }
+        }
+        
+        return "New Chain"
+    }
+    
+    private func determineImportanceFromMessage(_ message: String) -> Int {
+        let lowerMessage = message.lowercased()
+        
+        if lowerMessage.contains("critical") || lowerMessage.contains("urgent") || lowerMessage.contains("essential") {
+            return 5
+        } else if lowerMessage.contains("important") || lowerMessage.contains("priority") {
+            return 4
+        } else if lowerMessage.contains("nice to") || lowerMessage.contains("would like") {
+            return 2
+        }
+        
+        return 3 // Default
+    }
+    
+    private func determinePillarType(from message: String) -> PillarType {
+        let lowerMessage = message.lowercased()
+        
+        if lowerMessage.contains("principle") || lowerMessage.contains("value") || lowerMessage.contains("belief") || lowerMessage.contains("guide") {
+            return .principle
+        } else if lowerMessage.contains("schedule") || lowerMessage.contains("activity") || lowerMessage.contains("time") || lowerMessage.contains("routine") {
+            return .actionable
+        }
+        
+        return .actionable // Default to actionable
+    }
+    
+    private func inferFrequency(from message: String) -> String {
+        let lowerMessage = message.lowercased()
+        
+        if lowerMessage.contains("daily") || lowerMessage.contains("every day") {
+            return "daily"
+        } else if lowerMessage.contains("weekly") || lowerMessage.contains("once a week") {
+            return "weekly"
+        } else if lowerMessage.contains("as needed") || lowerMessage.contains("when needed") {
+            return "as needed"
+        }
+        
+        return "daily" // Default
+    }
+    
+    private func inferTargetDate(from message: String) -> Date? {
+        let lowerMessage = message.lowercased()
+        let _ = Calendar.current
+        let now = Date()
+        
+        if lowerMessage.contains("this week") {
+            return calendar.date(byAdding: .weekOfYear, value: 1, to: now)
+        } else if lowerMessage.contains("this month") {
+            return calendar.date(byAdding: .month, value: 1, to: now)
+        } else if lowerMessage.contains("3 months") {
+            return calendar.date(byAdding: .month, value: 3, to: now)
+        } else if lowerMessage.contains("6 months") {
+            return calendar.date(byAdding: .month, value: 6, to: now)
+        } else if lowerMessage.contains("year") {
+            return calendar.date(byAdding: .year, value: 1, to: now)
+        }
+        
+        return calendar.date(byAdding: .month, value: 3, to: now) // Default 3 months
+    }
+    
+    private func extractWisdom(from message: String) -> String? {
+        let lowerMessage = message.lowercased()
+        
+        if lowerMessage.contains("believe") || lowerMessage.contains("value") || lowerMessage.contains("principle") {
+            // Try to extract the wisdom part
+            let wisdomIndicators = ["believe that", "value", "principle is", "important to"]
+            for indicator in wisdomIndicators {
+                if let range = lowerMessage.range(of: indicator) {
+                    let wisdom = String(lowerMessage[range.upperBound...]).trimmingCharacters(in: .whitespacesAndNewlines)
+                    if !wisdom.isEmpty {
+                        return wisdom.capitalized
+                    }
+                }
+            }
+        }
+        
+        return nil
+    }
+    
+    private func selectGoalEmoji(for title: String) -> String {
+        let lowerTitle = title.lowercased()
+        
+        if lowerTitle.contains("health") || lowerTitle.contains("fitness") {
+            return "💪"
+        } else if lowerTitle.contains("learn") || lowerTitle.contains("study") {
+            return "📚"
+        } else if lowerTitle.contains("work") || lowerTitle.contains("career") {
+            return "💼"
+        } else if lowerTitle.contains("project") || lowerTitle.contains("build") {
+            return "🚀"
+        } else if lowerTitle.contains("money") || lowerTitle.contains("financial") {
+            return "💰"
+        } else if lowerTitle.contains("travel") {
+            return "✈️"
+        } else if lowerTitle.contains("relationship") || lowerTitle.contains("social") {
+            return "👥"
+        }
+        
+        return "🎯" // Default goal emoji
+    }
+    
+    private func selectPillarEmoji(for name: String) -> String {
+        let lowerName = name.lowercased()
+        
+        if lowerName.contains("exercise") || lowerName.contains("fitness") {
+            return "💪"
+        } else if lowerName.contains("work") || lowerName.contains("deep") {
+            return "💼"
+        } else if lowerName.contains("rest") || lowerName.contains("sleep") {
+            return "🌙"
+        } else if lowerName.contains("eat") || lowerName.contains("meal") {
+            return "🍽️"
+        } else if lowerName.contains("learn") || lowerName.contains("read") {
+            return "📚"
+        } else if lowerName.contains("meditate") || lowerName.contains("mindful") {
+            return "🧘‍♀️"
+        }
+        
+        return "🏛️" // Default pillar emoji
+    }
+    
+    private func selectChainEmoji(for name: String) -> String {
+        let lowerName = name.lowercased()
+        
+        if lowerName.contains("morning") {
+            return "🌅"
+        } else if lowerName.contains("evening") {
+            return "🌙"
+        } else if lowerName.contains("work") || lowerName.contains("focus") {
+            return "🎯"
+        } else if lowerName.contains("exercise") || lowerName.contains("workout") {
+            return "💪"
+        } else if lowerName.contains("creative") || lowerName.contains("art") {
+            return "🎨"
+        }
+        
+        return "🔗" // Default chain emoji
+    }
+    
+    private func findRelatedPillars(for title: String) -> [Pillar] {
+        let lowerTitle = title.lowercased()
+        
+        return dataManager.appState.pillars.filter { pillar in
+            let pillarWords = pillar.name.lowercased().split(separator: " ")
+            let titleWords = lowerTitle.split(separator: " ")
+            
+            let overlap = Set(pillarWords).intersection(Set(titleWords))
+            return overlap.count >= 1
+        }
+    }
+    
+    private func createDefaultChainBlocks(from message: String) -> [TimeBlock] {
+        // Create simple default blocks based on message content
+        let lowerMessage = message.lowercased()
+        
+        if lowerMessage.contains("morning") {
+            return [
+                TimeBlock(title: "Preparation", startTime: Date(), duration: 900, energy: .sunrise, emoji: "🌅"),
+                TimeBlock(title: "Main Activity", startTime: Date(), duration: 1800, energy: .sunrise, emoji: "💎"),
+                TimeBlock(title: "Wrap-up", startTime: Date(), duration: 600, energy: .daylight, emoji: "☁️")
+            ]
+        } else if lowerMessage.contains("work") {
+            return [
+                TimeBlock(title: "Setup", startTime: Date(), duration: 600, energy: .daylight, emoji: "💎"),
+                TimeBlock(title: "Focus Work", startTime: Date(), duration: 3600, energy: .daylight, emoji: "💎"),
+                TimeBlock(title: "Review", startTime: Date(), duration: 900, energy: .daylight, emoji: "☁️")
+            ]
+        } else {
+            return [
+                TimeBlock(title: "Start", startTime: Date(), duration: 1200, energy: .daylight, emoji: "🌊"),
+                TimeBlock(title: "Continue", startTime: Date(), duration: 1800, energy: .daylight, emoji: "🌊")
+            ]
+        }
+    }
+    
+    // MARK: - Smart Suggestion Functions
+    
+    // Helper methods are already defined in the core chat section above
 }
 
 // MARK: - AI Outgo Section

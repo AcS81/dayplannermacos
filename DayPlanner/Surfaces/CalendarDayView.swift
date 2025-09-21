@@ -541,7 +541,7 @@ struct EventCard: View {
     }
     
     private func createDefaultChain(at time: Date, direction: ChainDirection) {
-        let chainName = direction == .before ? "Prep for \(block.title)" : "Follow-up to \(block.title)"
+        let _ = direction == .before ? "Prep for \(block.title)" : "Follow-up to \(block.title)"
         
         let prepBlock = TimeBlock(
             title: direction == .before ? "Prepare" : "Wrap up",

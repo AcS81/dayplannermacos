@@ -158,6 +158,12 @@ class AIService: ObservableObject {
     private let baseURL = "http://localhost:1234"
     private let session: URLSession
     
+    // Smart confidence thresholds for different actions
+    private let confidenceThresholds = AIConfidenceThresholds()
+    
+    // Pattern learning integration
+    private var patternEngine: PatternLearningEngine?
+    
     init() {
         let config = URLSessionConfiguration.default
         config.timeoutIntervalForRequest = 30
@@ -172,6 +178,12 @@ class AIService: ObservableObject {
             // Set up periodic connection monitoring
             await startConnectionMonitoring()
         }
+    }
+    
+    // MARK: - Pattern Learning Integration
+    
+    func setPatternEngine(_ patternEngine: PatternLearningEngine) {
+        self.patternEngine = patternEngine
     }
     
     private func startConnectionMonitoring() async {
@@ -230,10 +242,87 @@ class AIService: ObservableObject {
             lastResponseTime = Date().timeIntervalSince(startTime)
         }
         
-        let prompt = buildPrompt(message: message, context: context)
-        let response = try await generateCompletion(prompt: prompt)
+        // First, analyze the message to determine the best action type
+        let actionAnalysis = try await analyzeMessageIntent(message, context: context)
         
-        return try parseResponse(response)
+        // Record this interaction for pattern learning
+        recordInteractionForLearning(message: message, analysis: actionAnalysis, context: context)
+        
+        // Use appropriate processing based on confidence and intent
+        let response: AIResponse
+        switch actionAnalysis.recommendedAction {
+        case .createEvent:
+            response = try await processEventCreation(message, context: context, analysis: actionAnalysis)
+        case .createGoal:
+            response = try await processGoalCreation(message, context: context, analysis: actionAnalysis)
+        case .createPillar:
+            response = try await processPillarCreation(message, context: context, analysis: actionAnalysis)
+        case .createChain:
+            response = try await processChainCreation(message, context: context, analysis: actionAnalysis)
+        case .suggestActivities:
+            response = try await processActivitySuggestions(message, context: context, analysis: actionAnalysis)
+        case .generalChat:
+            response = try await processGeneralChat(message, context: context, analysis: actionAnalysis)
+        }
+        
+        // Record the response for future learning
+        recordResponseForLearning(response: response, originalMessage: message)
+        
+        return response
+    }
+    
+    // MARK: - Pattern Learning Integration
+    
+    private func recordInteractionForLearning(message: String, analysis: MessageActionAnalysis, context: DayContext) {
+        guard let patternEngine = patternEngine else { return }
+        
+        // Create behavior event for this interaction
+        let behaviorEvent = BehaviorEvent(
+            .blockCreated(TimeBlockData(
+                id: UUID().uuidString,
+                title: analysis.extractedEntities["activity"] ?? "AI Interaction",
+                emoji: "🤖",
+                energy: context.currentEnergy,
+                duration: 0, // This is an interaction, not a time block
+                period: getCurrentTimePeriod()
+            )),
+            context: EventContext(
+                energyLevel: context.currentEnergy,
+                mood: context.mood,
+                weatherCondition: context.weatherContext
+            )
+        )
+        
+        patternEngine.recordBehavior(behaviorEvent)
+    }
+    
+    private func recordResponseForLearning(response: AIResponse, originalMessage: String) {
+        guard let patternEngine = patternEngine else { return }
+        
+        // Record successful AI actions for pattern improvement
+        if let _ = response.actionType, response.confidence > 0.7 {
+            let behaviorEvent = BehaviorEvent(
+                .suggestionAccepted(SuggestionData(
+                    title: originalMessage.prefix(50).description,
+                    emoji: "🤖",
+                    energy: .daylight,
+                    duration: 0,
+                    confidence: response.confidence
+                )),
+                context: EventContext()
+            )
+            
+            patternEngine.recordBehavior(behaviorEvent)
+        }
+    }
+    
+    private func getCurrentTimePeriod() -> TimePeriod {
+        let hour = Calendar.current.component(.hour, from: Date())
+        switch hour {
+        case 6..<12: return .morning
+        case 12..<18: return .afternoon
+        default: return .evening
+        }
     }
     
     func generateSuggestions(for context: DayContext) async throws -> [Suggestion] {
@@ -259,6 +348,405 @@ class AIService: ObservableObject {
         
         let completion = try await generateCompletion(prompt: prompt)
         return try parseChainResponse(completion)
+    }
+    
+    // MARK: - Smart Processing Methods
+    
+    private func analyzeMessageIntent(_ message: String, context: DayContext) async throws -> MessageActionAnalysis {
+        // Get pattern-based insights
+        let patternInsights = getPatternInsights()
+        
+        let intentAnalysisPrompt = """
+        SMART INTENT ANALYSIS: Analyze this user message to determine the BEST action with HIGH ACCURACY: "\(message)"
+        
+        Context:
+        - Current time: \(context.date.formatted(.dateTime.hour().minute()))
+        - Existing blocks: \(context.existingBlocks.count)
+        - Available time: \(Int(context.availableTime/3600)) hours
+        - Current energy: \(context.currentEnergy.description)
+        - Mood: \(context.mood.description)
+        - Active pillars: \(context.actionablePillars.map(\.name).joined(separator: ", "))
+        - Guiding principles: \(context.pillarGuidance.joined(separator: "; "))
+        
+        User Pattern Intelligence:
+        \(patternInsights)
+        
+        SMART ANALYSIS GUIDELINES:
+        1. SCHEDULING INDICATORS: "schedule", "book", "add", "create", "plan", "set up", "at 3pm", "tomorrow", "in 1 hour"
+        2. GOAL INDICATORS: "want to achieve", "goal", "objective", "hope to", "work towards", "long-term"
+        3. PILLAR INDICATORS: "routine", "habit", "principle", "always", "never", "believe in", "recurring"
+        4. CHAIN INDICATORS: "sequence", "flow", "then", "after that", "routine", "steps"
+        5. SUGGESTION INDICATORS: "what should", "ideas", "suggestions", "what to do", "recommend"
+        
+        CONFIDENCE BOOST FACTORS:
+        - Specific time mentioned (+0.2)
+        - Duration mentioned (+0.15)
+        - Clear action verb (+0.1)
+        - Matches user patterns (+0.1)
+        - Urgency indicators (+0.1)
+        
+        Respond in this EXACT JSON format:
+        {
+            "intent": "Precise description of user intent",
+            "confidence": 0.85,
+            "recommendedAction": "create_event",
+            "extractedEntities": {
+                "activity": "specific activity name",
+                "time": "extracted time or null",
+                "duration": "extracted duration or estimated",
+                "importance": "high/medium/low",
+                "type": "actionable/principle for pillars"
+            },
+            "urgency": "high",
+            "contextAlignment": 0.9,
+            "patternAlignment": 0.8
+        }
+        
+        UPDATED Action thresholds for better UX:
+        - create_event: Scheduling specific activity (confidence ≥ 0.7)
+        - create_goal: Long-term objective mentioned (confidence ≥ 0.8)
+        - create_pillar: Recurring principle/habit (confidence ≥ 0.85)
+        - create_chain: Multiple linked activities (confidence ≥ 0.75)
+        - suggest_activities: Asking for ideas (confidence ≥ 0.6)
+        - general_chat: Everything else (confidence < 0.6)
+        
+        BE BOLD with confidence when indicators are clear. Users want direct action, not constant suggestions.
+        """
+        
+        let response = try await generateCompletion(prompt: intentAnalysisPrompt)
+        return try parseActionAnalysis(response)
+    }
+    
+    private func getPatternInsights() -> String {
+        guard let patternEngine = patternEngine else {
+            return "Pattern learning system initializing. Building intelligence about user preferences."
+        }
+        
+        var insights: [String] = []
+        
+        // Add intelligence quality assessment
+        let metrics = patternEngine.uiMetrics
+        insights.append("Intelligence Quality: \(metrics.analysisQuality.description)")
+        
+        // Add high-confidence patterns with actionable details
+        let highConfidencePatterns = patternEngine.detectedPatterns.filter { $0.confidence > 0.7 }
+        if !highConfidencePatterns.isEmpty {
+            insights.append("\nHigh-confidence patterns (\(highConfidencePatterns.count)):")
+            for pattern in highConfidencePatterns.prefix(3) {
+                insights.append("- \(pattern.emoji) \(pattern.title): \(pattern.suggestion)")
+            }
+        }
+        
+        // Add current smart recommendation with context
+        if let recommendation = patternEngine.currentRecommendation {
+            insights.append("\nSmart Recommendation: \(recommendation)")
+        }
+        
+        // Add actionable insights with priority
+        let actionableInsights = patternEngine.actionableInsights.filter { !$0.isExpired }.sorted { $0.priority > $1.priority }
+        if !actionableInsights.isEmpty {
+            insights.append("\nActionable Insights:")
+            for insight in actionableInsights.prefix(2) {
+                let priorityIcon = insight.priority >= 4 ? "🔥" : "💡"
+                insights.append("- \(priorityIcon) \(insight.suggestedAction)")
+            }
+        }
+        
+        // Add success patterns that should boost confidence
+        let successPatterns = patternEngine.detectedPatterns.filter { $0.confidence > 0.8 && $0.actionType == .opportunity }
+        if !successPatterns.isEmpty {
+            insights.append("\nSuccess Patterns (boost confidence for similar requests):")
+            for pattern in successPatterns.prefix(2) {
+                insights.append("- \(pattern.title) works well (\(Int(pattern.confidence * 100))% confidence)")
+            }
+        }
+        
+        // Add user preferences from patterns
+        let preferences = extractUserPreferences()
+        if !preferences.isEmpty {
+            insights.append("\nUser Preferences: \(preferences)")
+        }
+        
+        return insights.isEmpty ? "Building pattern intelligence. First few interactions help establish preferences." : insights.joined(separator: "\n")
+    }
+    
+    private func extractUserPreferences() -> String {
+        guard let patternEngine = patternEngine else { return "" }
+        
+        var preferences: [String] = []
+        
+        // Extract timing preferences
+        let timePatterns = patternEngine.detectedPatterns.filter { $0.type == .temporal }
+        if let bestTimePattern = timePatterns.first(where: { $0.confidence > 0.7 }) {
+            if case .temporal(let data) = bestTimePattern.data {
+                if !data.peakHours.isEmpty {
+                    let hours = data.peakHours.prefix(2).map { "\($0):00" }.joined(separator: ", ")
+                    preferences.append("Peak hours: \(hours)")
+                }
+            }
+        }
+        
+        // Extract energy preferences
+        let energyPatterns = patternEngine.detectedPatterns.filter { $0.type == .energy }
+        if !energyPatterns.isEmpty {
+            preferences.append("Has energy-time preferences")
+        }
+        
+        // Extract activity preferences
+        let activityPatterns = patternEngine.detectedPatterns.filter { $0.type == .activity }
+        if !activityPatterns.isEmpty {
+            preferences.append("Follows activity sequences")
+        }
+        
+        return preferences.joined(separator: "; ")
+    }
+    
+    private func processEventCreation(_ message: String, context: DayContext, analysis: MessageActionAnalysis) async throws -> AIResponse {
+        let eventCreationPrompt = """
+        Create a specific time block/event from this user request: "\(message)"
+        
+        Context: \(context.summary)
+        Extracted entities: \(analysis.extractedEntities)
+        Confidence: \(analysis.confidence)
+        
+        Analyze the message carefully and create a complete event with:
+        1. Specific, clear title (max 30 chars)
+        2. Smart start time based on context and available slots
+        3. Realistic duration (15min - 4 hours)
+        4. Energy level matching the activity type
+        5. Activity-appropriate emoji
+        6. Helpful explanation of timing choice
+        
+        Energy type mapping:
+        - High-focus work, exercise, important meetings: "sunrise" 🌅
+        - Regular work, meetings, active tasks: "daylight" ☀️
+        - Rest, breaks, casual activities, wind-down: "moonlight" 🌙
+        
+        Time extraction from message:
+        - Look for "at 3pm", "tomorrow", "in 1 hour", "now", etc.
+        - Default to next available slot if no time specified
+        - Round to 15-minute intervals
+        
+        Respond in this EXACT JSON format with ALL fields properly filled:
+        {
+            "response": "I'll create \(analysis.extractedEntities["activity"] ?? "this activity") for you",
+            "event": {
+                "title": "Specific activity title",
+                "startTime": "2024-01-15T07:00:00Z",
+                "duration": 1800,
+                "energy": "sunrise",
+                "emoji": "💪",
+                "explanation": "Scheduled for optimal timing based on your context and available time"
+            },
+            "confidence": \(analysis.confidence)
+        }
+        
+        Choose the best available time slot and energy level for this activity.
+        """
+        
+        let response = try await generateCompletion(prompt: eventCreationPrompt)
+        return try parseEventCreationResponse(response, analysis: analysis)
+    }
+    
+    private func processGoalCreation(_ message: String, context: DayContext, analysis: MessageActionAnalysis) async throws -> AIResponse {
+        let goalCreationPrompt = """
+        Create a comprehensive goal from this user request: "\(message)"
+        
+        Context: \(context.summary)
+        Extracted entities: \(analysis.extractedEntities)
+        Confidence: \(analysis.confidence)
+        
+        Analyze the message and create a SMART goal with:
+        1. Specific, clear title (max 30 chars)
+        2. Detailed description explaining the outcome
+        3. Importance level 1-5 based on urgency/impact indicators
+        4. Realistic target date (3-12 months typically)
+        5. Initial task breakdown to make it actionable
+        6. Appropriate emoji for visual identification
+        
+        Look for importance indicators:
+        - "critical/urgent/essential" = importance 5
+        - "important/priority" = importance 4  
+        - "want to/should" = importance 3
+        - "nice to/would like" = importance 2
+        - everything else = importance 3
+        
+        Respond in this EXACT JSON format with ALL fields properly filled:
+        {
+            "response": "I'll help you create a goal for \(analysis.extractedEntities["goal"] ?? "this objective")",
+            "goal": {
+                "title": "Specific goal title",
+                "description": "Detailed description of what success looks like",
+                "importance": 4,
+                "targetDate": "2024-06-01T00:00:00Z",
+                "emoji": "🎯 or goal-specific emoji",
+                "relatedPillarIds": [],
+                "groups": [
+                    {
+                        "name": "Group name",
+                        "tasks": [
+                            {
+                                "title": "Specific actionable task",
+                                "description": "Clear task description with deliverables",
+                                "estimatedDuration": 3600,
+                                "actionQuality": 4
+                            }
+                        ]
+                    }
+                ]
+            },
+            "confidence": \(analysis.confidence)
+        }
+        
+        Make the goal actionable with concrete first steps. Choose an emoji that matches the goal domain.
+        """
+        
+        let response = try await generateCompletion(prompt: goalCreationPrompt)
+        return try parseGoalCreationResponse(response, analysis: analysis)
+    }
+    
+    private func processPillarCreation(_ message: String, context: DayContext, analysis: MessageActionAnalysis) async throws -> AIResponse {
+        let pillarCreationPrompt = """
+        Create a pillar (core principle or actionable habit) from this user request: "\(message)"
+        
+        Context: \(context.summary)
+        Extracted entities: \(analysis.extractedEntities)
+        Confidence: \(analysis.confidence)
+        
+        Guidelines:
+        - actionable: Creates scheduled activities (exercise, meditation, work blocks, etc.)
+        - principle: Guides AI decisions but doesn't create events (values, beliefs, life rules)
+        
+        Analyze the message carefully and determine:
+        1. Is this asking for a recurring activity (actionable) or a life principle (principle)?
+        2. What's the appropriate frequency for actionable pillars?
+        3. What emoji best represents this pillar?
+        4. What time windows make sense for actionable pillars?
+        
+        Respond in this EXACT JSON format with ALL fields populated:
+        {
+            "response": "I'll create a \(analysis.extractedEntities["pillar_type"] ?? "pillar") for you",
+            "pillar": {
+                "name": "Specific pillar name (max 20 chars)",
+                "description": "Detailed description explaining purpose and benefits",
+                "type": "actionable or principle",
+                "frequency": "daily, weekly, or as needed",
+                "minDuration": 1800,
+                "maxDuration": 3600,
+                "preferredTimeWindows": [
+                    {
+                        "startHour": 7,
+                        "startMinute": 0,
+                        "endHour": 9,
+                        "endMinute": 0
+                    }
+                ],
+                "wisdomText": "Core principle text for principle types, null for actionable",
+                "emoji": "🏛️ or activity-specific emoji"
+            },
+            "confidence": \(analysis.confidence)
+        }
+        
+        Make the pillar practical and personally relevant. Choose emoji that matches the activity/principle.
+        """
+        
+        let response = try await generateCompletion(prompt: pillarCreationPrompt)
+        return try parsePillarCreationResponse(response, analysis: analysis)
+    }
+    
+    private func processChainCreation(_ message: String, context: DayContext, analysis: MessageActionAnalysis) async throws -> AIResponse {
+        let chainCreationPrompt = """
+        Create a comprehensive activity chain from this user request: "\(message)"
+        
+        Context: \(context.summary)
+        Extracted entities: \(analysis.extractedEntities)
+        Confidence: \(analysis.confidence)
+        
+        Analyze the message and create a logical sequence with:
+        1. Meaningful chain name (max 25 chars)
+        2. 2-4 related activities that flow together
+        3. Realistic durations (15min - 2 hours per activity)
+        4. Appropriate energy progression
+        5. Activity-specific emojis
+        6. Flow pattern that matches the activities
+        
+        Energy levels (map to EnergyType):
+        - 8-10: High energy, sharp focus (sunrise) 🌅
+        - 5-7: Steady energy, sustained work (daylight) ☀️
+        - 1-4: Low energy, gentle activities (moonlight) 🌙
+        
+        Flow patterns:
+        - waterfall: Sequential building (prep→work→review)
+        - spiral: Circular building (practice→apply→reflect→practice)
+        - wave: Rhythm with breaks (work→break→work→break)
+        - ripple: Expanding impact (small→medium→large)
+        
+        Respond in this EXACT JSON format with ALL fields populated:
+        {
+            "response": "I'll create a chain for \(analysis.extractedEntities["chain_name"] ?? "these activities")",
+            "chain": {
+                "name": "Descriptive chain name",
+                "blocks": [
+                    {
+                        "title": "Specific activity title",
+                        "duration": 1800,
+                        "energy": "sunrise",
+                        "emoji": "🌅"
+                    },
+                    {
+                        "title": "Next logical activity",
+                        "duration": 3600,
+                        "energy": "daylight", 
+                        "emoji": "💼"
+                    }
+                ],
+                "flowPattern": "waterfall",
+                "emoji": "🔗"
+            },
+            "confidence": \(analysis.confidence)
+        }
+        
+        Make activities flow logically and choose appropriate emojis for each block.
+        """
+        
+        let response = try await generateCompletion(prompt: chainCreationPrompt)
+        return try parseChainCreationResponse(response, analysis: analysis)
+    }
+    
+    private func processActivitySuggestions(_ message: String, context: DayContext, analysis: MessageActionAnalysis) async throws -> AIResponse {
+        // Use the existing suggestion system but with enhanced context
+        let prompt = buildEnhancedSuggestionPrompt(message: message, context: context, analysis: analysis)
+        let response = try await generateCompletion(prompt: prompt)
+        return try parseEnhancedSuggestionResponse(response, analysis: analysis)
+    }
+    
+    private func processGeneralChat(_ message: String, context: DayContext, analysis: MessageActionAnalysis) async throws -> AIResponse {
+        let generalChatPrompt = """
+        Respond to this user message in a helpful, encouraging way: "\(message)"
+        
+        Context: \(context.summary)
+        
+        Provide a thoughtful response and suggest 1-2 activities if appropriate, but keep confidence low since this is general chat.
+        
+        Respond in this exact JSON format:
+        {
+            "response": "Your helpful response",
+            "suggestions": [
+                {
+                    "title": "Optional suggestion",
+                    "explanation": "Why this might help",
+                    "duration": 1800,
+                    "energy": "daylight",
+                    "emoji": "💡",
+                    "confidence": 0.4
+                }
+            ],
+            "confidence": \(analysis.confidence)
+        }
+        """
+        
+        let response = try await generateCompletion(prompt: generalChatPrompt)
+        return try parseEnhancedSuggestionResponse(response, analysis: analysis)
     }
     
     // MARK: - Private Methods
@@ -385,14 +873,20 @@ class AIService: ObservableObject {
             
             return AIResponse(
                 text: parsed.response,
-                suggestions: suggestions
+                suggestions: suggestions,
+                actionType: nil,
+                createdItems: nil,
+                confidence: 0.7
             )
             
         } catch {
             // Fallback: create a simple response if JSON parsing fails
             return AIResponse(
                 text: cleanContent,
-                suggestions: []
+                suggestions: [],
+                actionType: nil,
+                createdItems: nil,
+                confidence: 0.3
             )
         }
     }
@@ -458,6 +952,407 @@ class AIService: ObservableObject {
             throw AIError.invalidResponse
         }
     }
+    
+    // MARK: - New Parsing Methods
+    
+    private func parseActionAnalysis(_ content: String) throws -> MessageActionAnalysis {
+        let cleanContent = content
+            .replacingOccurrences(of: "```json", with: "")
+            .replacingOccurrences(of: "```", with: "")
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        
+        guard let jsonData = cleanContent.data(using: .utf8) else {
+            throw AIError.invalidResponse
+        }
+        
+        do {
+            let parsed = try JSONSerialization.jsonObject(with: jsonData) as? [String: Any]
+            
+            guard let intent = parsed?["intent"] as? String,
+                  let confidence = parsed?["confidence"] as? Double,
+                  let actionString = parsed?["recommendedAction"] as? String,
+                  let action = AIActionType(rawValue: actionString),
+                  let entities = parsed?["extractedEntities"] as? [String: String],
+                  let urgencyString = parsed?["urgency"] as? String,
+                  let urgency = UrgencyLevel(rawValue: urgencyString),
+                  let contextAlignment = parsed?["contextAlignment"] as? Double else {
+                throw AIError.invalidResponse
+            }
+            
+            return MessageActionAnalysis(
+                intent: intent,
+                confidence: confidence,
+                recommendedAction: action,
+                extractedEntities: entities,
+                urgency: urgency,
+                contextAlignment: contextAlignment
+            )
+            
+        } catch {
+            // Fallback to general chat if parsing fails
+            return MessageActionAnalysis(
+                intent: "General conversation",
+                confidence: 0.3,
+                recommendedAction: .generalChat,
+                extractedEntities: [:],
+                urgency: .low,
+                contextAlignment: 0.5
+            )
+        }
+    }
+    
+    private func parseEventCreationResponse(_ content: String, analysis: MessageActionAnalysis) throws -> AIResponse {
+        let cleanContent = content
+            .replacingOccurrences(of: "```json", with: "")
+            .replacingOccurrences(of: "```", with: "")
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        
+        guard let jsonData = cleanContent.data(using: .utf8) else {
+            throw AIError.invalidResponse
+        }
+        
+        do {
+            let parsed = try JSONSerialization.jsonObject(with: jsonData) as? [String: Any]
+            
+            guard let response = parsed?["response"] as? String,
+                  let eventData = parsed?["event"] as? [String: Any] else {
+                throw AIError.invalidResponse
+            }
+            
+            let suggestion = Suggestion(
+                title: eventData["title"] as? String ?? "New Activity",
+                duration: TimeInterval((eventData["duration"] as? Int ?? 1800)),
+                suggestedTime: Date(),
+                energy: EnergyType(rawValue: eventData["energy"] as? String ?? "daylight") ?? .daylight,
+                emoji: eventData["emoji"] as? String ?? "📋",
+                explanation: eventData["explanation"] as? String ?? "AI-generated activity",
+                confidence: analysis.confidence
+            )
+            
+            return AIResponse(
+                text: response,
+                suggestions: [suggestion],
+                actionType: .createEvent,
+                createdItems: [
+                    CreatedItem(
+                        type: .event,
+                        id: UUID(),
+                        title: suggestion.title,
+                        data: suggestion
+                    )
+                ],
+                confidence: analysis.confidence
+            )
+            
+        } catch {
+            return AIResponse(
+                text: "I'll help you schedule that activity",
+                suggestions: [],
+                actionType: .createEvent,
+                createdItems: nil,
+                confidence: analysis.confidence
+            )
+        }
+    }
+    
+    private func parseGoalCreationResponse(_ content: String, analysis: MessageActionAnalysis) throws -> AIResponse {
+        let cleanContent = content
+            .replacingOccurrences(of: "```json", with: "")
+            .replacingOccurrences(of: "```", with: "")
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        
+        guard let jsonData = cleanContent.data(using: .utf8) else {
+            throw AIError.invalidResponse
+        }
+        
+        do {
+            let parsed = try JSONSerialization.jsonObject(with: jsonData) as? [String: Any]
+            
+            guard let response = parsed?["response"] as? String else {
+                throw AIError.invalidResponse
+            }
+            
+            return AIResponse(
+                text: response,
+                suggestions: [],
+                actionType: .createGoal,
+                createdItems: [
+                    CreatedItem(
+                        type: .goal,
+                        id: UUID(),
+                        title: "New Goal",
+                        data: parsed?["goal"] as? [String: Any] ?? [:]
+                    )
+                ],
+                confidence: analysis.confidence
+            )
+            
+        } catch {
+            return AIResponse(
+                text: "I'll help you create that goal",
+                suggestions: [],
+                actionType: .createGoal,
+                createdItems: nil,
+                confidence: analysis.confidence
+            )
+        }
+    }
+    
+    private func parsePillarCreationResponse(_ content: String, analysis: MessageActionAnalysis) throws -> AIResponse {
+        let cleanContent = content
+            .replacingOccurrences(of: "```json", with: "")
+            .replacingOccurrences(of: "```", with: "")
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        
+        guard let jsonData = cleanContent.data(using: .utf8) else {
+            throw AIError.invalidResponse
+        }
+        
+        do {
+            let parsed = try JSONSerialization.jsonObject(with: jsonData) as? [String: Any]
+            
+            guard let response = parsed?["response"] as? String,
+                  let pillarData = parsed?["pillar"] as? [String: Any] else {
+                throw AIError.invalidResponse
+            }
+            
+            // Enhance pillar data with proper defaults
+            var enhancedPillarData = pillarData
+            
+            // Ensure all required fields are present with smart defaults
+            if enhancedPillarData["name"] == nil { enhancedPillarData["name"] = "New Pillar" }
+            if enhancedPillarData["description"] == nil { enhancedPillarData["description"] = "AI-created pillar" }
+            if enhancedPillarData["type"] == nil { enhancedPillarData["type"] = "actionable" }
+            if enhancedPillarData["frequency"] == nil { enhancedPillarData["frequency"] = "daily" }
+            if enhancedPillarData["minDuration"] == nil { enhancedPillarData["minDuration"] = 1800 }
+            if enhancedPillarData["maxDuration"] == nil { enhancedPillarData["maxDuration"] = 3600 }
+            if enhancedPillarData["emoji"] == nil { enhancedPillarData["emoji"] = "🏛️" }
+            if enhancedPillarData["preferredTimeWindows"] == nil { enhancedPillarData["preferredTimeWindows"] = [] }
+            
+            return AIResponse(
+                text: response,
+                suggestions: [],
+                actionType: .createPillar,
+                createdItems: [
+                    CreatedItem(
+                        type: .pillar,
+                        id: UUID(),
+                        title: enhancedPillarData["name"] as? String ?? "New Pillar",
+                        data: enhancedPillarData
+                    )
+                ],
+                confidence: analysis.confidence
+            )
+            
+        } catch {
+            // Fallback with basic pillar structure
+            let fallbackPillarData: [String: Any] = [
+                "name": "New Pillar",
+                "description": "AI-created pillar",
+                "type": "actionable",
+                "frequency": "daily",
+                "minDuration": 1800,
+                "maxDuration": 3600,
+                "emoji": "🏛️",
+                "preferredTimeWindows": []
+            ]
+            
+            return AIResponse(
+                text: "I'll help you create that pillar",
+                suggestions: [],
+                actionType: .createPillar,
+                createdItems: [
+                    CreatedItem(
+                        type: .pillar,
+                        id: UUID(),
+                        title: "New Pillar",
+                        data: fallbackPillarData
+                    )
+                ],
+                confidence: analysis.confidence
+            )
+        }
+    }
+    
+    private func parseChainCreationResponse(_ content: String, analysis: MessageActionAnalysis) throws -> AIResponse {
+        let cleanContent = content
+            .replacingOccurrences(of: "```json", with: "")
+            .replacingOccurrences(of: "```", with: "")
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        
+        guard let jsonData = cleanContent.data(using: .utf8) else {
+            throw AIError.invalidResponse
+        }
+        
+        do {
+            let parsed = try JSONSerialization.jsonObject(with: jsonData) as? [String: Any]
+            
+            guard let response = parsed?["response"] as? String,
+                  let chainData = parsed?["chain"] as? [String: Any] else {
+                throw AIError.invalidResponse
+            }
+            
+            // Ensure chain data is properly structured
+            var enhancedChainData = chainData
+            
+            // Validate and enhance blocks
+            if let blocksData = chainData["blocks"] as? [[String: Any]] {
+                let enhancedBlocks = blocksData.map { blockData -> [String: Any] in
+                    var enhanced = blockData
+                    
+                    // Ensure all required fields are present
+                    if enhanced["title"] == nil { enhanced["title"] = "Activity" }
+                    if enhanced["duration"] == nil { enhanced["duration"] = 1800 }
+                    if enhanced["energy"] == nil { enhanced["energy"] = "daylight" }
+                    if enhanced["emoji"] == nil { enhanced["emoji"] = "🌊" }
+                    
+                    return enhanced
+                }
+                enhancedChainData["blocks"] = enhancedBlocks
+            }
+            
+            // Ensure other required fields
+            if enhancedChainData["name"] == nil { enhancedChainData["name"] = "New Chain" }
+            if enhancedChainData["flowPattern"] == nil { enhancedChainData["flowPattern"] = "waterfall" }
+            if enhancedChainData["emoji"] == nil { enhancedChainData["emoji"] = "🔗" }
+            
+            return AIResponse(
+                text: response,
+                suggestions: [],
+                actionType: .createChain,
+                createdItems: [
+                    CreatedItem(
+                        type: .chain,
+                        id: UUID(),
+                        title: enhancedChainData["name"] as? String ?? "New Chain",
+                        data: enhancedChainData
+                    )
+                ],
+                confidence: analysis.confidence
+            )
+            
+        } catch {
+            // Fallback with basic chain structure
+            let fallbackChainData: [String: Any] = [
+                "name": "Activity Chain",
+                "blocks": [
+                    [
+                        "title": "Activity",
+                        "duration": 1800,
+                        "energy": "daylight",
+                        "emoji": "🌊"
+                    ]
+                ],
+                "flowPattern": "waterfall",
+                "emoji": "🔗"
+            ]
+            
+            return AIResponse(
+                text: "I'll help you create that chain",
+                suggestions: [],
+                actionType: .createChain,
+                createdItems: [
+                    CreatedItem(
+                        type: .chain,
+                        id: UUID(),
+                        title: "Activity Chain",
+                        data: fallbackChainData
+                    )
+                ],
+                confidence: analysis.confidence
+            )
+        }
+    }
+    
+    private func buildEnhancedSuggestionPrompt(message: String, context: DayContext, analysis: MessageActionAnalysis) -> String {
+        let pillarGuidanceText = context.pillarGuidance.isEmpty ? 
+            "" : "\n\nUser's Core Principles (guide all suggestions):\n\(context.pillarGuidance.joined(separator: "\n"))"
+        
+        let actionablePillarsText = context.actionablePillars.isEmpty ? 
+            "" : "\n\nActionable Pillars to consider:\n\(context.actionablePillars.map { "- \($0.name): \($0.description)" }.joined(separator: "\n"))"
+        
+        return """
+        You are a helpful day planning assistant. The user is asking for suggestions: "\(message)"
+        
+        Current context:
+        - Date & Time: \(context.date.formatted(.dateTime.weekday().month().day().year().hour().minute()))
+        - Current energy: \(context.currentEnergy.description)
+        - Existing activities: \(context.existingBlocks.count)
+        - Available time: \(Int(context.availableTime/3600)) hours
+        - Mood: \(context.mood.description)
+        - Intent confidence: \(analysis.confidence)
+        - Context alignment: \(analysis.contextAlignment)
+        \(context.weatherContext != nil ? "- Weather: \(context.weatherContext!)" : "")\(pillarGuidanceText)\(actionablePillarsText)
+        
+        IMPORTANT: Always align suggestions with the user's core principles listed above. Consider:
+        - Weather conditions for indoor/outdoor activities
+        - User's guiding principles when making any suggestion
+        - How actionable pillars might need time slots
+        - The user's current energy and mood state
+        - The confidence level - adjust suggestion quality accordingly
+        
+        Please provide a helpful response and exactly 2 activity suggestions in this exact JSON format:
+        {
+            "response": "Your helpful response text that acknowledges their principles",
+            "suggestions": [
+                {
+                    "title": "Activity name",
+                    "explanation": "Brief reason why this aligns with their principles and current context",
+                    "duration": 60,
+                    "energy": "sunrise|daylight|moonlight",
+                    "emoji": "📋|💼|🎯|💡|🏃‍♀️|🍽️|etc",
+                    "confidence": \(analysis.confidence)
+                }
+            ]
+        }
+        
+        Keep suggestions principle-aligned, realistic and personalized.
+        """
+    }
+    
+    private func parseEnhancedSuggestionResponse(_ content: String, analysis: MessageActionAnalysis) throws -> AIResponse {
+        let cleanContent = content
+            .replacingOccurrences(of: "```json", with: "")
+            .replacingOccurrences(of: "```", with: "")
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        
+        guard let jsonData = cleanContent.data(using: .utf8) else {
+            throw AIError.invalidResponse
+        }
+        
+        do {
+            let parsed = try JSONDecoder().decode(AIResponseJSON.self, from: jsonData)
+            
+            let suggestions = parsed.suggestions.prefix(2).map { suggestionJSON in
+                Suggestion(
+                    title: suggestionJSON.title,
+                    duration: TimeInterval(suggestionJSON.duration * 60),
+                    suggestedTime: Date(),
+                    energy: EnergyType(rawValue: suggestionJSON.energy) ?? .daylight,
+                    emoji: suggestionJSON.emoji,
+                    explanation: suggestionJSON.explanation,
+                    confidence: suggestionJSON.confidence
+                )
+            }
+            
+            return AIResponse(
+                text: parsed.response,
+                suggestions: suggestions,
+                actionType: .suggestActivities,
+                createdItems: nil,
+                confidence: analysis.confidence
+            )
+            
+        } catch {
+            return AIResponse(
+                text: cleanContent,
+                suggestions: [],
+                actionType: .suggestActivities,
+                createdItems: nil,
+                confidence: analysis.confidence
+            )
+        }
+    }
 }
 
 // MARK: - Data Models
@@ -465,6 +1360,77 @@ class AIService: ObservableObject {
 struct AIResponse {
     let text: String
     let suggestions: [Suggestion]
+    let actionType: AIActionType?
+    let createdItems: [CreatedItem]?
+    let confidence: Double
+}
+
+struct CreatedItem {
+    let type: CreatedItemType
+    let id: UUID
+    let title: String
+    let data: Any // Will be cast to specific types
+}
+
+enum CreatedItemType: String, Codable {
+    case event = "event"
+    case goal = "goal"
+    case pillar = "pillar"
+    case chain = "chain"
+}
+
+enum AIActionType: String, Codable {
+    case createEvent = "create_event"
+    case createGoal = "create_goal"
+    case createPillar = "create_pillar"
+    case createChain = "create_chain"
+    case suggestActivities = "suggest_activities"
+    case generalChat = "general_chat"
+}
+
+struct MessageActionAnalysis {
+    let intent: String
+    let confidence: Double
+    let recommendedAction: AIActionType
+    let extractedEntities: [String: String]
+    let urgency: UrgencyLevel
+    let contextAlignment: Double
+}
+
+enum UrgencyLevel: String, Codable {
+    case low = "low"
+    case medium = "medium"
+    case high = "high"
+    case immediate = "immediate"
+}
+
+struct AIConfidenceThresholds {
+    let createEventThreshold: Double = 0.8
+    let createGoalThreshold: Double = 0.85
+    let createPillarThreshold: Double = 0.9
+    let createChainThreshold: Double = 0.75
+    let suggestActivitiesThreshold: Double = 0.6
+    let generalChatThreshold: Double = 0.3
+    
+    func shouldCreateEvent(confidence: Double) -> Bool {
+        return confidence >= createEventThreshold
+    }
+    
+    func shouldCreateGoal(confidence: Double) -> Bool {
+        return confidence >= createGoalThreshold
+    }
+    
+    func shouldCreatePillar(confidence: Double) -> Bool {
+        return confidence >= createPillarThreshold
+    }
+    
+    func shouldCreateChain(confidence: Double) -> Bool {
+        return confidence >= createChainThreshold
+    }
+    
+    func shouldSuggestActivities(confidence: Double) -> Bool {
+        return confidence >= suggestActivitiesThreshold
+    }
 }
 
 private struct AIResponseJSON: Codable {

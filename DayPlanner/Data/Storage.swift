@@ -105,6 +105,15 @@ class AppDataManager: ObservableObject {
         withAnimation(.spring(response: 0.6, dampingFraction: 0.8)) {
             appState.addBlock(block)
         }
+        
+        // Record for pattern learning
+        recordTimeBlockCreation(block, source: "manual")
+        
+        // Award XXP for productive actions
+        if block.energy == .sunrise || block.energy == .daylight {
+            appState.addXXP(Int(block.duration / 60), reason: "Added productive time block")
+        }
+        
         save()
     }
     
@@ -340,7 +349,7 @@ class AppDataManager: ObservableObject {
         var currentTime = time
         var chainBlocks: [TimeBlock] = []
         
-        // Create all chain blocks with proper time slots
+        // Create all chain blocks with proper time slots and relationships
         for chainBlock in chain.blocks {
             let newBlock = TimeBlock(
                 title: chainBlock.title,
@@ -348,34 +357,38 @@ class AppDataManager: ObservableObject {
                 duration: chainBlock.duration,
                 energy: chainBlock.energy,
                 emoji: chainBlock.emoji,
-                glassState: .solid
+                glassState: .solid,
+                relatedGoalId: chain.relatedGoalId,
+                relatedPillarId: chain.relatedPillarId
             )
             
             chainBlocks.append(newBlock)
             currentTime = newBlock.endTime.addingTimeInterval(300) // 5-minute buffer
         }
         
-        // Add all blocks from the chain directly
+        // Record chain application for pattern learning
+        recordChainApplication(chain)
+        
+        // Add all blocks from the chain
         for block in chainBlocks {
-            addTimeBlock(block)
+            withAnimation(.spring(response: 0.6, dampingFraction: 0.8)) {
+                appState.addBlock(block)
+            }
+            
+            // Record each block creation
+            recordTimeBlockCreation(block, source: "chain_application")
         }
-    }
-    
-    
-    func applySuggestion(_ suggestion: Suggestion) {
-        let block = suggestion.toTimeBlock()
-        addTimeBlock(block)
-    }
-    
-    
-    func rejectSuggestion(_ suggestion: Suggestion) {
-        // Track rejection patterns for learning
-        let rejectionPattern = "rejected:\(suggestion.title.lowercased())"
-        if !appState.userPatterns.contains(rejectionPattern) {
-            appState.userPatterns.append(rejectionPattern)
-        }
+        
+        // Award XP for chain usage
+        appState.addXP(5, reason: "Applied chain: \(chain.name)")
+        appState.addXXP(chain.totalDurationMinutes, reason: "Chain activities")
+        
+        // Mark chain as completed
+        markChainCompleted(chain.id)
+        
         save()
     }
+    
     
     // MARK: - Day Management
     
@@ -694,10 +707,105 @@ class AppDataManager: ObservableObject {
             appState.currentDay.blocks[blockIndex].relatedPillarId = pillarId
             if let pillar = appState.pillars.first(where: { $0.id == pillarId }) {
                 appState.currentDay.blocks[blockIndex].emoji = pillar.emoji
+                
+                // Update pillar's last event date
+                appState.pillars[appState.pillars.firstIndex(where: { $0.id == pillarId })!].lastEventDate = Date()
             }
         }
         
+        save()
+    }
+    
+    // MARK: - Enhanced Pattern Learning Integration
+    
+    /// Record user behavior for pattern learning when time blocks are created
+    func recordTimeBlockCreation(_ block: TimeBlock, source: String = "manual") {
+        let behaviorEvent = BehaviorEvent(
+            .blockCreated(TimeBlockData(
+                id: block.id.uuidString,
+                title: block.title,
+                emoji: block.emoji,
+                energy: block.energy,
+                duration: block.duration,
+                period: block.period
+            )),
+            context: EventContext(
+                energyLevel: block.energy,
+                mood: appState.currentDay.mood,
+                weatherCondition: weatherService.getWeatherContext()
+            )
+        )
         
+        patternEngine.recordBehavior(behaviorEvent)
+    }
+    
+    /// Record when suggestions are accepted or rejected for learning
+    func recordSuggestionFeedback(_ suggestion: Suggestion, accepted: Bool, reason: String? = nil) {
+        let suggestionData = SuggestionData(
+            title: suggestion.title,
+            emoji: suggestion.emoji,
+            energy: suggestion.energy,
+            duration: suggestion.duration,
+            confidence: suggestion.confidence
+        )
+        
+        let behaviorEvent = BehaviorEvent(
+            accepted ? .suggestionAccepted(suggestionData) : .suggestionRejected(suggestionData, reason: reason),
+            context: EventContext(
+                energyLevel: suggestion.energy,
+                mood: appState.currentDay.mood
+            )
+        )
+        
+        patternEngine.recordBehavior(behaviorEvent)
+    }
+    
+    /// Record when chains are applied for pattern learning
+    func recordChainApplication(_ chain: Chain) {
+        let chainData = ChainData(
+            id: chain.id.uuidString,
+            name: chain.name,
+            emoji: chain.emoji,
+            blockCount: chain.blocks.count,
+            totalDuration: chain.totalDuration
+        )
+        
+        let behaviorEvent = BehaviorEvent(
+            .chainApplied(chainData),
+            context: EventContext(
+                mood: appState.currentDay.mood
+            )
+        )
+        
+        patternEngine.recordBehavior(behaviorEvent)
+    }
+    
+    /// Enhanced applySuggestion with pattern learning
+    func applySuggestion(_ suggestion: Suggestion) {
+        let block = suggestion.toTimeBlock()
+        
+        // Record that suggestion was accepted
+        recordSuggestionFeedback(suggestion, accepted: true)
+        
+        // Record the time block creation
+        recordTimeBlockCreation(block, source: "ai_suggestion")
+        
+        addTimeBlock(block)
+        
+        // Award XP for using AI suggestions
+        appState.addXP(3, reason: "Applied AI suggestion")
+    }
+    
+    /// Enhanced rejectSuggestion with pattern learning
+    func rejectSuggestion(_ suggestion: Suggestion, reason: String? = nil) {
+        // Record rejection for learning
+        recordSuggestionFeedback(suggestion, accepted: false, reason: reason)
+        
+        // Track rejection patterns for learning
+        let rejectionPattern = "rejected:\(suggestion.title.lowercased())"
+        if !appState.userPatterns.contains(rejectionPattern) {
+            appState.userPatterns.append(rejectionPattern)
+        }
         save()
     }
     

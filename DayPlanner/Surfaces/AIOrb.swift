@@ -10,7 +10,7 @@ import AVFoundation
 
 // MARK: - AI Orb Main View
 
-/// Floating AI orb that responds to user interaction with liquid glass effects
+/// Floating AI orb that provides visual feedback and system status
 struct AIOrb: View {
     @StateObject private var orbState = OrbState()
     @EnvironmentObject private var aiService: AIService
@@ -19,39 +19,38 @@ struct AIOrb: View {
     
     @State private var dragOffset: CGSize = .zero
     @State private var isDragging = false
-    @State private var showingExpanded = false
-    @State private var currentMessage = ""
+    @State private var showingStatus = false
     
     private let orbSize: CGFloat = 60
-    private let expandedSize: CGFloat = 400
     
     var body: some View {
-        ZStack {
-            // Expanded AI interface
-            if showingExpanded {
-                ExpandedAIInterface(
-                    message: $currentMessage,
-                    aiService: aiService,
-                    onDismiss: collapseOrb,
-                    onSuggestion: handleAISuggestion
-                )
-                .frame(width: expandedSize, height: expandedSize * 0.8)
-                .transition(.scale.combined(with: .opacity))
+        // Simplified orb - just visual indicator and status
+        CompactOrb(
+            state: orbState,
+            size: orbSize,
+            onTap: showSystemStatus,
+            onVoiceStart: nil, // Removed voice - handled by Action Bar
+            onVoiceEnd: nil
+        )
+        .offset(dragOffset)
+        .scaleEffect(isDragging ? 1.1 : 1.0)
+        .gesture(orbDragGesture)
+        .sheet(isPresented: $showingStatus) {
+            AISystemStatusSheet()
+                .environmentObject(aiService)
+                .environmentObject(dataManager)
+        }
+        .onAppear {
+            // Sync orb state with AI service
+            syncWithAIService()
+        }
+        .onReceive(aiService.$isProcessing) { isProcessing in
+            if isProcessing {
+                orbState.startThinking()
             } else {
-                // Compact orb
-                CompactOrb(
-                    state: orbState,
-                    size: orbSize,
-                    onTap: expandOrb,
-                    onVoiceStart: startVoiceInput,
-                    onVoiceEnd: endVoiceInput
-                )
-                .offset(dragOffset)
-                .scaleEffect(isDragging ? 1.1 : 1.0)
-                .gesture(orbDragGesture)
+                orbState.stopThinking()
             }
         }
-        .animation(.spring(response: 0.6, dampingFraction: 0.8), value: showingExpanded)
         .animation(.spring(response: 0.4, dampingFraction: 0.9), value: isDragging)
     }
     
@@ -77,44 +76,19 @@ struct AIOrb: View {
             }
     }
     
-    private func expandOrb() {
-        orbState.expand()
+    private func showSystemStatus() {
+        showingStatus = true
         
-        withAnimation(.spring(response: 0.6, dampingFraction: 0.8)) {
-            showingExpanded = true
-        }
-        
-        // Create expansion ripple
+        // Create status ripple
         rippleManager?.createRipple(at: CGPoint(x: orbSize/2, y: orbSize/2), type: .aiThinking)
     }
     
-    private func collapseOrb() {
-        orbState.contract()
-        
-        withAnimation(.spring(response: 0.4, dampingFraction: 0.9)) {
-            showingExpanded = false
-        }
-    }
-    
-    private func startVoiceInput() {
-        orbState.startListening()
-        // Voice input implementation would go here
-    }
-    
-    private func endVoiceInput() {
-        orbState.stopListening()
-        // End voice input and process
-    }
-    
-    private func handleAISuggestion(_ suggestion: Suggestion) {
-        dataManager.applySuggestion(suggestion)
-        
-        // Create success ripple
-        rippleManager?.createRipple(at: CGPoint(x: orbSize/2, y: orbSize/2), type: .success)
-        
-        // Contract after successful action
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
-            collapseOrb()
+    private func syncWithAIService() {
+        // Update orb appearance based on AI service state
+        if aiService.isConnected {
+            orbState.currentColors = [.blue, .purple, .cyan]
+        } else {
+            orbState.currentColors = [.red, .orange, .yellow]
         }
     }
     
@@ -222,8 +196,8 @@ struct CompactOrb: View {
     @ObservedObject var state: OrbState
     let size: CGFloat
     let onTap: () -> Void
-    let onVoiceStart: () -> Void
-    let onVoiceEnd: () -> Void
+    let onVoiceStart: (() -> Void)?
+    let onVoiceEnd: (() -> Void)?
     
     var body: some View {
         ZStack {
@@ -263,142 +237,124 @@ struct CompactOrb: View {
         .onTapGesture { onTap() }
         .onLongPressGesture(
             minimumDuration: 0.5,
-            perform: { onVoiceStart() },
+            perform: { onVoiceStart?() },
             onPressingChanged: { pressing in
-                if !pressing { onVoiceEnd() }
+                if !pressing { onVoiceEnd?() }
             }
         )
     }
 }
 
-// MARK: - Expanded AI Interface
+// MARK: - AI System Status Sheet
 
-/// Full AI interaction interface when orb is expanded
-struct ExpandedAIInterface: View {
-    @Binding var message: String
-    let aiService: AIService
-    let onDismiss: () -> Void
-    let onSuggestion: (Suggestion) -> Void
-    
-    @State private var suggestions: [Suggestion] = []
-    @State private var isProcessing = false
-    @State private var responseText = ""
+/// Simple status sheet showing AI service diagnostics and pattern insights
+struct AISystemStatusSheet: View {
+    @EnvironmentObject private var aiService: AIService
+    @EnvironmentObject private var dataManager: AppDataManager
+    @Environment(\.dismiss) private var dismiss
+    @State private var diagnosticsText = ""
+    @State private var patternSummary = ""
     
     var body: some View {
-        VStack(spacing: 16) {
-            // Header with close button
-            HStack {
-                Text("AI Assistant")
-                    .font(.headline)
-                    .foregroundColor(.primary)
+        NavigationView {
+            VStack(alignment: .leading, spacing: 20) {
+                Text("AI System Status")
+                    .font(.title2)
+                    .fontWeight(.semibold)
                 
-                Spacer()
-                
-                Button(action: onDismiss) {
-                    Image(systemName: "xmark.circle.fill")
-                        .font(.title2)
-                        .foregroundColor(.secondary)
-                }
-                .buttonStyle(.plain)
-            }
-            
-            // Message input area
-            VStack(spacing: 12) {
-                TextField("Ask me anything about your day...", text: $message)
-                    .textFieldStyle(.roundedBorder)
-                    .onSubmit {
-                        processMessage()
-                    }
-                
+                // Connection status
                 HStack {
-                    Button("Send") {
-                        processMessage()
-                    }
-                    .disabled(message.isEmpty || isProcessing)
+                    Circle()
+                        .fill(aiService.isConnected ? .green : .red)
+                        .frame(width: 12, height: 12)
+                    
+                    Text(aiService.isConnected ? "AI Ready" : "AI Offline")
+                        .font(.headline)
+                        .foregroundStyle(aiService.isConnected ? .green : .red)
                     
                     Spacer()
                     
-                    if isProcessing {
-                        HStack(spacing: 8) {
-                            ProgressView()
-                                .controlSize(.small)
-                            Text("Thinking...")
-                                .font(.caption)
-                                .foregroundColor(.secondary)
+                    if !aiService.isConnected {
+                        Button("Reconnect") {
+                            Task { await aiService.checkConnection() }
                         }
+                        .buttonStyle(.borderedProminent)
+                        .controlSize(.small)
                     }
                 }
-            }
-            
-            // Response area
-            if !responseText.isEmpty {
-                ScrollView {
-                    Text(responseText)
-                        .font(.body)
-                        .padding()
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                        .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 8))
-                }
-                .frame(maxHeight: 100)
-            }
-            
-            // Suggestions
-            if !suggestions.isEmpty {
+                .padding()
+                .background(.quaternary.opacity(0.3), in: RoundedRectangle(cornerRadius: 10))
+                
+                // Pattern intelligence summary
                 VStack(alignment: .leading, spacing: 8) {
-                    Text("Suggestions")
+                    Text("Intelligence Summary")
                         .font(.headline)
-                        .foregroundColor(.primary)
                     
-                    ForEach(suggestions) { suggestion in
-                        SuggestionCard(
-                            suggestion: suggestion,
-                            onAccept: { onSuggestion(suggestion) }
-                        )
+                    Text(patternSummary)
+                        .font(.body)
+                        .foregroundStyle(.secondary)
+                }
+                .padding()
+                .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 10))
+                
+                // System diagnostics
+                VStack(alignment: .leading, spacing: 8) {
+                    Text("System Diagnostics")
+                        .font(.headline)
+                    
+                    ScrollView {
+                        Text(diagnosticsText)
+                            .font(.system(.caption, design: .monospaced))
+                            .frame(maxWidth: .infinity, alignment: .leading)
                     }
+                    .frame(height: 150)
+                    .background(.quaternary.opacity(0.2), in: RoundedRectangle(cornerRadius: 8))
+                }
+                
+                Spacer()
+            }
+            .padding()
+            .navigationTitle("AI Status")
+            .toolbar {
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("Done") { dismiss() }
                 }
             }
-            
-            Spacer()
         }
-        .padding(20)
-        .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 16))
-        .overlay(
-            RoundedRectangle(cornerRadius: 16)
-                .strokeBorder(.white.opacity(0.2), lineWidth: 1)
-        )
+        .frame(width: 500, height: 600)
+        .onAppear {
+            loadDiagnostics()
+        }
     }
     
-    private func processMessage() {
-        guard !message.isEmpty else { return }
-        
-        isProcessing = true
-        
+    private func loadDiagnostics() {
         Task {
-            do {
-                let context = DayContext(
-                    date: Date(),
-                    existingBlocks: [],
-                    currentEnergy: .daylight,
-                    preferredEmojis: ["🌊"],
-                    availableTime: 3600,
-                    mood: .crystal
-                )
-                
-                let response = try await aiService.processMessage(message, context: context)
-                
-                await MainActor.run {
-                    responseText = response.text
-                    suggestions = response.suggestions
-                    isProcessing = false
-                    message = ""
-                }
-            } catch {
-                await MainActor.run {
-                    responseText = "Sorry, I couldn't process your request right now."
-                    isProcessing = false
-                }
+            let diagnostics = await aiService.runDiagnostics()
+            let patterns = getPatternSummary()
+            
+            await MainActor.run {
+                diagnosticsText = diagnostics
+                patternSummary = patterns
             }
         }
+    }
+    
+    private func getPatternSummary() -> String {
+        let patterns = dataManager.patternEngine.detectedPatterns
+        let confidence = dataManager.patternEngine.confidence
+        
+        if patterns.isEmpty {
+            return "Building intelligence about your patterns. Keep using the app to improve AI suggestions."
+        }
+        
+        let highConfidenceCount = patterns.filter { $0.confidence > 0.7 }.count
+        
+        return """
+        Detected \(patterns.count) patterns with \(Int(confidence * 100))% average confidence.
+        \(highConfidenceCount) high-confidence patterns are being used for smart suggestions.
+        
+        Recent insights: \(dataManager.patternEngine.actionableInsights.prefix(2).map(\.title).joined(separator: ", "))
+        """
     }
 }
 
@@ -485,10 +441,16 @@ struct SuggestionCard: View {
             
             Spacer()
             
-            // Confidence indicator
-            Circle()
-                .fill(confidenceColor)
-                .frame(width: 8, height: 8)
+            // Enhanced confidence indicator
+            VStack(spacing: 2) {
+                Circle()
+                    .fill(confidenceColor)
+                    .frame(width: 8, height: 8)
+                
+                Text(confidenceText)
+                    .font(.caption2)
+                    .foregroundColor(.secondary)
+            }
             
             Button("Add") {
                 onAccept()
@@ -506,6 +468,11 @@ struct SuggestionCard: View {
         case 0.6..<0.8: return .orange
         default: return .red
         }
+    }
+    
+    private var confidenceText: String {
+        let percentage = Int(suggestion.confidence * 100)
+        return "\(percentage)%"
     }
 }
 
