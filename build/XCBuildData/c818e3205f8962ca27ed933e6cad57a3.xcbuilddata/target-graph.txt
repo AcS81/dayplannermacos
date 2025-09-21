@@ -1,2 +1,0 @@
-Target dependency graph (1 target)
-Target 'DayPlanner' in project 'DayPlanner' (no dependencies)
