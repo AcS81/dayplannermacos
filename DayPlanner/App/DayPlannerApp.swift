@@ -94,6 +94,8 @@ struct ContentView: View {
     @State private var showingAIDiagnostics = false
     @State private var selectedTab: AppTab = .calendar
     @State private var selectedDate = Date() // Shared date state across tabs
+    @State private var showingSettingsPanel = false
+    @State private var showingXPDisplay = false
     
     var body: some View {
         ZStack {
@@ -103,7 +105,22 @@ struct ContentView: View {
                     xp: dataManager.appState.userXP,
                     xxp: dataManager.appState.userXXP,
                     aiConnected: aiService.isConnected,
-                    onSettingsTap: { showingSettings = true },
+                    hideSettingsButton: showingSettingsPanel,
+                    onSettingsTap: { 
+                        if showingSettingsPanel {
+                            showingSettings = true
+                        } else {
+                            withAnimation(.spring(response: 0.6, dampingFraction: 0.8)) {
+                                showingSettingsPanel = true
+                            }
+                            // Show XP display after panel slides in
+                            DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
+                                withAnimation(.easeInOut(duration: 0.8)) {
+                                    showingXPDisplay = true
+                                }
+                            }
+                        }
+                    },
                     onDiagnosticsTap: { showingAIDiagnostics = true }
                 )
                 
@@ -113,24 +130,46 @@ struct ContentView: View {
                     .environmentObject(dataManager)
                     .environmentObject(aiService)
                 
-                // Global Action Bar at bottom
-                ActionBarView()
-                    .environmentObject(dataManager)
-                    .environmentObject(aiService)
+                // Floating Action Bar overlay
+                Spacer()
             }
             
-            // Floating AI Orb
+            // Animated Settings Strip - positioned at top to cover settings button
+            if showingSettingsPanel {
+                VStack {
+                    AnimatedSettingsStrip(
+                        xp: dataManager.appState.userXP,
+                        xxp: dataManager.appState.userXXP,
+                        isVisible: showingSettingsPanel,
+                        showingXPDisplay: showingXPDisplay,
+                        onClose: {
+                            withAnimation(.spring(response: 0.6, dampingFraction: 0.8)) {
+                                showingSettingsPanel = false
+                                showingXPDisplay = false
+                            }
+                        },
+                        onSettingsTap: {
+                            showingSettings = true
+                        }
+                    )
+                    Spacer()
+                }
+            }
+            
+            // Floating Action Bar - positioned as overlay
             VStack {
                 Spacer()
                 HStack {
                     Spacer()
-                    AIOrb()
-                        .environmentObject(aiService)
+                    FloatingActionBarView()
                         .environmentObject(dataManager)
-                        .padding(.trailing, 20)
-                        .padding(.bottom, 100) // Above the action bar
+                        .environmentObject(aiService)
+                        .frame(maxWidth: 600)
+                    Spacer()
                 }
+                .padding(.bottom, 20)
             }
+            
         }
         .sheet(isPresented: $showingSettings) {
             SettingsView()
@@ -138,6 +177,14 @@ struct ContentView: View {
         .sheet(isPresented: $showingAIDiagnostics) {
             AIDiagnosticsView()
                 .environmentObject(aiService)
+        }
+        .onTapGesture {
+            if showingSettingsPanel {
+                withAnimation(.spring(response: 0.6, dampingFraction: 0.8)) {
+                    showingSettingsPanel = false
+                    showingXPDisplay = false
+                }
+            }
         }
         .onAppear {
             setupAppAppearance()
@@ -1349,7 +1396,7 @@ struct CalendarPanel: View {
             EnhancedDayView(selectedDate: $selectedDate)
                 .frame(maxHeight: .infinity)
         }
-        .background(.ultraThinMaterial.opacity(0.4), in: RoundedRectangle(cornerRadius: 16))
+        .background(.ultraThinMaterial.opacity(0.5), in: RoundedRectangle(cornerRadius: 16))
         .overlay(
             RoundedRectangle(cornerRadius: 16)
                 .strokeBorder(.white.opacity(0.12), lineWidth: 1)
@@ -1412,7 +1459,7 @@ struct MindPanel: View {
             }
             .scrollIndicators(.hidden)
         }
-        .background(.ultraThinMaterial.opacity(0.35), in: RoundedRectangle(cornerRadius: 16))
+        .background(.ultraThinMaterial.opacity(0.5), in: RoundedRectangle(cornerRadius: 16))
         .overlay(
             RoundedRectangle(cornerRadius: 16)
                 .strokeBorder(.white.opacity(0.1), lineWidth: 1)
@@ -1718,7 +1765,7 @@ struct ProportionalTimelineView: View {
     let onBlockDrop: (TimeBlock, Date) -> Void
     
     private let calendar = Calendar.current
-    private let dayStartHour = 6
+    private let dayStartHour = 0
     private let dayEndHour = 24
     
     private var currentHour: Int {
@@ -1735,14 +1782,9 @@ struct ProportionalTimelineView: View {
             )
             .frame(width: 80)
             
-            // Precise timeline canvas with beautiful day/night gradients
+            // Precise timeline canvas with astronomical hour colors
             ZStack(alignment: .topLeading) {
-                // Beautiful day/night gradient background
-                TimeGradient(currentHour: currentHour)
-                    .opacity(0.4)
-                    .cornerRadius(8)
-                
-                // Background grid
+                // Background grid with astronomical colors
                 TimelineCanvas(
                     selectedDate: selectedDate,
                     dayStartHour: dayStartHour,
@@ -2523,7 +2565,7 @@ struct FixedEventDetailsSheet: View {
     @State private var showingDeleteConfirmation = false
     
     private let calendar = Calendar.current
-    private let dayStartHour = 6
+    private let dayStartHour = 0
     
     init(block: TimeBlock, allBlocks: [TimeBlock], onSave: @escaping (TimeBlock) -> Void, onDelete: @escaping () -> Void) {
         self.block = block
@@ -5495,7 +5537,7 @@ struct CalendarDropDelegate: DropDelegate {
                                 let duration = TimeInterval(Int(parts[1]) ?? 3600)
                                 let energy = EnergyType(rawValue: parts[2]) ?? .daylight
                                 let emoji = parts[3]
-                                let confidence = Double(parts[4]) ?? 0.8
+                                let _ = Double(parts[4]) ?? 0.8
                                 
                                 // Create a time block from the dropped template and add directly to timeline
                                 let newBlock = TimeBlock(
@@ -5517,7 +5559,7 @@ struct CalendarDropDelegate: DropDelegate {
                             if parts.count >= 3 {
                                 let name = parts[0]
                                 let duration = TimeInterval(Int(parts[1]) ?? 3600)
-                                let icon = parts[2]
+                                let _ = parts[2]
                                 
                                 // Create a time block from the dropped chain template and add directly to timeline
                                 let newBlock = TimeBlock(
@@ -8303,42 +8345,14 @@ struct TopBarView: View {
     let xp: Int
     let xxp: Int
     let aiConnected: Bool
+    let hideSettingsButton: Bool
     let onSettingsTap: () -> Void
     let onDiagnosticsTap: () -> Void
     
     var body: some View {
         HStack {
-            // XP and XXP display
-            HStack(spacing: 16) {
-                HStack(spacing: 6) {
-                    Text("XP")
-                        .font(.caption)
-                        .fontWeight(.medium)
-                        .foregroundColor(.blue)
-                    Text("\(xp)")
-                        .font(.caption)
-                        .fontWeight(.bold)
-                        .foregroundColor(.primary)
-                }
-                .padding(.horizontal, 8)
-                .padding(.vertical, 4)
-                .background(.blue.opacity(0.1), in: Capsule())
-                
-                HStack(spacing: 6) {
-                    Text("XXP")
-                        .font(.caption)
-                        .fontWeight(.medium)
-                        .foregroundColor(.orange)
-                    Text("\(xxp)")
-                        .font(.caption)
-                        .fontWeight(.bold)
-                        .foregroundColor(.primary)
-                }
-                .padding(.horizontal, 8)
-                .padding(.vertical, 4)
-                .background(.orange.opacity(0.1), in: Capsule())
-            }
-            
+            // XP and XXP display - HIDDEN BY DEFAULT
+            // Will be shown in animated settings panel instead
             Spacer()
             
             // AI connection status
@@ -8355,13 +8369,15 @@ struct TopBarView: View {
             
             Spacer()
             
-            // Settings button
-            Button(action: onSettingsTap) {
-                Image(systemName: "gearshape")
-                    .font(.caption)
-                    .foregroundColor(.secondary)
+            // Settings button - hidden when strip is showing
+            if !hideSettingsButton {
+                Button(action: onSettingsTap) {
+                    Image(systemName: "gearshape")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                }
+                .buttonStyle(.plain)
             }
-            .buttonStyle(.plain)
         }
         .padding(.horizontal, 20)
         .padding(.vertical, 8)
@@ -8370,6 +8386,168 @@ struct TopBarView: View {
             RoundedRectangle(cornerRadius: 8)
                 .strokeBorder(.white.opacity(0.1), lineWidth: 1)
         )
+    }
+}
+
+// MARK: - Animated Settings Strip
+
+struct AnimatedSettingsStrip: View {
+    let xp: Int
+    let xxp: Int
+    let isVisible: Bool
+    let showingXPDisplay: Bool
+    let onClose: () -> Void
+    let onSettingsTap: () -> Void
+    
+    @State private var stripOffset: CGFloat = 300
+    @State private var xpOpacity: Double = 0
+    @State private var xpScale: CGFloat = 0.8
+    @State private var diffusionPhase: Double = 0
+    
+    var body: some View {
+        // Dark strip that slides from right - positioned exactly at top bar level
+        HStack(spacing: 0) {
+            Spacer()
+            
+            // XP/XXP Display with diffusion animation - positioned to the left of settings
+            HStack(spacing: 12) {
+                // XP Display
+                HStack(spacing: 6) {
+                    Text("XP")
+                        .font(.caption)
+                        .fontWeight(.medium)
+                        .foregroundColor(.blue)
+                    Text("\(xp)")
+                        .font(.caption)
+                        .fontWeight(.bold)
+                        .foregroundColor(.primary)
+                }
+                .padding(.horizontal, 8)
+                .padding(.vertical, 4)
+                .background(.blue.opacity(0.1), in: Capsule())
+                .opacity(xpOpacity)
+                .scaleEffect(xpScale)
+                .overlay(
+                    // Diffusion effect overlay
+                    RoundedRectangle(cornerRadius: 16)
+                        .stroke(
+                            LinearGradient(
+                                colors: [.blue.opacity(0.6), .clear, .blue.opacity(0.3)],
+                                startPoint: .topLeading,
+                                endPoint: .bottomTrailing
+                            ),
+                            lineWidth: 1
+                        )
+                        .opacity(diffusionPhase)
+                        .scaleEffect(1.0 + diffusionPhase * 0.1)
+                )
+                
+                // XXP Display
+                HStack(spacing: 6) {
+                    Text("XXP")
+                        .font(.caption)
+                        .fontWeight(.medium)
+                        .foregroundColor(.orange)
+                    Text("\(xxp)")
+                        .font(.caption)
+                        .fontWeight(.bold)
+                        .foregroundColor(.primary)
+                }
+                .padding(.horizontal, 8)
+                .padding(.vertical, 4)
+                .background(.orange.opacity(0.1), in: Capsule())
+                .opacity(xpOpacity)
+                .scaleEffect(xpScale)
+                .overlay(
+                    // Diffusion effect overlay
+                    RoundedRectangle(cornerRadius: 16)
+                        .stroke(
+                            LinearGradient(
+                                colors: [.orange.opacity(0.6), .clear, .orange.opacity(0.3)],
+                                startPoint: .topLeading,
+                                endPoint: .bottomTrailing
+                            ),
+                            lineWidth: 1
+                        )
+                        .opacity(diffusionPhase)
+                        .scaleEffect(1.0 + diffusionPhase * 0.1)
+                )
+                
+                // Settings button
+                Button(action: onSettingsTap) {
+                    Image(systemName: "gearshape")
+                        .font(.caption)
+                        .foregroundColor(.white)
+                        .padding(8)
+                        .background(.white.opacity(0.2), in: Circle())
+                }
+                .buttonStyle(.plain)
+                .opacity(xpOpacity)
+                .scaleEffect(xpScale)
+            }
+            .padding(.horizontal, 20)
+            .padding(.vertical, 8)
+            .background(
+                LinearGradient(
+                    colors: [
+                        Color.black.opacity(0.8),
+                        Color.black.opacity(0.6),
+                        Color.black.opacity(0.4)
+                    ],
+                    startPoint: .topLeading,
+                    endPoint: .bottomTrailing
+                ),
+                in: RoundedRectangle(cornerRadius: 8)
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: 8)
+                    .strokeBorder(
+                        LinearGradient(
+                            colors: [.white.opacity(0.2), .clear],
+                            startPoint: .topLeading,
+                            endPoint: .bottomTrailing
+                        ),
+                        lineWidth: 1
+                    )
+            )
+            .offset(x: stripOffset)
+            .onAppear {
+                withAnimation(.spring(response: 0.6, dampingFraction: 0.8)) {
+                    stripOffset = 0
+                }
+            }
+            .onChange(of: isVisible) { _, newValue in
+                if !newValue {
+                    withAnimation(.spring(response: 0.6, dampingFraction: 0.8)) {
+                        stripOffset = 300
+                    }
+                }
+            }
+            .onChange(of: showingXPDisplay) { _, newValue in
+                if newValue {
+                    // Start diffusion animation
+                    withAnimation(.easeInOut(duration: 0.8)) {
+                        xpOpacity = 1.0
+                        xpScale = 1.0
+                    }
+                    
+                    // Diffusion effect - removed continuous animation to prevent flashing
+                    diffusionPhase = 1.0
+                } else {
+                    withAnimation(.easeInOut(duration: 0.3)) {
+                        xpOpacity = 0
+                        xpScale = 0.8
+                        diffusionPhase = 0
+                    }
+                }
+            }
+        }
+        .frame(height: 44) // Match TopBarView height exactly
+        .frame(maxWidth: .infinity, alignment: .trailing)
+        .background(Color.clear)
+        .onTapGesture {
+            onClose()
+        }
     }
 }
 
@@ -9184,7 +9362,6 @@ struct EnhancedBackfillView: View {
         ]
         
         var suggestions: [TimeBlock] = []
-        let calendar = Calendar.current
         
         // Place high-confidence activities in available slots
         for slot in availableSlots.prefix(4) { // Max 4 suggestions to keep it manageable
@@ -9933,7 +10110,6 @@ struct PillarDayView: View {
             var suggestions: [TimeBlock] = []
             
             let now = Date()
-            let calendar = Calendar.current
             
             for pillar in actionablePillars {
                 let daysSinceLastEvent = pillar.lastEventDate?.timeIntervalSince(now) ?? -99999999
@@ -10482,7 +10658,7 @@ struct MindTabView: View {
 
 // MARK: - Action Bar View
 
-struct ActionBarView: View {
+struct FloatingActionBarView: View {
     @EnvironmentObject private var dataManager: AppDataManager
     @EnvironmentObject private var aiService: AIService
     @StateObject private var speechService = SpeechService()
@@ -10495,6 +10671,15 @@ struct ActionBarView: View {
     @State private var lastConfidence: Double = 0.0
     @State private var messageHistory: [AIMessage] = []
     @State private var showHistory = false
+    
+    // Floating position state
+    @State private var dragOffset = CGSize.zero
+    @State private var currentPosition = CGSize.zero
+    @State private var isDragging = false
+    
+    // Default position (middle bottom, well spaced)
+    private let defaultPosition = CGSize(width: 0, height: -100) // 100 points up from bottom
+    private let snapThreshold: CGFloat = 400 // Distance threshold for snapping
     
     var body: some View {
         VStack(spacing: 8) {
@@ -10683,6 +10868,53 @@ struct ActionBarView: View {
         }
         .padding()
         .background(.ultraThinMaterial)
+        .clipShape(RoundedRectangle(cornerRadius: 16))
+        .shadow(color: .black.opacity(0.1), radius: 10, x: 0, y: 5)
+        .scaleEffect(isDragging ? 1.05 : 1.0)
+        .animation(.easeInOut(duration: 0.2), value: isDragging)
+        .offset(x: currentPosition.width + dragOffset.width, 
+                y: currentPosition.height + dragOffset.height)
+        .gesture(
+            DragGesture()
+                .onChanged { value in
+                    isDragging = true
+                    dragOffset = value.translation
+                }
+                .onEnded { value in
+                    isDragging = false
+                    
+                    // Calculate final position
+                    let totalOffset = CGSize(
+                        width: currentPosition.width + value.translation.width,
+                        height: currentPosition.height + value.translation.height
+                    )
+                    
+                    // Check if close to default position
+                    let distanceFromDefault = sqrt(
+                        pow(totalOffset.width - defaultPosition.width, 2) + 
+                        pow(totalOffset.height - defaultPosition.height, 2)
+                    )
+                    
+                    // Always animate to final position, but use different animations
+                    if distanceFromDefault < snapThreshold {
+                        // Smooth snap to default position
+                        withAnimation(.spring(response: 0.6, dampingFraction: 0.7, blendDuration: 0.1)) {
+                            currentPosition = defaultPosition
+                            dragOffset = .zero
+                        }
+                    } else {
+                        // Smooth move to new position
+                        withAnimation(.easeOut(duration: 0.3)) {
+                            currentPosition = totalOffset
+                            dragOffset = .zero
+                        }
+                    }
+                }
+        )
+        .onAppear {
+            // Set initial position to default
+            currentPosition = defaultPosition
+        }
     }
     
     // MARK: - Message Handling

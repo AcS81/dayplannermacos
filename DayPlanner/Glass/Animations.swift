@@ -45,6 +45,10 @@ struct TimeGradient: View {
     
     private var timeColors: [Color] {
         switch currentHour {
+        case 0..<3:   // Deep Night
+            return [Color(hex: "0A0A0A").opacity(0.5), Color(hex: "1D1D1F").opacity(0.4), Color(hex: "2C2C2E").opacity(0.3)]
+        case 3..<6:   // Pre-dawn
+            return [Color(hex: "1D1D1F").opacity(0.4), Color(hex: "2C2C2E").opacity(0.3), Color(hex: "48484A").opacity(0.2)]
         case 6..<9:   // Sunrise
             return [Color(hex: "FF9500").opacity(0.3), Color(hex: "FF6B35").opacity(0.2), Color(hex: "F7931E").opacity(0.1)]
         case 9..<12:  // Morning
@@ -53,7 +57,9 @@ struct TimeGradient: View {
             return [Color(hex: "007AFF").opacity(0.3), Color(hex: "64D2FF").opacity(0.2), Color(hex: "34C759").opacity(0.1)]
         case 17..<20: // Evening
             return [Color(hex: "AF52DE").opacity(0.3), Color(hex: "FF9500").opacity(0.2), Color(hex: "FF6B35").opacity(0.1)]
-        default:      // Night
+        case 20..<24: // Night
+            return [Color(hex: "1D1D1F").opacity(0.4), Color(hex: "2C2C2E").opacity(0.3), Color(hex: "48484A").opacity(0.2)]
+        default:      // Fallback (shouldn't happen)
             return [Color(hex: "1D1D1F").opacity(0.4), Color(hex: "2C2C2E").opacity(0.3), Color(hex: "48484A").opacity(0.2)]
         }
     }

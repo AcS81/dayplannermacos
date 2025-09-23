@@ -14,7 +14,6 @@
 		A1234567890123456789012345678909 /* RippleEffects.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1234567890123456789012345678910 /* RippleEffects.swift */; };
 		A1234567890123456789012345678911 /* Animations.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1234567890123456789012345678912 /* Animations.swift */; };
 		A1234567890123456789012345678913 /* TodayGlass.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1234567890123456789012345678914 /* TodayGlass.swift */; };
-		A1234567890123456789012345678915 /* AIOrb.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1234567890123456789012345678916 /* AIOrb.swift */; };
 		A1234567890123456789012345678917 /* FlowGlass.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1234567890123456789012345678918 /* FlowGlass.swift */; };
 		A1234567890123456789012345678919 /* AIService.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1234567890123456789012345678920 /* AIService.swift */; };
 		A1234567890123456789012345678921 /* PatternLearning.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1234567890123456789012345678922 /* PatternLearning.swift */; };
@@ -31,7 +30,6 @@
 		A1234567890123456789012345678910 /* RippleEffects.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RippleEffects.swift; sourceTree = "<group>"; };
 		A1234567890123456789012345678912 /* Animations.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Animations.swift; sourceTree = "<group>"; };
 		A1234567890123456789012345678914 /* TodayGlass.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TodayGlass.swift; sourceTree = "<group>"; };
-		A1234567890123456789012345678916 /* AIOrb.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AIOrb.swift; sourceTree = "<group>"; };
 		A1234567890123456789012345678918 /* FlowGlass.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FlowGlass.swift; sourceTree = "<group>"; };
 		A1234567890123456789012345678920 /* AIService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AIService.swift; sourceTree = "<group>"; };
 		A1234567890123456789012345678922 /* PatternLearning.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PatternLearning.swift; sourceTree = "<group>"; };
@@ -113,7 +111,6 @@
 			isa = PBXGroup;
 			children = (
 				A1234567890123456789012345678914 /* TodayGlass.swift */,
-				A1234567890123456789012345678916 /* AIOrb.swift */,
 				A1234567890123456789012345678918 /* FlowGlass.swift */,
 				A1234567890123456789012345678948 /* CalendarDayView.swift */,
 			);
@@ -172,7 +169,7 @@
 			attributes = {
 				BuildIndependentTargetsInParallel = 1;
 				LastSwiftUpdateCheck = 1600;
-				LastUpgradeCheck = 1600;
+				LastUpgradeCheck = 2600;
 				TargetAttributes = {
 					A1234567890123456789012345678937 = {
 						CreatedOnToolsVersion = 16.0;
@@ -219,7 +216,6 @@
 				A1234567890123456789012345678909 /* RippleEffects.swift in Sources */,
 				A1234567890123456789012345678911 /* Animations.swift in Sources */,
 				A1234567890123456789012345678913 /* TodayGlass.swift in Sources */,
-				A1234567890123456789012345678915 /* AIOrb.swift in Sources */,
 				A1234567890123456789012345678917 /* FlowGlass.swift in Sources */,
 				A1234567890123456789012345678919 /* AIService.swift in Sources */,
 				A1234567890123456789012345678921 /* PatternLearning.swift in Sources */,
@@ -265,11 +261,11 @@
 				CLANG_WARN_UNREACHABLE_CODE = YES;
 				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
 				COPY_PHASE_STRIP = NO;
+				DEAD_CODE_STRIPPING = YES;
 				DEBUG_INFORMATION_FORMAT = dwarf;
 				ENABLE_STRICT_OBJC_MSGSEND = YES;
 				ENABLE_TESTABILITY = YES;
 				ENABLE_USER_SCRIPT_SANDBOXING = YES;
-				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
 				GCC_C_LANGUAGE_STANDARD = gnu17;
 				GCC_DYNAMIC_NO_PIC = NO;
 				GCC_NO_COMMON_BLOCKS = YES;
@@ -290,6 +286,7 @@
 				MTL_FAST_MATH = YES;
 				ONLY_ACTIVE_ARCH = YES;
 				SDKROOT = macosx;
+				STRING_CATALOG_GENERATE_SYMBOLS = YES;
 				SWIFT_ACTIVE_COMPILATION_CONDITIONS = "DEBUG $(inherited)";
 				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
 				SWIFT_STRICT_CONCURRENCY = minimal;
@@ -330,11 +327,11 @@
 				CLANG_WARN_UNREACHABLE_CODE = YES;
 				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
 				COPY_PHASE_STRIP = NO;
+				DEAD_CODE_STRIPPING = YES;
 				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
 				ENABLE_NS_ASSERTIONS = NO;
 				ENABLE_STRICT_OBJC_MSGSEND = YES;
 				ENABLE_USER_SCRIPT_SANDBOXING = YES;
-				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
 				GCC_C_LANGUAGE_STANDARD = gnu17;
 				GCC_NO_COMMON_BLOCKS = YES;
 				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
@@ -348,6 +345,7 @@
 				MTL_ENABLE_DEBUG_INFO = NO;
 				MTL_FAST_MATH = YES;
 				SDKROOT = macosx;
+				STRING_CATALOG_GENERATE_SYMBOLS = YES;
 				SWIFT_COMPILATION_MODE = wholemodule;
 				SWIFT_STRICT_CONCURRENCY = minimal;
 			};
@@ -363,15 +361,21 @@
 				CODE_SIGN_STYLE = Manual;
 				COMBINE_HIDPI_IMAGES = YES;
 				CURRENT_PROJECT_VERSION = 1;
+				DEAD_CODE_STRIPPING = YES;
 				DEVELOPMENT_ASSET_PATHS = "";
 				DEVELOPMENT_TEAM = "";
+				ENABLE_APP_SANDBOX = YES;
 				ENABLE_HARDENED_RUNTIME = NO;
+				ENABLE_OUTGOING_NETWORK_CONNECTIONS = YES;
 				ENABLE_PREVIEWS = YES;
+				ENABLE_RESOURCE_ACCESS_CALENDARS = YES;
+				ENABLE_RESOURCE_ACCESS_LOCATION = YES;
+				ENABLE_USER_SELECTED_FILES = readwrite;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_KEY_CFBundleDisplayName = "Day Planner";
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.productivity";
-				INFOPLIST_KEY_NSHumanReadableCopyright = "";
 				INFOPLIST_KEY_NSCalendarsUsageDescription = "DayPlanner integrates with your calendar to help manage your schedule and sync time blocks with calendar events.";
+				INFOPLIST_KEY_NSHumanReadableCopyright = "";
 				INFOPLIST_KEY_NSLocationUsageDescription = "DayPlanner uses your location to provide weather context for activity suggestions and location-based scheduling recommendations.";
 				INFOPLIST_KEY_NSLocationWhenInUseUsageDescription = "DayPlanner uses your location to provide weather context for activity suggestions and location-based scheduling recommendations.";
 				INFOPLIST_KEY_NSMicrophoneUsageDescription = "Day Planner uses the microphone for voice input to the AI assistant.";
@@ -386,7 +390,6 @@
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_EMIT_LOC_STRINGS = YES;
 				SWIFT_VERSION = 5.0;
-				DEAD_CODE_STRIPPING = YES;
 			};
 			name = Debug;
 		};
@@ -400,15 +403,21 @@
 				CODE_SIGN_STYLE = Manual;
 				COMBINE_HIDPI_IMAGES = YES;
 				CURRENT_PROJECT_VERSION = 1;
+				DEAD_CODE_STRIPPING = YES;
 				DEVELOPMENT_ASSET_PATHS = "";
 				DEVELOPMENT_TEAM = "";
+				ENABLE_APP_SANDBOX = YES;
 				ENABLE_HARDENED_RUNTIME = NO;
+				ENABLE_OUTGOING_NETWORK_CONNECTIONS = YES;
 				ENABLE_PREVIEWS = YES;
+				ENABLE_RESOURCE_ACCESS_CALENDARS = YES;
+				ENABLE_RESOURCE_ACCESS_LOCATION = YES;
+				ENABLE_USER_SELECTED_FILES = readwrite;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_KEY_CFBundleDisplayName = "Day Planner";
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.productivity";
-				INFOPLIST_KEY_NSHumanReadableCopyright = "";
 				INFOPLIST_KEY_NSCalendarsUsageDescription = "DayPlanner integrates with your calendar to help manage your schedule and sync time blocks with calendar events.";
+				INFOPLIST_KEY_NSHumanReadableCopyright = "";
 				INFOPLIST_KEY_NSLocationUsageDescription = "DayPlanner uses your location to provide weather context for activity suggestions and location-based scheduling recommendations.";
 				INFOPLIST_KEY_NSLocationWhenInUseUsageDescription = "DayPlanner uses your location to provide weather context for activity suggestions and location-based scheduling recommendations.";
 				INFOPLIST_KEY_NSMicrophoneUsageDescription = "Day Planner uses the microphone for voice input to the AI assistant.";
@@ -423,7 +432,6 @@
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_EMIT_LOC_STRINGS = YES;
 				SWIFT_VERSION = 5.0;
-				DEAD_CODE_STRIPPING = YES;
 			};
 			name = Release;
 		};

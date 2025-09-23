@@ -54,7 +54,7 @@ struct LiquidGlassView<Content: View>: View {
         .onHover { hovering in
             withAnimation(.spring(response: 0.6, dampingFraction: 0.8)) {
                 isHovering = hovering
-                glassOpacity = hovering ? 1.0 : 0.8
+                glassOpacity = 0.8  // Fixed opacity to prevent flashing
             }
         }
         .onTapGesture { location in
@@ -88,10 +88,8 @@ struct LiquidGlassView<Content: View>: View {
             ripples.removeAll { $0.id == newRipple.id }
         }
         
-        // Animate ripple phase
-        withAnimation(.easeOut(duration: 0.8)) {
-            ripplePhase = ripplePhase == 0 ? 1 : 0
-        }
+        // Disabled ripple phase animation to prevent continuous flashing
+        // ripplePhase = ripplePhase == 0 ? 1 : 0
     }
 }
 
@@ -221,7 +219,7 @@ struct LiquidDistortionEffect: ViewModifier {
     func body(content: Content) -> some View {
         content
             .scaleEffect(1.0 + sin(phase * .pi) * 0.002) // Subtle breathing
-            .opacity(0.95 + sin(phase * .pi) * 0.05)     // Subtle opacity change
+            .opacity(1.0)  // Fixed opacity - no more flashing
     }
 }
 
