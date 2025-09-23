@@ -1359,6 +1359,7 @@ struct CalendarPanel: View {
     @Binding var showingMonthView: Bool
     @State private var showingPillarDay = false
     @State private var showingBackfillTemplates = false
+    @State private var showingTodoList = false
     
     var body: some View {
         VStack(spacing: 0) {
@@ -1367,6 +1368,7 @@ struct CalendarPanel: View {
                 selectedDate: $selectedDate,
                 showingMonthView: $showingMonthView,
                 showingBackfillTemplates: $showingBackfillTemplates,
+                showingTodoList: $showingTodoList,
                 onPillarDayTap: { showingPillarDay = true }
             )
             
@@ -1394,7 +1396,18 @@ struct CalendarPanel: View {
             
             // Day view - enhanced with liquid glass styling
             EnhancedDayView(selectedDate: $selectedDate)
-                .frame(maxHeight: .infinity)
+                .frame(maxHeight: showingTodoList ? nil : .infinity)
+            
+            // To-Do section (expandable/collapsible from bottom)
+            if showingTodoList {
+                TodoListView()
+                    .frame(height: 300)
+                    .transition(.asymmetric(
+                        insertion: .opacity.combined(with: .scale(scale: 0.95)).combined(with: .move(edge: .bottom)),
+                        removal: .opacity.combined(with: .scale(scale: 0.95)).combined(with: .move(edge: .bottom))
+                    ))
+                    .animation(.spring(response: 0.6, dampingFraction: 0.8), value: showingTodoList)
+            }
         }
         .background(.ultraThinMaterial.opacity(0.5), in: RoundedRectangle(cornerRadius: 16))
         .overlay(
@@ -1496,6 +1509,7 @@ struct CalendarPanelHeader: View {
     @Binding var selectedDate: Date
     @Binding var showingMonthView: Bool
     @Binding var showingBackfillTemplates: Bool
+    @Binding var showingTodoList: Bool
     let onPillarDayTap: () -> Void
     
     private var dateFormatter: DateFormatter {
@@ -1562,6 +1576,19 @@ struct CalendarPanelHeader: View {
                         .font(.title2)
                         .foregroundStyle(showingMonthView ? .blue : .secondary)
                         .symbolEffect(.bounce, value: showingMonthView)
+                }
+                .buttonStyle(.plain)
+                
+                // To-Do expand/collapse button
+                Button(action: { 
+                    withAnimation(.spring(response: 0.6, dampingFraction: 0.8)) {
+                        showingTodoList.toggle()
+                    }
+                }) {
+                    Image(systemName: showingTodoList ? "chevron.down.circle.fill" : "checklist")
+                        .font(.title2)
+                        .foregroundStyle(showingTodoList ? .blue : .secondary)
+                        .symbolEffect(.bounce, value: showingTodoList)
                 }
                 .buttonStyle(.plain)
                 
@@ -2034,6 +2061,32 @@ struct TimelineCanvas: View {
                     duration: duration,
                     energy: energy,
                     emoji: emoji
+                )
+                
+                dataManager.addTimeBlock(newBlock)
+            }
+        }
+        // Handle todo item drops
+        else if payload.hasPrefix("todo_item:") {
+            let parts = payload.dropFirst("todo_item:".count).components(separatedBy: "|")
+            if parts.count >= 4 {
+                let title = parts[0]
+                let _ = parts[1] // UUID - we don't need it for the time block
+                let dueDateString = parts[2]
+                let isCompleted = Bool(parts[3]) ?? false
+                
+                // Don't create time blocks for completed todos
+                guard !isCompleted else { return }
+                
+                // Create enhanced title with AI context
+                let enhancedTitle = aiService.enhanceEventTitle(originalTitle: title, time: time, duration: 3600)
+                
+                let newBlock = TimeBlock(
+                    title: enhancedTitle,
+                    startTime: time,
+                    duration: 3600, // Default 1 hour for todo items
+                    energy: .daylight,
+                    emoji: "📝"
                 )
                 
                 dataManager.addTimeBlock(newBlock)
@@ -5573,6 +5626,29 @@ struct CalendarDropDelegate: DropDelegate {
                                 // Add directly to the timeline instead of staging
                                 self.dataManager.addTimeBlock(newBlock)
                                 
+                            }
+                        }
+                        // Handle todo item drops
+                        else if payload.hasPrefix("todo_item:") {
+                            let parts = payload.dropFirst("todo_item:".count).components(separatedBy: "|")
+                            if parts.count >= 4 {
+                                let title = parts[0]
+                                let _ = parts[1] // UUID - we don't need it for the time block
+                                let dueDateString = parts[2]
+                                let isCompleted = Bool(parts[3]) ?? false
+                                
+                                // Don't create time blocks for completed todos
+                                guard !isCompleted else { return }
+                                
+                                let newBlock = TimeBlock(
+                                    title: title,
+                                    startTime: self.targetTime,
+                                    duration: 3600, // Default 1 hour for todo items
+                                    energy: .daylight,
+                                    emoji: "📝"
+                                )
+                                
+                                self.dataManager.addTimeBlock(newBlock)
                             }
                         }
                         // Handle legacy chain template drops - now add directly to timeline

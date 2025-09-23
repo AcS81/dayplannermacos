@@ -298,6 +298,29 @@ struct TimelineCanvas: View {
                 dataManager.addTimeBlock(newBlock)
             }
         }
+        // Handle todo item drops
+        else if payload.hasPrefix("todo_item:") {
+            let parts = payload.dropFirst("todo_item:".count).components(separatedBy: "|")
+            if parts.count >= 4 {
+                let title = parts[0]
+                let _ = parts[1] // UUID - we don't need it for the time block
+                let dueDateString = parts[2]
+                let isCompleted = Bool(parts[3]) ?? false
+                
+                // Don't create time blocks for completed todos
+                guard !isCompleted else { return }
+                
+                let newBlock = TimeBlock(
+                    title: title,
+                    startTime: time,
+                    duration: 3600, // Default 1 hour for todo items
+                    energy: .daylight,
+                    emoji: "📝"
+                )
+                
+                dataManager.addTimeBlock(newBlock)
+            }
+        }
         // Handle chain template drops
         else if payload.hasPrefix("chain_template:") {
             let parts = payload.dropFirst("chain_template:".count).components(separatedBy: "|")

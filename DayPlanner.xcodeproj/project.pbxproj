@@ -19,6 +19,7 @@
 		A1234567890123456789012345678921 /* PatternLearning.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1234567890123456789012345678922 /* PatternLearning.swift */; };
 		A1234567890123456789012345678923 /* Extensions.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1234567890123456789012345678924 /* Extensions.swift */; };
 		A1234567890123456789012345678947 /* CalendarDayView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1234567890123456789012345678948 /* CalendarDayView.swift */; };
+		A1234567890123456789012345678949 /* TodoViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1234567890123456789012345678950 /* TodoViews.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -36,6 +37,7 @@
 		A1234567890123456789012345678924 /* Extensions.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Extensions.swift; sourceTree = "<group>"; };
 		A1234567890123456789012345678925 /* DayPlanner.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = DayPlanner.entitlements; sourceTree = "<group>"; };
 		A1234567890123456789012345678948 /* CalendarDayView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CalendarDayView.swift; sourceTree = "<group>"; };
+		A1234567890123456789012345678950 /* TodoViews.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TodoViews.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -113,6 +115,7 @@
 				A1234567890123456789012345678914 /* TodayGlass.swift */,
 				A1234567890123456789012345678918 /* FlowGlass.swift */,
 				A1234567890123456789012345678948 /* CalendarDayView.swift */,
+				A1234567890123456789012345678950 /* TodoViews.swift */,
 			);
 			path = Surfaces;
 			sourceTree = "<group>";
@@ -221,6 +224,7 @@
 				A1234567890123456789012345678921 /* PatternLearning.swift in Sources */,
 				A1234567890123456789012345678923 /* Extensions.swift in Sources */,
 				A1234567890123456789012345678947 /* CalendarDayView.swift in Sources */,
+				A1234567890123456789012345678949 /* TodoViews.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

@@ -16,6 +16,7 @@ struct CalendarPanel: View {
     @Binding var showingMonthView: Bool
     @State private var showingPillarDay = false
     @State private var showingBackfillTemplates = false
+    @State private var showingTodoList = false
     
     var body: some View {
         VStack(spacing: 0) {
@@ -24,6 +25,7 @@ struct CalendarPanel: View {
                 selectedDate: $selectedDate,
                 showingMonthView: $showingMonthView,
                 showingBackfillTemplates: $showingBackfillTemplates,
+                showingTodoList: $showingTodoList,
                 onPillarDayTap: { showingPillarDay = true }
             )
             
@@ -51,7 +53,18 @@ struct CalendarPanel: View {
             
             // Day view - enhanced with liquid glass styling
             EnhancedDayView(selectedDate: $selectedDate)
-                .frame(maxHeight: .infinity)
+                .frame(maxHeight: showingTodoList ? nil : .infinity)
+            
+            // To-Do section (expandable/collapsible from bottom)
+            if showingTodoList {
+                TodoListView()
+                    .frame(height: 300)
+                    .transition(.asymmetric(
+                        insertion: .opacity.combined(with: .scale(scale: 0.95)).combined(with: .move(edge: .bottom)),
+                        removal: .opacity.combined(with: .scale(scale: 0.95)).combined(with: .move(edge: .bottom))
+                    ))
+                    .animation(.spring(response: 0.6, dampingFraction: 0.8), value: showingTodoList)
+            }
         }
         .background(.ultraThinMaterial.opacity(0.4), in: RoundedRectangle(cornerRadius: 16))
         .overlay(
@@ -75,6 +88,7 @@ struct CalendarPanelHeader: View {
     @Binding var selectedDate: Date
     @Binding var showingMonthView: Bool
     @Binding var showingBackfillTemplates: Bool
+    @Binding var showingTodoList: Bool
     let onPillarDayTap: () -> Void
     
     private var dateFormatter: DateFormatter {
@@ -141,6 +155,19 @@ struct CalendarPanelHeader: View {
                         .font(.title2)
                         .foregroundStyle(showingMonthView ? .blue : .secondary)
                         .symbolEffect(.bounce, value: showingMonthView)
+                }
+                .buttonStyle(.plain)
+                
+                // To-Do expand/collapse button
+                Button(action: { 
+                    withAnimation(.spring(response: 0.6, dampingFraction: 0.8)) {
+                        showingTodoList.toggle()
+                    }
+                }) {
+                    Image(systemName: showingTodoList ? "chevron.down.circle.fill" : "checklist")
+                        .font(.title2)
+                        .foregroundStyle(showingTodoList ? .blue : .secondary)
+                        .symbolEffect(.bounce, value: showingTodoList)
                 }
                 .buttonStyle(.plain)
                 
