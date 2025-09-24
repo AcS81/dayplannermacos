@@ -551,6 +551,161 @@ struct QuickTemplate {
     let emoji: String
 }
 
+// MARK: - Chains Templates View
+
+struct ChainsTemplatesView: View {
+    let selectedDate: Date
+    @EnvironmentObject private var dataManager: AppDataManager
+    @State private var templates: [ChainTemplate] = []
+    
+    var body: some View {
+        VStack(spacing: 12) {
+            HStack {
+                Text("Chain Templates")
+                    .font(.headline)
+                    .fontWeight(.semibold)
+                
+                Spacer()
+                
+                Text("Drag to timeline")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+            
+            ScrollView(.horizontal, showsIndicators: false) {
+                HStack(spacing: 12) {
+                    ForEach(templates) { template in
+                        DraggableChainTemplate(template: template)
+                    }
+                }
+                .padding(.horizontal, 16)
+            }
+        }
+        .padding(16)
+        .background(.ultraThinMaterial.opacity(0.4), in: RoundedRectangle(cornerRadius: 12))
+        .overlay(
+            RoundedRectangle(cornerRadius: 12)
+                .strokeBorder(.white.opacity(0.1), lineWidth: 1)
+        )
+        .onAppear {
+            generateTemplates()
+        }
+    }
+    
+    private func generateTemplates() {
+        templates = [
+            ChainTemplate(
+                name: "Morning Routine",
+                icon: "🌅",
+                activities: ["Wake up routine", "Exercise", "Breakfast", "Plan day"],
+                totalDuration: 120, // 2 hours
+                energyFlow: [.sunrise, .sunrise, .daylight, .daylight]
+            ),
+            ChainTemplate(
+                name: "Deep Work",
+                icon: "🎯", 
+                activities: ["Setup workspace", "Focus session", "Break", "Review"],
+                totalDuration: 90, // 1.5 hours
+                energyFlow: [.daylight, .daylight, .moonlight, .daylight]
+            ),
+            ChainTemplate(
+                name: "Evening Wind-down",
+                icon: "🌙",
+                activities: ["Dinner", "Reflection", "Reading", "Sleep prep"],
+                totalDuration: 150, // 2.5 hours  
+                energyFlow: [.daylight, .moonlight, .moonlight, .moonlight]
+            ),
+            ChainTemplate(
+                name: "Creative Flow",
+                icon: "🎨",
+                activities: ["Inspiration gathering", "Brainstorm", "Create", "Refine"],
+                totalDuration: 180, // 3 hours
+                energyFlow: [.daylight, .sunrise, .sunrise, .daylight]
+            )
+        ]
+    }
+}
+
+struct DraggableChainTemplate: View {
+    let template: ChainTemplate
+    @EnvironmentObject private var dataManager: AppDataManager
+    @State private var dragOffset: CGSize = .zero
+    @State private var isDragging = false
+    
+    var body: some View {
+        VStack(spacing: 8) {
+            Text(template.icon)
+                .font(.title)
+            
+            Text(template.name)
+                .font(.caption)
+                .fontWeight(.medium)
+                .multilineTextAlignment(.center)
+                .lineLimit(2)
+            
+            HStack(spacing: 4) {
+                Text("\(template.totalDuration)m")
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
+                
+                Text("•")
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
+                
+                Text("\(template.activities.count) steps")
+                    .font(.caption2)
+                    .foregroundStyle(.blue)
+            }
+        }
+        .padding(12)
+        .frame(width: 100, height: 80)
+        .background(
+            RoundedRectangle(cornerRadius: 8)
+                .fill(.ultraThinMaterial.opacity(0.6))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 8)
+                        .strokeBorder(.white.opacity(0.2), lineWidth: 1)
+                )
+        )
+        .scaleEffect(isDragging ? 1.05 : 1.0)
+        .offset(dragOffset)
+        .animation(.spring(response: 0.3, dampingFraction: 0.6), value: isDragging)
+        .gesture(
+            DragGesture()
+                .onChanged { value in
+                    isDragging = true
+                    dragOffset = value.translation
+                }
+                .onEnded { value in
+                    isDragging = false
+                    dragOffset = .zero
+                    
+                    // Create chain from template and apply to selected date
+                    createChainFromTemplate()
+                }
+        )
+    }
+    
+    private func createChainFromTemplate() {
+        let chain = Chain(
+            id: UUID(),
+            name: template.name,
+            blocks: template.activities.enumerated().map { index, activity in
+                let startTime = Calendar.current.date(byAdding: .minute, value: index * 30, to: Date()) ?? Date()
+                return TimeBlock(
+                    title: activity,
+                    startTime: startTime,
+                    duration: (template.totalDuration * 60) / template.activities.count,
+                    energy: template.energyFlow[index % template.energyFlow.count],
+                    emoji: template.icon
+                )
+            }
+        )
+        
+        dataManager.applyChain(chain, startingAt: Date())
+    }
+}
+
 // MARK: - Backfill Templates View
 
 struct BackfillTemplatesView: View {

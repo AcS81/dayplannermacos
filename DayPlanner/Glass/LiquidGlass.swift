@@ -27,9 +27,13 @@ struct LiquidGlassView<Content: View>: View {
     
     var body: some View {
         ZStack {
-            // Background blur layer with dynamic material
+            // Background blur layer with green tint
             VisualEffectBlur(material: .hudWindow, blendingMode: .behindWindow)
                 .ignoresSafeArea()
+                .overlay(
+                    Color.green.opacity(0.15) // Green tint overlay
+                        .blendMode(.multiply)
+                )
             
             // Content layer with liquid distortion
             content
@@ -242,21 +246,31 @@ extension Material {
 
 // View extensions are defined in Extensions.swift
 extension View {
-    /// Apply subtle glass background
+    /// Apply subtle glass background with green tint
     func glassBackground(_ material: Material = .regularMaterial) -> some View {
         self
             .background(material, in: RoundedRectangle(cornerRadius: 12))
+            .overlay(
+                Color.green.opacity(0.1)
+                    .blendMode(.multiply)
+                    .clipShape(RoundedRectangle(cornerRadius: 12))
+            )
             .overlay(
                 RoundedRectangle(cornerRadius: 12)
                     .strokeBorder(.white.opacity(0.2), lineWidth: 1)
             )
     }
     
-    /// Apply liquid glass with specific mood
+    /// Apply liquid glass with specific mood and green tint
     func glassEffect(_ mood: GlassMood) -> some View {
         self
             .background(mood.backgroundGradient)
             .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 12))
+            .overlay(
+                Color.green.opacity(0.12)
+                    .blendMode(.multiply)
+                    .clipShape(RoundedRectangle(cornerRadius: 12))
+            )
             .overlay(
                 RoundedRectangle(cornerRadius: 12)
                     .strokeBorder(

@@ -129,7 +129,7 @@ struct CelebrationBurst: View {
     }
     
     private let celebrationColors: [Color] = [
-        .blue, .green, .orange, .purple, .pink, .yellow, .mint, .cyan
+        .green, .mint, .teal, .orange, .pink, .yellow, .green, .mint
     ]
 }
 
@@ -229,9 +229,9 @@ struct GlassStateIndicator: View {
     private var stateColor: Color {
         switch state {
         case .solid: return .green
-        case .liquid: return .blue
+        case .liquid: return .mint
         case .mist: return .gray
-        case .crystal: return .cyan
+        case .crystal: return .teal
         }
     }
     
@@ -254,8 +254,8 @@ struct MorphingShape: View {
     
     var body: some View {
         morphedPath
-            .fill(.blue.opacity(0.3))
-            .stroke(.blue.opacity(0.6), lineWidth: 2)
+            .fill(.green.opacity(0.3))
+            .stroke(.green.opacity(0.6), lineWidth: 2)
             .animation(.easeInOut(duration: 2.0), value: targetShape)
             .onAppear {
                 withAnimation(.easeInOut(duration: 2.0).repeatForever(autoreverses: true)) {
@@ -393,8 +393,8 @@ extension EnergyType {
     var flowColors: [Color] {
         switch self {
         case .sunrise: return [.orange, .yellow, .orange]
-        case .daylight: return [.blue, .cyan, .blue]  
-        case .moonlight: return [.purple, .indigo, .purple]
+        case .daylight: return [.green, .mint, .green]  
+        case .moonlight: return [.teal, .mint, .teal]
         }
     }
 }

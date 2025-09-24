@@ -22,8 +22,13 @@ struct MindPanel: View {
             // Scrollable mind content
             ScrollView {
                 LazyVStack(spacing: 20) {
-                    // Supercharged chains section with AI integration
-                    SuperchargedChainsSection()
+                    // Core Chat section - the brain of the mind tab
+                    CoreChatSection()
+                        .environmentObject(dataManager)
+                        .environmentObject(aiService)
+                    
+                    // Enhanced goals section with breakdown functionality
+                    EnhancedGoalsSection()
                         .environmentObject(dataManager)
                         .environmentObject(aiService)
                     
@@ -31,17 +36,13 @@ struct MindPanel: View {
                     CrystalPillarsSection()
                         .environmentObject(dataManager)
                     
-                    // Enhanced goals section with breakdown functionality
-                    EnhancedGoalsSection()
+                    // Intake section (without core chat)
+                    IntakeQuestionsSection()
                         .environmentObject(dataManager)
                         .environmentObject(aiService)
                     
                     // Dream builder with aurora gradients
                     AuroraDreamBuilderSection()
-                        .environmentObject(dataManager)
-                    
-                    // Intake section
-                    IntakeSection()
                         .environmentObject(dataManager)
                     
                     // AI Outgo section - wisdom and feedback
@@ -148,20 +149,24 @@ struct MindTabView: View {
             
             ScrollView {
                 VStack(spacing: 24) {
-                    // Chains section
-                    ChainsSection()
-                    
-                    // Pillars section
-                    PillarsSection()
+                    // Core Chat section
+                    CoreChatSection()
+                        .environmentObject(dataManager)
+                        .environmentObject(aiService)
                     
                     // Goals section
                     GoalsSection()
                     
+                    // Pillars section
+                    PillarsSection()
+                    
+                    // Intake Questions section
+                    IntakeQuestionsSection()
+                        .environmentObject(dataManager)
+                        .environmentObject(aiService)
+                    
                     // Dream Builder section
                     DreamBuilderSection()
-                    
-                    // Intake section
-                    IntakeSection()
                 }
                 .padding()
             }

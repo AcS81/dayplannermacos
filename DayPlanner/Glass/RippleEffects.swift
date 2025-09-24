@@ -68,15 +68,15 @@ enum RippleType {
     var colors: [Color] {
         switch self {
         case .tap:
-            return [.white.opacity(0.8), .blue.opacity(0.4), .clear]
+            return [.white.opacity(0.8), .green.opacity(0.4), .clear]
         case .drag:
-            return [.blue.opacity(0.6), .cyan.opacity(0.3), .clear]
+            return [.green.opacity(0.6), .mint.opacity(0.3), .clear]
         case .success:
             return [.green.opacity(0.8), .mint.opacity(0.5), .clear]
         case .error:
             return [.red.opacity(0.8), .pink.opacity(0.4), .clear]
         case .aiThinking:
-            return [.purple.opacity(0.6), .indigo.opacity(0.4), .clear]
+            return [.teal.opacity(0.6), .mint.opacity(0.4), .clear]
         case .voiceInput:
             return [.orange.opacity(0.7), .yellow.opacity(0.4), .clear]
         }
@@ -261,7 +261,7 @@ struct LiquidMercuryEffect: ViewModifier {
                         
                         context.stroke(
                             path,
-                            with: .color(.blue.opacity(0.3)),
+                            with: .color(.green.opacity(0.3)),
                             style: StrokeStyle(lineWidth: 2, lineCap: .round)
                         )
                     }

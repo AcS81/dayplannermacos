@@ -16,7 +16,8 @@ struct CalendarPanel: View {
     @Binding var showingMonthView: Bool
     @State private var showingPillarDay = false
     @State private var showingBackfillTemplates = false
-    @State private var showingTodoList = false
+    @State private var showingChainsTemplates = false
+    @State private var showingTodoList = false // Default to hiding todo list
     
     var body: some View {
         VStack(spacing: 0) {
@@ -25,19 +26,37 @@ struct CalendarPanel: View {
                 selectedDate: $selectedDate,
                 showingMonthView: $showingMonthView,
                 showingBackfillTemplates: $showingBackfillTemplates,
+                showingChainsTemplates: $showingChainsTemplates,
                 showingTodoList: $showingTodoList,
-                onPillarDayTap: { showingPillarDay = true }
+                onPillarDayTap: { showingPillarDay = true },
+                isDefaultMonthView: true, // Month view is shown by default
+                onBackToCalendar: {
+                    // Return to monthly calendar view
+                    withAnimation(.spring(response: 0.6, dampingFraction: 0.8)) {
+                        showingMonthView = true
+                    }
+                }
             )
             
-            // Month view (expandable/collapsible)
+            // Month view (expandable/collapsible) - switches to hourly view on day click
             if showingMonthView {
-                MonthViewExpanded(selectedDate: $selectedDate, dataManager: dataManager)
-                    .frame(height: 280)
-                    .transition(.asymmetric(
-                        insertion: .opacity.combined(with: .scale(scale: 0.95)).combined(with: .move(edge: .top)),
-                        removal: .opacity.combined(with: .scale(scale: 0.95)).combined(with: .move(edge: .top))
-                    ))
-                    .animation(.spring(response: 0.6, dampingFraction: 0.8), value: showingMonthView)
+                MonthViewExpanded(
+                    selectedDate: $selectedDate, 
+                    dataManager: dataManager,
+                    onDayClick: {
+                        // Switch to hourly view when a day is clicked
+                        withAnimation(.spring(response: 0.6, dampingFraction: 0.8)) {
+                            showingMonthView = false
+                            showingTodoList = false // Hide todo list when switching to day view
+                        }
+                    }
+                )
+                .frame(height: 280)
+                .transition(.asymmetric(
+                    insertion: .opacity.combined(with: .scale(scale: 0.95)).combined(with: .move(edge: .top)),
+                    removal: .opacity.combined(with: .scale(scale: 0.95)).combined(with: .move(edge: .top))
+                ))
+                .animation(.spring(response: 0.6, dampingFraction: 0.8), value: showingMonthView)
             }
             
             // Backfill templates dropdown (expandable/collapsible)
@@ -51,9 +70,27 @@ struct CalendarPanel: View {
                     .animation(.spring(response: 0.6, dampingFraction: 0.8), value: showingBackfillTemplates)
             }
             
-            // Day view - enhanced with liquid glass styling
-            EnhancedDayView(selectedDate: $selectedDate)
-                .frame(maxHeight: showingTodoList ? nil : .infinity)
+            // Chains templates dropdown (expandable/collapsible)
+            if showingChainsTemplates {
+                ChainsTemplatesView(selectedDate: selectedDate)
+                    .frame(height: 200)
+                    .transition(.asymmetric(
+                        insertion: .opacity.combined(with: .scale(scale: 0.95)).combined(with: .move(edge: .top)),
+                        removal: .opacity.combined(with: .scale(scale: 0.95)).combined(with: .move(edge: .top))
+                    ))
+                    .animation(.spring(response: 0.6, dampingFraction: 0.8), value: showingChainsTemplates)
+            }
+            
+            // Day view - enhanced with liquid glass styling (only show when not in month view)
+            if !showingMonthView {
+                EnhancedDayView(selectedDate: $selectedDate)
+                    .frame(maxHeight: showingTodoList ? nil : .infinity)
+                    .transition(.asymmetric(
+                        insertion: .opacity.combined(with: .scale(scale: 0.95)).combined(with: .move(edge: .top)),
+                        removal: .opacity.combined(with: .scale(scale: 0.95)).combined(with: .move(edge: .top))
+                    ))
+                    .animation(.spring(response: 0.6, dampingFraction: 0.8), value: showingMonthView)
+            }
             
             // To-Do section (expandable/collapsible from bottom)
             if showingTodoList {
@@ -88,8 +125,11 @@ struct CalendarPanelHeader: View {
     @Binding var selectedDate: Date
     @Binding var showingMonthView: Bool
     @Binding var showingBackfillTemplates: Bool
+    @Binding var showingChainsTemplates: Bool
     @Binding var showingTodoList: Bool
     let onPillarDayTap: () -> Void
+    let isDefaultMonthView: Bool // Track if month view is shown by default
+    let onBackToCalendar: (() -> Void)? // Callback to return to calendar view
     
     private var dateFormatter: DateFormatter {
         let formatter = DateFormatter()
@@ -145,18 +185,35 @@ struct CalendarPanelHeader: View {
             Spacer()
             
             HStack(spacing: 8) {
-                // Month expand/collapse button
-                Button(action: { 
-                    withAnimation(.spring(response: 0.6, dampingFraction: 0.8)) {
-                        showingMonthView.toggle()
+                // Back to calendar button - show when in day view mode
+                if !showingMonthView {
+                    Button(action: { 
+                        withAnimation(.spring(response: 0.6, dampingFraction: 0.8)) {
+                            onBackToCalendar?()
+                        }
+                    }) {
+                        Image(systemName: "calendar.circle.fill")
+                            .font(.title2)
+                            .foregroundStyle(.blue)
+                            .symbolEffect(.bounce, value: !showingMonthView)
                     }
-                }) {
-                    Image(systemName: showingMonthView ? "chevron.up.circle.fill" : "calendar.circle")
-                        .font(.title2)
-                        .foregroundStyle(showingMonthView ? .blue : .secondary)
-                        .symbolEffect(.bounce, value: showingMonthView)
+                    .buttonStyle(.plain)
                 }
-                .buttonStyle(.plain)
+                
+                // Month expand/collapse button - only show when not default view and in month view
+                if !isDefaultMonthView && showingMonthView {
+                    Button(action: { 
+                        withAnimation(.spring(response: 0.6, dampingFraction: 0.8)) {
+                            showingMonthView.toggle()
+                        }
+                    }) {
+                        Image(systemName: "chevron.up.circle.fill")
+                            .font(.title2)
+                            .foregroundStyle(.blue)
+                            .symbolEffect(.bounce, value: showingMonthView)
+                    }
+                    .buttonStyle(.plain)
+                }
                 
                 // To-Do expand/collapse button
                 Button(action: { 
@@ -187,6 +244,15 @@ struct CalendarPanelHeader: View {
                     Button("Backfill") {
                         withAnimation(.spring(response: 0.6, dampingFraction: 0.8)) {
                             showingBackfillTemplates.toggle()
+                        }
+                    }
+                    .buttonStyle(.borderedProminent)
+                    .controlSize(.small)
+                    .buttonBorderShape(.capsule)
+                    
+                    Button("Chains") {
+                        withAnimation(.spring(response: 0.6, dampingFraction: 0.8)) {
+                            showingChainsTemplates.toggle()
                         }
                     }
                     .buttonStyle(.borderedProminent)
@@ -258,9 +324,6 @@ struct EnhancedDayView: View {
         }
         .onChange(of: selectedDate) { oldValue, newValue in
             updateDataManagerDate()
-        }
-        .onAppear {
-            selectedDate = dataManager.appState.currentDay.date
         }
         .sheet(isPresented: $showingBlockCreation) {
             BlockCreationSheet(

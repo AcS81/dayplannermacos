@@ -111,13 +111,21 @@ struct ProportionalTimelineView: View {
             let minute = calendar.component(.minute, from: now)
             let offsetY = CGFloat(minute) // 1 pixel per minute
             
-            Rectangle()
-                .fill(.blue)
-                .frame(height: 2)
-                .frame(maxWidth: .infinity)
-                .offset(y: offsetY)
-                .opacity(0.8)
-                .shadow(color: .blue, radius: 1)
+            HStack(spacing: 8) {
+                Rectangle()
+                    .fill(.blue)
+                    .frame(height: 2)
+                    .frame(maxWidth: .infinity)
+                    .opacity(0.8)
+                    .shadow(color: .blue, radius: 1)
+                
+                Text("now")
+                    .font(.system(.caption2, design: .monospaced))
+                    .fontWeight(.semibold)
+                    .foregroundColor(.red)
+                    .opacity(0.9)
+            }
+            .offset(y: offsetY)
         }
     }
 }
@@ -246,13 +254,21 @@ struct TimelineCanvas: View {
             let minute = calendar.component(.minute, from: now)
             let offsetY = CGFloat(minute) // 1 pixel per minute
             
-            Rectangle()
-                .fill(.blue)
-                .frame(height: 2)
-                .frame(maxWidth: .infinity)
-                .offset(y: offsetY)
-                .opacity(0.8)
-                .shadow(color: .blue, radius: 1)
+            HStack(spacing: 8) {
+                Rectangle()
+                    .fill(.blue)
+                    .frame(height: 2)
+                    .frame(maxWidth: .infinity)
+                    .opacity(0.8)
+                    .shadow(color: .blue, radius: 1)
+                
+                Text("now")
+                    .font(.system(.caption2, design: .monospaced))
+                    .fontWeight(.semibold)
+                    .foregroundColor(.red)
+                    .opacity(0.9)
+            }
+            .offset(y: offsetY)
         }
     }
     

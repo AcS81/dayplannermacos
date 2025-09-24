@@ -1156,7 +1156,8 @@ extension FlowPattern {
 // MARK: - Chain Templates
 
 /// Chain templates for quick creation
-struct ChainTemplate {
+struct ChainTemplate: Identifiable {
+    let id = UUID()
     let name: String
     let icon: String
     let activities: [String]

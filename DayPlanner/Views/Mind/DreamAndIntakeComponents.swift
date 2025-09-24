@@ -7,6 +7,622 @@
 
 import SwiftUI
 
+// MARK: - Core Chat Section
+
+struct CoreChatSection: View {
+    @EnvironmentObject private var dataManager: AppDataManager
+    @EnvironmentObject private var aiService: AIService
+    @State private var coreMessage = ""
+    @State private var isProcessingCore = false
+    @State private var coreResponse = ""
+    @State private var coreInsight = ""
+    
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            // Core Chat Bar - The brain of the mind tab
+            VStack(alignment: .leading, spacing: 8) {
+                Text("🧠 Core Chat")
+                    .font(.headline)
+                    .fontWeight(.semibold)
+                    .foregroundStyle(.purple)
+                
+                HStack(spacing: 8) {
+                    TextField("Control chains, pillars, goals...", text: $coreMessage)
+                        .textFieldStyle(.roundedBorder)
+                        .onSubmit { processCoreMessage() }
+                    
+                    Button(isProcessingCore ? "..." : "⚡") {
+                        processCoreMessage()
+                    }
+                    .buttonStyle(.borderedProminent)
+                    .disabled(coreMessage.isEmpty || isProcessingCore)
+                    .frame(width: 32)
+                }
+                
+                if !coreResponse.isEmpty {
+                    Text(coreResponse)
+                        .font(.caption)
+                        .foregroundStyle(.primary)
+                        .padding(8)
+                        .background(.purple.opacity(0.1), in: RoundedRectangle(cornerRadius: 6))
+                }
+                
+                if !coreInsight.isEmpty {
+                    Text("💡 \(coreInsight)")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .italic()
+                }
+            }
+            .padding(12)
+            .background(.ultraThinMaterial.opacity(0.6), in: RoundedRectangle(cornerRadius: 10))
+            .overlay(
+                RoundedRectangle(cornerRadius: 10)
+                    .strokeBorder(.purple.opacity(0.3), lineWidth: 1)
+            )
+        }
+    }
+    
+    // MARK: - Core Chat Processing
+    
+    private func processCoreMessage() {
+        guard !coreMessage.isEmpty else { return }
+        
+        let message = coreMessage
+        coreMessage = ""
+        isProcessingCore = true
+        coreInsight = "Analyzing core request..."
+        
+        Task {
+            do {
+                let context = dataManager.createEnhancedContext()
+                let corePrompt = buildCorePrompt(message: message, context: context)
+                
+                let response = try await aiService.processMessage(corePrompt, context: context)
+                
+                await MainActor.run {
+                    coreResponse = response.text
+                    isProcessingCore = false
+                    coreInsight = "Core system updated"
+                    
+                    // Process any core actions
+                    processCoreActions(message: message, response: response)
+                }
+                
+                // Clear insight after 3 seconds
+                DispatchQueue.main.asyncAfter(deadline: .now() + 3) {
+                    coreInsight = ""
+                }
+                
+            } catch {
+                await MainActor.run {
+                    coreResponse = "Core system temporarily unavailable"
+                    isProcessingCore = false
+                    coreInsight = "Error processing request"
+                }
+            }
+        }
+    }
+    
+    private func buildCorePrompt(message: String, context: DayContext) -> String {
+        return """
+        You are the CORE AI system that controls chains, pillars, and goals. You have elevated permissions to modify user data.
+        
+        Current system state:
+        - Pillars: \(dataManager.appState.pillars.count) (\(dataManager.appState.pillars.filter(\.isActionable).count) actionable, \(dataManager.appState.pillars.filter(\.isPrinciple).count) principles)
+        - Goals: \(dataManager.appState.goals.count) (\(dataManager.appState.goals.filter(\.isActive).count) active)
+        - Chains: \(dataManager.appState.recentChains.count)
+        - User XP: \(dataManager.appState.userXP) | XXP: \(dataManager.appState.userXXP)
+        
+        User core request: "\(message)"
+        
+        Available actions:
+        - CREATE_PILLAR(name, type:actionable|principle, description, wisdom_text)
+        - EDIT_PILLAR(name, changes)
+        - CREATE_GOAL(title, description, importance)
+        - BREAK_DOWN_GOAL(goal_name) -> chains/pillars/events
+        - CREATE_CHAIN(name, activities[], flow_pattern)
+        - EDIT_CHAIN(name, changes)
+        - AI_ANALYZE(focus_area)
+        
+        Respond with advice and suggest specific actions. Keep responses under 100 words.
+        """
+    }
+    
+    private func processCoreActions(message: String, response: AIResponse) {
+        // Smart core actions based on confidence thresholds and AI response
+        guard let actionType = response.actionType else {
+            analyzeMessageForCoreAction(message)
+            return
+        }
+        
+        // Handle smart AI responses with confidence-based decision making
+        switch actionType {
+        case .createPillar:
+            if response.confidence >= 0.85 {
+                createPillarFromAI(response)
+            } else {
+                coreInsight = "Need more details for pillar - specify type and frequency"
+            }
+            
+        case .createGoal:
+            if response.confidence >= 0.8 {
+                createGoalFromAI(response)
+            } else {
+                coreInsight = "Need more details for goal - specify importance and timeline"
+            }
+            
+        case .createChain:
+            if response.confidence >= 0.75 {
+                createChainFromAI(response)
+            } else {
+                coreInsight = "Need more details for chain - specify activities and flow"
+            }
+            
+        case .createEvent:
+            if response.confidence >= 0.7 {
+                createEventFromAI(response, message: message)
+            } else {
+                coreInsight = "Need more details for event - specify time and duration"
+            }
+            
+        case .suggestActivities:
+            coreInsight = "Generated \(response.suggestions.count) activity suggestions"
+            
+        case .generalChat:
+            if let createdItems = response.createdItems, !createdItems.isEmpty {
+                handleCreatedItems(createdItems)
+            } else {
+                coreInsight = "Core system processed your request"
+            }
+        }
+    }
+    
+    // MARK: - Smart Item Creation
+    
+    private func createPillarFromAI(_ response: AIResponse) {
+        guard let createdItem = response.createdItems?.first(where: { $0.type == .pillar }),
+              let pillarData = createdItem.data as? [String: Any] else {
+            coreInsight = "Error creating pillar"
+            return
+        }
+        
+        let pillar = Pillar(
+            name: pillarData["name"] as? String ?? "New Pillar",
+            description: pillarData["description"] as? String ?? "AI-created pillar",
+            type: PillarType(rawValue: pillarData["type"] as? String ?? "actionable") ?? .actionable,
+            frequency: parseFrequency(pillarData["frequency"] as? String ?? "daily"),
+            minDuration: TimeInterval((pillarData["minDuration"] as? Int ?? 30) * 60),
+            maxDuration: TimeInterval((pillarData["maxDuration"] as? Int ?? 120) * 60),
+            preferredTimeWindows: parseTimeWindows(pillarData["preferredTimeWindows"] as? [[String: Any]] ?? []),
+            eventConsiderationEnabled: true,
+            wisdomText: pillarData["wisdomText"] as? String,
+            emoji: pillarData["emoji"] as? String ?? "🏛️"
+        )
+        
+        dataManager.addPillar(pillar)
+        coreInsight = "✅ Created pillar: \(pillar.name)"
+    }
+    
+    private func createGoalFromAI(_ response: AIResponse) {
+        guard let createdItem = response.createdItems?.first(where: { $0.type == .goal }),
+              let goalData = createdItem.data as? [String: Any] else {
+            coreInsight = "Error creating goal"
+            return
+        }
+        
+        let goal = Goal(
+            title: goalData["title"] as? String ?? "New Goal",
+            description: goalData["description"] as? String ?? "AI-created goal",
+            state: .on,
+            importance: goalData["importance"] as? Int ?? 3,
+            groups: parseGoalGroups(goalData["groups"] as? [[String: Any]] ?? []),
+            targetDate: parseTargetDate(goalData["targetDate"] as? String),
+            emoji: goalData["emoji"] as? String ?? "🎯",
+            relatedPillarIds: goalData["relatedPillarIds"] as? [UUID] ?? []
+        )
+        
+        dataManager.addGoal(goal)
+        coreInsight = "✅ Created goal: \(goal.title)"
+    }
+    
+    private func createChainFromAI(_ response: AIResponse) {
+        guard let createdItem = response.createdItems?.first(where: { $0.type == .chain }),
+              let chainData = createdItem.data as? [String: Any] else {
+            coreInsight = "Error creating chain"
+            return
+        }
+        
+        let blocks = parseChainBlocks(chainData["blocks"] as? [[String: Any]] ?? [])
+        let chain = Chain(
+            name: chainData["name"] as? String ?? "New Chain",
+            blocks: blocks,
+            flowPattern: FlowPattern(rawValue: chainData["flowPattern"] as? String ?? "waterfall") ?? .waterfall,
+            emoji: chainData["emoji"] as? String ?? "🔗"
+        )
+        
+        dataManager.addChain(chain)
+        coreInsight = "✅ Created chain: \(chain.name) with \(chain.blocks.count) activities"
+    }
+    
+    private func createEventFromAI(_ response: AIResponse, message: String) {
+        guard let firstSuggestion = response.suggestions.first else {
+            coreInsight = "Error creating event"
+            return
+        }
+        
+        // Extract time from message or use smart default
+        let targetTime = extractTimeFromMessage(message) ?? findNextAvailableTime()
+        
+        var timeBlock = firstSuggestion.toTimeBlock()
+        timeBlock.startTime = targetTime
+        
+        dataManager.addTimeBlock(timeBlock)
+        coreInsight = "✅ Created event: \(timeBlock.title) at \(targetTime.timeString)"
+    }
+    
+    private func handleCreatedItems(_ items: [CreatedItem]) {
+        var createdCount = 0
+        var lastItemTitle = ""
+        
+        for item in items {
+            switch item.type {
+            case .pillar:
+                if let pillarData = item.data as? [String: Any] {
+                    let pillar = Pillar(
+                        name: pillarData["name"] as? String ?? "New Pillar",
+                        description: pillarData["description"] as? String ?? "AI-created pillar",
+                        frequency: .daily,
+                        minDuration: 1800,
+                        maxDuration: 7200,
+                        preferredTimeWindows: [],
+                        overlapRules: [],
+                        quietHours: []
+                    )
+                    dataManager.addPillar(pillar)
+                    createdCount += 1
+                    lastItemTitle = pillar.name
+                }
+            case .goal:
+                if let goalData = item.data as? [String: Any] {
+                    let goal = Goal(
+                        title: goalData["title"] as? String ?? "New Goal",
+                        description: goalData["description"] as? String ?? "AI-created goal",
+                        state: .on,
+                        importance: goalData["importance"] as? Int ?? 3,
+                        groups: []
+                    )
+                    dataManager.addGoal(goal)
+                    createdCount += 1
+                    lastItemTitle = goal.title
+                }
+            case .chain:
+                if let chainData = item.data as? [String: Any] {
+                    let chain = Chain(
+                        name: chainData["name"] as? String ?? "New Chain",
+                        blocks: [],
+                        flowPattern: .waterfall
+                    )
+                    dataManager.addChain(chain)
+                    createdCount += 1
+                    lastItemTitle = chain.name
+                }
+            case .event:
+                if let suggestion = item.data as? Suggestion {
+                    let timeBlock = suggestion.toTimeBlock()
+                    dataManager.addTimeBlock(timeBlock)
+                    createdCount += 1
+                    lastItemTitle = timeBlock.title
+                }
+            }
+        }
+        
+        if createdCount > 0 {
+            coreInsight = "✅ Created \(createdCount) item\(createdCount == 1 ? "" : "s"): \(lastItemTitle)"
+        }
+    }
+    
+    // MARK: - Smart Analysis Fallback
+    
+    private func analyzeMessageForCoreAction(_ message: String) {
+        let lowerMessage = message.lowercased()
+        
+        if lowerMessage.contains("create pillar") || lowerMessage.contains("add pillar") {
+            coreInsight = "💡 Ready to create pillar - specify name, type (actionable/principle), and frequency"
+        } else if lowerMessage.contains("create goal") || lowerMessage.contains("add goal") {
+            coreInsight = "💡 Ready to create goal - specify title, importance (1-5), and target date"
+        } else if lowerMessage.contains("create chain") || lowerMessage.contains("add chain") {
+            coreInsight = "💡 Ready to create chain - specify name and list of activities"
+        } else if lowerMessage.contains("schedule") || lowerMessage.contains("create event") {
+            coreInsight = "💡 Ready to schedule event - specify what, when, and duration"
+        } else if lowerMessage.contains("break down") || lowerMessage.contains("breakdown") {
+            coreInsight = "🎯 Analyzing goals for breakdown opportunities"
+        } else {
+            coreInsight = "Core system processed your request"
+        }
+    }
+    
+    // MARK: - Parsing Helpers
+    
+    private func parseFrequency(_ frequency: String) -> PillarFrequency {
+        switch frequency.lowercased() {
+        case "daily": return .daily
+        case "weekly": return .weekly(1)
+        case "as needed": return .asNeeded
+        default: return .daily
+        }
+    }
+    
+    private func parseTimeWindows(_ windowsData: [[String: Any]]) -> [TimeWindow] {
+        return windowsData.compactMap { window in
+            guard let startHour = window["startHour"] as? Int,
+                  let startMinute = window["startMinute"] as? Int,
+                  let endHour = window["endHour"] as? Int,
+                  let endMinute = window["endMinute"] as? Int else { return nil }
+            
+            return TimeWindow(startHour: startHour, startMinute: startMinute, endHour: endHour, endMinute: endMinute)
+        }
+    }
+    
+    private func parseGoalGroups(_ groupsData: [[String: Any]]) -> [GoalGroup] {
+        return groupsData.compactMap { group in
+            guard let name = group["name"] as? String,
+                  let tasksData = group["tasks"] as? [[String: Any]] else { return nil }
+            
+            let tasks = tasksData.compactMap { taskData -> GoalTask? in
+                guard let title = taskData["title"] as? String,
+                      let description = taskData["description"] as? String else { return nil }
+                
+                return GoalTask(
+                    title: title,
+                    description: description,
+                    estimatedDuration: TimeInterval((taskData["estimatedDuration"] as? Int ?? 3600)),
+                    suggestedChains: [],
+                    actionQuality: taskData["actionQuality"] as? Int ?? 3
+                )
+            }
+            
+            return GoalGroup(name: name, tasks: tasks)
+        }
+    }
+    
+    private func parseTargetDate(_ dateString: String?) -> Date? {
+        guard let dateString = dateString else { return nil }
+        
+        let formatter = ISO8601DateFormatter()
+        return formatter.date(from: dateString)
+    }
+    
+    private func parseChainBlocks(_ blocksData: [[String: Any]]) -> [TimeBlock] {
+        return blocksData.compactMap { blockData in
+            guard let title = blockData["title"] as? String,
+                  let duration = blockData["duration"] as? TimeInterval else { return nil }
+            
+            return TimeBlock(
+                title: title,
+                startTime: Date(),
+                duration: duration,
+                energy: EnergyType(rawValue: blockData["energy"] as? String ?? "daylight") ?? .daylight,
+                emoji: blockData["emoji"] as? String ?? "🌊"
+            )
+        }
+    }
+    
+    private func extractTimeFromMessage(_ message: String) -> Date? {
+        // Enhanced time extraction with more patterns
+        let lowerMessage = message.lowercased()
+        let calendar = Calendar.current
+        let now = Date()
+        
+        // Check for "at X:XX" patterns
+        let timeRegex = try? NSRegularExpression(pattern: "at\\s+(\\d{1,2})(?::(\\d{2}))?\\s*(am|pm)?", options: .caseInsensitive)
+        if let regex = timeRegex {
+            let range = NSRange(location: 0, length: message.count)
+            if let match = regex.firstMatch(in: message, options: [], range: range) {
+                let hourRange = match.range(at: 1)
+                if let hourString = Range(hourRange, in: message).map({ String(message[$0]) }),
+                   let hour = Int(hourString) {
+                    return calendar.date(bySettingHour: hour, minute: 0, second: 0, of: now)
+                }
+            }
+        }
+        
+        // Check for relative time patterns
+        if lowerMessage.contains("now") || lowerMessage.contains("immediately") {
+            return now
+        } else if lowerMessage.contains("in 1 hour") || lowerMessage.contains("in an hour") {
+            return calendar.date(byAdding: .hour, value: 1, to: now)
+        } else if lowerMessage.contains("in 30 minutes") || lowerMessage.contains("in half hour") {
+            return calendar.date(byAdding: .minute, value: 30, to: now)
+        } else if lowerMessage.contains("tomorrow") {
+            return calendar.date(byAdding: .day, value: 1, to: now)
+        }
+        
+        return nil
+    }
+    
+    private func findNextAvailableTime() -> Date {
+        let now = Date()
+        let calendar = Calendar.current
+        let currentMinute = calendar.component(.minute, from: now)
+        let roundedMinute = ((currentMinute / 15) + 1) * 15
+        
+        return calendar.date(byAdding: .minute, value: roundedMinute - currentMinute, to: now) ?? now
+    }
+}
+
+// MARK: - Intake Questions Section (without Core Chat)
+
+struct IntakeQuestionsSection: View {
+    @EnvironmentObject private var dataManager: AppDataManager
+    @EnvironmentObject private var aiService: AIService
+    @State private var showingQuestionDetail: IntakeQuestion?
+    @State private var showingAIInsights = false
+    @State private var generateQuestionsCounter = 0
+    
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            // Traditional Intake Questions
+            HStack {
+                Text("Intake Questions")
+                    .font(.title2)
+                    .fontWeight(.semibold)
+                
+                Spacer()
+                
+                Menu {
+                    Button("What AI knows about me") {
+                        showingAIInsights = true
+                    }
+                    
+                    Button("Generate new questions") {
+                        generateNewQuestions()
+                    }
+                    
+                    Button("Reset answered questions") {
+                        resetAnsweredQuestions()
+                    }
+                } label: {
+                    Image(systemName: "ellipsis.circle")
+                        .foregroundColor(.secondary)
+                }
+                .buttonStyle(.plain)
+            }
+            
+            if dataManager.appState.intakeQuestions.isEmpty {
+                VStack(spacing: 12) {
+                    Text("🤔")
+                        .font(.title)
+                        .opacity(0.5)
+                    
+                    Text("No questions available")
+                        .font(.subheadline)
+                        .foregroundColor(.secondary)
+                    
+                    Button("Generate Questions") {
+                        generateNewQuestions()
+                    }
+                    .buttonStyle(.borderedProminent)
+                    .controlSize(.small)
+                }
+                .frame(maxWidth: .infinity)
+                .padding(.vertical, 20)
+                .background(.quaternary.opacity(0.1), in: RoundedRectangle(cornerRadius: 8))
+            } else {
+                LazyVStack(spacing: 8) {
+                    ForEach(dataManager.appState.intakeQuestions) { question in
+                        EnhancedIntakeQuestionView(
+                            question: question,
+                            onAnswerTap: {
+                                showingQuestionDetail = question
+                            },
+                            onLongPress: {
+                                showAIThoughts(for: question)
+                            }
+                        )
+                    }
+                }
+                
+                // Progress indicator
+                let answeredCount = dataManager.appState.intakeQuestions.filter(\.isAnswered).count
+                let totalCount = dataManager.appState.intakeQuestions.count
+                
+                if totalCount > 0 {
+                    HStack {
+                        Text("Progress: \(answeredCount)/\(totalCount) answered")
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                        
+                        Spacer()
+                        
+                        ProgressView(value: Double(answeredCount), total: Double(totalCount))
+                            .frame(width: 100)
+                    }
+                    .padding(.top, 8)
+                }
+            }
+        }
+        .sheet(item: $showingQuestionDetail) { question in
+            IntakeQuestionDetailView(question: question) { updatedQuestion in
+                if let index = dataManager.appState.intakeQuestions.firstIndex(where: { $0.id == question.id }) {
+                    dataManager.appState.intakeQuestions[index] = updatedQuestion
+                    dataManager.save()
+                    
+                    // Award XP for answering
+                    dataManager.appState.addXP(10, reason: "Answered intake question")
+                }
+                showingQuestionDetail = nil
+            }
+        }
+        .sheet(isPresented: $showingAIInsights) {
+            AIKnowledgeView()
+                .environmentObject(dataManager)
+        }
+    }
+    
+    private func generateNewQuestions() {
+        generateQuestionsCounter += 1
+        
+        Task {
+            let newQuestions = await generateContextualQuestions()
+            await MainActor.run {
+                dataManager.appState.intakeQuestions.append(contentsOf: newQuestions)
+                dataManager.save()
+            }
+        }
+    }
+    
+    private func generateContextualQuestions() async -> [IntakeQuestion] {
+        // Generate questions based on current app state
+        let existingCategories = Set(dataManager.appState.intakeQuestions.map(\.category))
+        var newQuestions: [IntakeQuestion] = []
+        
+        // Add category-specific questions that haven't been covered
+        if !existingCategories.contains(.routine) {
+            newQuestions.append(IntakeQuestion(
+                question: "What's your ideal morning routine?",
+                category: .routine,
+                importance: 4,
+                aiInsight: "Morning routines set the tone for the entire day and affect energy levels"
+            ))
+        }
+        
+        if !existingCategories.contains(.energy) {
+            newQuestions.append(IntakeQuestion(
+                question: "When do you typically feel most creative?",
+                category: .energy,
+                importance: 4,
+                aiInsight: "Creative time should be protected and scheduled when energy is optimal"
+            ))
+        }
+        
+        if !existingCategories.contains(.constraints) {
+            newQuestions.append(IntakeQuestion(
+                question: "What are your biggest time constraints during the week?",
+                category: .constraints,
+                importance: 5,
+                aiInsight: "Understanding constraints helps the AI avoid suggesting impossible schedules"
+            ))
+        }
+        
+        return newQuestions
+    }
+    
+    private func resetAnsweredQuestions() {
+        for i in 0..<dataManager.appState.intakeQuestions.count {
+            dataManager.appState.intakeQuestions[i].answer = nil
+            dataManager.appState.intakeQuestions[i].answeredAt = nil
+        }
+        dataManager.save()
+    }
+    
+    private func showAIThoughts(for question: IntakeQuestion) {
+        // This would show a popover with AI insights
+        // For now, just show the existing insight
+        print("AI thinks: \(question.aiInsight ?? "No insights available")")
+    }
+}
+
 struct AuroraDreamBuilderSection: View {
     @EnvironmentObject private var dataManager: AppDataManager
     @State private var showingDreamBuilder = false

@@ -16,6 +16,7 @@ struct MonthViewExpanded: View {
     @State private var dragStartDate: Date?
     @State private var isDragging = false
     let dataManager: AppDataManager
+    let onDayClick: (() -> Void)?
     
     private let calendar = Calendar.current
     private let dateFormatter: DateFormatter = {
@@ -133,9 +134,12 @@ struct MonthViewExpanded: View {
     
     // Multi-day selection handlers
     private func handleDayTap(_ date: Date) {
+        // Always set the selected date first - this will trigger onChange and switchToDay
+        selectedDate = date
+        
         if selectedDates.contains(date) && selectedDates.count == 1 {
-            // Single selection - navigate to that day
-            selectedDate = date
+            // Single selection - navigate to that day and trigger day click
+            onDayClick?()
         } else if selectedDates.contains(date) {
             // Remove from multi-selection
             selectedDates.remove(date)
@@ -143,9 +147,9 @@ struct MonthViewExpanded: View {
                 selectedDate = selectedDates.sorted().first ?? date
             }
         } else {
-            // Add to selection or replace selection
+            // Add to selection or replace selection and trigger day click
             selectedDates = [date]
-            selectedDate = date
+            onDayClick?()
         }
     }
     
@@ -608,11 +612,13 @@ struct MonthView: View {
     // MARK: - Day Selection Logic
     
     private func handleDayTap(_ date: Date) {
+        // Always switch to the clicked day first
+        dataManager.switchToDay(date)
+        
         if selectedDates.isEmpty {
             // First selection
             selectedDates.insert(date)
             dateSelectionRange.start = date
-            dataManager.switchToDay(date)
         } else if selectedDates.count == 1 {
             // Second selection - create range
             let existingDate = selectedDates.first!
@@ -634,7 +640,6 @@ struct MonthView: View {
             selectedDates.removeAll()
             selectedDates.insert(date)
             dateSelectionRange = (date, nil)
-            dataManager.switchToDay(date)
         }
     }
     

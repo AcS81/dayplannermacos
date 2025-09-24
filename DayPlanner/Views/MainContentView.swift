@@ -16,6 +16,7 @@ struct ContentView: View {
     @State private var showingAIDiagnostics = false
     @State private var selectedTab: AppTab = .calendar
     @State private var selectedDate = Date() // Shared date state across tabs
+    @State private var showingMindPanel = false // Control mind panel visibility
     
     var body: some View {
         ZStack {
@@ -25,13 +26,14 @@ struct ContentView: View {
                     xp: dataManager.appState.userXP,
                     xxp: dataManager.appState.userXXP,
                     aiConnected: aiService.isConnected,
+                    showingMindPanel: $showingMindPanel,
                     onSettingsTap: { showingSettings = true },
                     onDiagnosticsTap: { showingAIDiagnostics = true }
                 )
                 
                 
                 // Main unified split view - Both calendar and mind visible simultaneously
-                UnifiedSplitView(selectedDate: $selectedDate)
+                UnifiedSplitView(selectedDate: $selectedDate, showingMindPanel: $showingMindPanel)
                     .environmentObject(dataManager)
                     .environmentObject(aiService)
                 
@@ -132,26 +134,87 @@ struct UnifiedSplitView: View {
     @EnvironmentObject private var dataManager: AppDataManager
     @EnvironmentObject private var aiService: AIService
     @Binding var selectedDate: Date
+    @Binding var showingMindPanel: Bool // Control mind panel visibility
     @State private var showingBackfill = false
-    @State private var showingMonthView = false
+    @State private var showingMonthView = true // Default to monthly view
     @State private var selectedMindSection: TimeframeSelector = .now
     
     var body: some View {
-        HSplitView {
-            // Left Panel - Calendar with expandable month view
-            CalendarPanel(
-                selectedDate: $selectedDate,
-                showingMonthView: $showingMonthView
-            )
-            .frame(minWidth: 500, idealWidth: 600)
+        ZStack {
+            // Main calendar view - always stays on the left
+            HStack(spacing: 0) {
+                // Calendar panel always takes left side
+                CalendarPanel(
+                    selectedDate: $selectedDate,
+                    showingMonthView: $showingMonthView
+                )
+                .frame(width: showingMindPanel ? 500 : .infinity)
+                
+                
+                // Spacer to push everything to the left
+                if showingMindPanel {
+                    Spacer()
+                        .frame(width: 450) // Same width as mind panel to reserve space
+                }
+            }
             
-            // Elegant liquid glass separator
-            LiquidGlassSeparator()
-                .frame(width: 2)
-            
-            // Right Panel - Mind content (chains, pillars, goals)
-            MindPanel(selectedTimeframe: $selectedMindSection)
-                .frame(minWidth: 400, idealWidth: 500)
+            // Rising mind panel overlay
+            if showingMindPanel {
+                VStack {
+                    Spacer()
+                    HStack {
+                        Spacer()
+                        ZStack(alignment: .topLeading) {
+                            MindPanel(selectedTimeframe: $selectedMindSection)
+                                .frame(width: 450)
+                                .background(.ultraThinMaterial.opacity(0.95), in: RoundedRectangle(cornerRadius: 16))
+                                .overlay(
+                                    RoundedRectangle(cornerRadius: 16)
+                                        .strokeBorder(.white.opacity(0.12), lineWidth: 1)
+                                )
+                            
+                            // Collapse tab on the left side
+                            VStack {
+                                Button(action: {
+                                    withAnimation(.spring(response: 0.6, dampingFraction: 0.8)) {
+                                        showingMindPanel = false
+                                    }
+                                }) {
+                                    Image(systemName: "chevron.right.circle.fill")
+                                        .font(.title3)
+                                        .foregroundStyle(.blue)
+                                        .background(.ultraThinMaterial, in: Circle())
+                                        .overlay(
+                                            Circle()
+                                                .strokeBorder(.blue.opacity(0.2), lineWidth: 1)
+                                        )
+                                }
+                                .buttonStyle(.plain)
+                                .padding(8)
+                                
+                                Spacer()
+                            }
+                            .padding(.leading, 8)
+                            .padding(.top, 16)
+                        }
+                        .padding(.trailing, 8)
+                        .transition(.asymmetric(
+                            insertion: .move(edge: .bottom).combined(with: .opacity),
+                            removal: .move(edge: .bottom).combined(with: .opacity)
+                        ))
+                        .animation(.spring(response: 0.6, dampingFraction: 0.8), value: showingMindPanel)
+                    }
+                }
+                .background(
+                    Color.black.opacity(0.1)
+                        .ignoresSafeArea()
+                        .onTapGesture {
+                            withAnimation(.spring(response: 0.6, dampingFraction: 0.8)) {
+                                showingMindPanel = false
+                            }
+                        }
+                )
+            }
         }
         .background(
             // Subtle unified background with gentle gradients
@@ -200,6 +263,7 @@ struct TopBarView: View {
     let xp: Int
     let xxp: Int
     let aiConnected: Bool
+    @Binding var showingMindPanel: Bool
     let onSettingsTap: () -> Void
     let onDiagnosticsTap: () -> Void
     

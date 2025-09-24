@@ -96,6 +96,7 @@ struct ContentView: View {
     @State private var selectedDate = Date() // Shared date state across tabs
     @State private var showingSettingsPanel = false
     @State private var showingXPDisplay = false
+    @State private var showingMindPanel = false // Control mind panel visibility
     
     var body: some View {
         ZStack {
@@ -105,6 +106,7 @@ struct ContentView: View {
                     xp: dataManager.appState.userXP,
                     xxp: dataManager.appState.userXXP,
                     aiConnected: aiService.isConnected,
+                    showingMindPanel: $showingMindPanel,
                     hideSettingsButton: showingSettingsPanel,
                     onSettingsTap: { 
                         if showingSettingsPanel {
@@ -126,7 +128,7 @@ struct ContentView: View {
                 
                 
                 // Main unified split view - Both calendar and mind visible simultaneously
-                UnifiedSplitView(selectedDate: $selectedDate)
+                UnifiedSplitView(selectedDate: $selectedDate, showingMindPanel: $showingMindPanel)
                     .environmentObject(dataManager)
                     .environmentObject(aiService)
                 
@@ -165,6 +167,34 @@ struct ContentView: View {
                         .environmentObject(dataManager)
                         .environmentObject(aiService)
                         .frame(maxWidth: 600)
+                    Spacer()
+                }
+                .padding(.bottom, 20)
+                
+                // Bottom Mind Button
+                HStack {
+                    Spacer()
+                    Button(action: {
+                        withAnimation(.spring(response: 0.6, dampingFraction: 0.8)) {
+                            showingMindPanel.toggle()
+                        }
+                    }) {
+                        HStack(spacing: 6) {
+                            Image(systemName: "brain.head.profile")
+                                .font(.system(size: 14, weight: .semibold))
+                            Text("Mind")
+                                .font(.system(size: 14, weight: .medium))
+                        }
+                        .foregroundStyle(.blue)
+                        .padding(.horizontal, 16)
+                        .padding(.vertical, 8)
+                        .background(.blue.opacity(0.1), in: Capsule())
+                        .overlay(
+                            Capsule()
+                                .strokeBorder(.blue.opacity(0.3), lineWidth: 1)
+                        )
+                    }
+                    .buttonStyle(.plain)
                     Spacer()
                 }
                 .padding(.bottom, 20)
@@ -1308,26 +1338,55 @@ struct UnifiedSplitView: View {
     @EnvironmentObject private var dataManager: AppDataManager
     @EnvironmentObject private var aiService: AIService
     @Binding var selectedDate: Date
+    @Binding var showingMindPanel: Bool // Control mind panel visibility
     @State private var showingBackfill = false
-    @State private var showingMonthView = false
+    @State private var showingMonthView = true // Default to monthly view
     @State private var selectedMindSection: TimeframeSelector = .now
     
     var body: some View {
-        HSplitView {
-            // Left Panel - Calendar with expandable month view
-            CalendarPanel(
-                selectedDate: $selectedDate,
-                showingMonthView: $showingMonthView
-            )
-            .frame(minWidth: 500, idealWidth: 600)
+        ZStack {
+            // Main calendar view - always stays on the left
+            HStack(spacing: 0) {
+                // Calendar panel always takes left side
+                CalendarPanel(
+                    selectedDate: $selectedDate,
+                    showingMonthView: $showingMonthView
+                )
+                .frame(width: showingMindPanel ? 500 : .infinity)
+                
+                
+                // Spacer to push everything to the left
+                if showingMindPanel {
+                    Spacer()
+                        .frame(width: 450) // Same width as mind panel to reserve space
+                }
+            }
             
-            // Elegant liquid glass separator
-            LiquidGlassSeparator()
-                .frame(width: 2)
-            
-            // Right Panel - Mind content (chains, pillars, goals)
-            MindPanel(selectedTimeframe: $selectedMindSection)
-                .frame(minWidth: 400, idealWidth: 500)
+            // Rising mind panel overlay
+            if showingMindPanel {
+                VStack {
+                    Spacer()
+                    HStack {
+                        Spacer()
+                        ZStack(alignment: .topLeading) {
+                            MindPanel(selectedTimeframe: $selectedMindSection)
+                                .frame(width: 450)
+                                .background(.ultraThinMaterial.opacity(0.95), in: RoundedRectangle(cornerRadius: 16))
+                                .overlay(
+                                    RoundedRectangle(cornerRadius: 16)
+                                        .strokeBorder(.white.opacity(0.12), lineWidth: 1)
+                                )
+                            
+                        }
+                        .padding(.trailing, 8)
+                        .transition(.asymmetric(
+                            insertion: .move(edge: .bottom).combined(with: .opacity),
+                            removal: .move(edge: .bottom).combined(with: .opacity)
+                        ))
+                        .animation(.spring(response: 0.6, dampingFraction: 0.8), value: showingMindPanel)
+                    }
+                }
+            }
         }
         .background(
             // Subtle unified background with gentle gradients
@@ -1359,7 +1418,8 @@ struct CalendarPanel: View {
     @Binding var showingMonthView: Bool
     @State private var showingPillarDay = false
     @State private var showingBackfillTemplates = false
-    @State private var showingTodoList = false
+    @State private var showingChainsTemplates = false
+    @State private var showingTodoList = false // Default to hiding todo list
     
     var body: some View {
         VStack(spacing: 0) {
@@ -1368,19 +1428,37 @@ struct CalendarPanel: View {
                 selectedDate: $selectedDate,
                 showingMonthView: $showingMonthView,
                 showingBackfillTemplates: $showingBackfillTemplates,
+                showingChainsTemplates: $showingChainsTemplates,
                 showingTodoList: $showingTodoList,
-                onPillarDayTap: { showingPillarDay = true }
+                onPillarDayTap: { showingPillarDay = true },
+                isDefaultMonthView: true, // Month view is shown by default
+                onBackToCalendar: {
+                    // Return to monthly calendar view
+                    withAnimation(.spring(response: 0.6, dampingFraction: 0.8)) {
+                        showingMonthView = true
+                    }
+                }
             )
             
-            // Month view (expandable/collapsible)
+            // Month view (expandable/collapsible) - switches to hourly view on day click
             if showingMonthView {
-                MonthViewExpanded(selectedDate: $selectedDate, dataManager: dataManager)
-                    .frame(height: 280)
-                    .transition(.asymmetric(
-                        insertion: .opacity.combined(with: .scale(scale: 0.95)).combined(with: .move(edge: .top)),
-                        removal: .opacity.combined(with: .scale(scale: 0.95)).combined(with: .move(edge: .top))
-                    ))
-                    .animation(.spring(response: 0.6, dampingFraction: 0.8), value: showingMonthView)
+                MonthViewExpanded(
+                    selectedDate: $selectedDate, 
+                    dataManager: dataManager,
+                    onDayClick: {
+                        // Switch to hourly view when a day is clicked
+                        withAnimation(.spring(response: 0.6, dampingFraction: 0.8)) {
+                            showingMonthView = false
+                            showingTodoList = false // Hide todo list when switching to day view
+                        }
+                    }
+                )
+                .frame(height: 280)
+                .transition(.asymmetric(
+                    insertion: .opacity.combined(with: .scale(scale: 0.95)).combined(with: .move(edge: .top)),
+                    removal: .opacity.combined(with: .scale(scale: 0.95)).combined(with: .move(edge: .top))
+                ))
+                .animation(.spring(response: 0.6, dampingFraction: 0.8), value: showingMonthView)
             }
             
             // Backfill templates dropdown (expandable/collapsible)
@@ -1394,9 +1472,27 @@ struct CalendarPanel: View {
                     .animation(.spring(response: 0.6, dampingFraction: 0.8), value: showingBackfillTemplates)
             }
             
-            // Day view - enhanced with liquid glass styling
-            EnhancedDayView(selectedDate: $selectedDate)
-                .frame(maxHeight: showingTodoList ? nil : .infinity)
+            // Chains templates dropdown (expandable/collapsible)
+            if showingChainsTemplates {
+                ChainsTemplatesView(selectedDate: selectedDate)
+                    .frame(height: 200)
+                    .transition(.asymmetric(
+                        insertion: .opacity.combined(with: .scale(scale: 0.95)).combined(with: .move(edge: .top)),
+                        removal: .opacity.combined(with: .scale(scale: 0.95)).combined(with: .move(edge: .top))
+                    ))
+                    .animation(.spring(response: 0.6, dampingFraction: 0.8), value: showingChainsTemplates)
+            }
+            
+            // Day view - enhanced with liquid glass styling (only show when not in month view)
+            if !showingMonthView {
+                EnhancedDayView(selectedDate: $selectedDate)
+                    .frame(maxHeight: showingTodoList ? nil : .infinity)
+                    .transition(.asymmetric(
+                        insertion: .opacity.combined(with: .scale(scale: 0.95)).combined(with: .move(edge: .top)),
+                        removal: .opacity.combined(with: .scale(scale: 0.95)).combined(with: .move(edge: .top))
+                    ))
+                    .animation(.spring(response: 0.6, dampingFraction: 0.8), value: showingMonthView)
+            }
             
             // To-Do section (expandable/collapsible from bottom)
             if showingTodoList {
@@ -1440,11 +1536,6 @@ struct MindPanel: View {
             // Scrollable mind content
             ScrollView {
                 LazyVStack(spacing: 20) {
-                    // Supercharged chains section with AI integration
-                    SuperchargedChainsSection()
-                        .environmentObject(dataManager)
-                        .environmentObject(aiService)
-                    
                     // Pillars section with crystal aesthetics
                     CrystalPillarsSection()
                         .environmentObject(dataManager)
@@ -1509,8 +1600,11 @@ struct CalendarPanelHeader: View {
     @Binding var selectedDate: Date
     @Binding var showingMonthView: Bool
     @Binding var showingBackfillTemplates: Bool
+    @Binding var showingChainsTemplates: Bool
     @Binding var showingTodoList: Bool
     let onPillarDayTap: () -> Void
+    let isDefaultMonthView: Bool // Track if month view is shown by default
+    let onBackToCalendar: (() -> Void)? // Callback to return to calendar view
     
     private var dateFormatter: DateFormatter {
         let formatter = DateFormatter()
@@ -1566,18 +1660,35 @@ struct CalendarPanelHeader: View {
             Spacer()
             
             HStack(spacing: 8) {
-                // Month expand/collapse button
-                Button(action: { 
-                    withAnimation(.spring(response: 0.6, dampingFraction: 0.8)) {
-                        showingMonthView.toggle()
+                // Back to calendar button - show when in day view mode
+                if !showingMonthView {
+                    Button(action: { 
+                        withAnimation(.spring(response: 0.6, dampingFraction: 0.8)) {
+                            onBackToCalendar?()
+                        }
+                    }) {
+                        Image(systemName: "calendar.circle.fill")
+                            .font(.title2)
+                            .foregroundStyle(.blue)
+                            .symbolEffect(.bounce, value: !showingMonthView)
                     }
-                }) {
-                    Image(systemName: showingMonthView ? "chevron.up.circle.fill" : "calendar.circle")
-                        .font(.title2)
-                        .foregroundStyle(showingMonthView ? .blue : .secondary)
-                        .symbolEffect(.bounce, value: showingMonthView)
+                    .buttonStyle(.plain)
                 }
-                .buttonStyle(.plain)
+                
+                // Month expand/collapse button - only show when not default view and in month view
+                if !isDefaultMonthView && showingMonthView {
+                    Button(action: { 
+                        withAnimation(.spring(response: 0.6, dampingFraction: 0.8)) {
+                            showingMonthView.toggle()
+                        }
+                    }) {
+                        Image(systemName: "chevron.up.circle.fill")
+                            .font(.title2)
+                            .foregroundStyle(.blue)
+                            .symbolEffect(.bounce, value: showingMonthView)
+                    }
+                    .buttonStyle(.plain)
+                }
                 
                 // To-Do expand/collapse button
                 Button(action: { 
@@ -1608,6 +1719,15 @@ struct CalendarPanelHeader: View {
                     Button("Backfill") {
                         withAnimation(.spring(response: 0.6, dampingFraction: 0.8)) {
                             showingBackfillTemplates.toggle()
+                        }
+                    }
+                    .buttonStyle(.borderedProminent)
+                    .controlSize(.small)
+                    .buttonBorderShape(.capsule)
+                    
+                    Button("Chains") {
+                        withAnimation(.spring(response: 0.6, dampingFraction: 0.8)) {
+                            showingChainsTemplates.toggle()
                         }
                     }
                     .buttonStyle(.borderedProminent)
@@ -1653,7 +1773,7 @@ struct MindPanelHeader: View {
                     .fontWeight(.semibold)
                     .foregroundStyle(.primary)
                 
-                Text("Chains • Pillars • Goals")
+                Text("Pillars • Goals • Dreams")
                     .font(.caption)
                     .fontWeight(.medium)
                     .foregroundStyle(.secondary)
@@ -1748,7 +1868,7 @@ struct EnhancedDayView: View {
             .scrollDisabled(draggedBlock != nil) // Disable scroll when dragging an event
         }
         .onChange(of: selectedDate) { oldValue, newValue in
-            updateDataManagerDate()
+            dataManager.switchToDay(newValue)
         }
         .onAppear {
             selectedDate = dataManager.appState.currentDay.date
@@ -1774,10 +1894,6 @@ struct EnhancedDayView: View {
         dataManager.updateTimeBlock(updatedBlock)
     }
     
-    private func updateDataManagerDate() {
-        dataManager.appState.currentDay.date = selectedDate
-        dataManager.save()
-    }
 }
 
 // MARK: - Precise Timeline View (Exact Positioning)
@@ -1879,13 +1995,21 @@ struct ProportionalTimelineView: View {
             let minute = calendar.component(.minute, from: now)
             let offsetY = CGFloat(minute) // 1 pixel per minute
             
-            Rectangle()
-                .fill(.blue)
-                .frame(height: 2)
-                .frame(maxWidth: .infinity)
-                .offset(y: offsetY)
-                .opacity(0.8)
-                .shadow(color: .blue, radius: 1)
+            HStack(spacing: 8) {
+                Rectangle()
+                    .fill(.blue)
+                    .frame(height: 2)
+                    .frame(maxWidth: .infinity)
+                    .opacity(0.8)
+                    .shadow(color: .blue, radius: 1)
+                
+                Text("now")
+                    .font(.system(.caption2, design: .monospaced))
+                    .fontWeight(.semibold)
+                    .foregroundColor(.red)
+                    .opacity(0.9)
+            }
+            .offset(y: offsetY)
         }
     }
 }
@@ -2014,13 +2138,21 @@ struct TimelineCanvas: View {
             let minute = calendar.component(.minute, from: now)
             let offsetY = CGFloat(minute) // 1 pixel per minute
             
-            Rectangle()
-                .fill(.blue)
-                .frame(height: 2)
-                .frame(maxWidth: .infinity)
-                .offset(y: offsetY)
-                .opacity(0.8)
-                .shadow(color: .blue, radius: 1)
+            HStack(spacing: 8) {
+                Rectangle()
+                    .fill(.blue)
+                    .frame(height: 2)
+                    .frame(maxWidth: .infinity)
+                    .opacity(0.8)
+                    .shadow(color: .blue, radius: 1)
+                
+                Text("now")
+                    .font(.system(.caption2, design: .monospaced))
+                    .fontWeight(.semibold)
+                    .foregroundColor(.red)
+                    .opacity(0.9)
+            }
+            .offset(y: offsetY)
         }
     }
     
@@ -3700,11 +3832,20 @@ struct EnhancedHourSlot: View {
             .overlay(
                 // Current time line indicator
                 isCurrentMinute ?
-                    Rectangle()
-                        .fill(.blue)
-                        .frame(height: 2)
-                        .offset(y: currentTimeOffset - 20)
-                        .opacity(0.8)
+                    HStack(spacing: 8) {
+                        Rectangle()
+                            .fill(.blue)
+                            .frame(height: 2)
+                            .frame(maxWidth: .infinity)
+                            .opacity(0.8)
+                        
+                        Text("now")
+                            .font(.system(.caption2, design: .monospaced))
+                            .fontWeight(.semibold)
+                            .foregroundColor(.red)
+                            .opacity(0.9)
+                    }
+                    .offset(y: currentTimeOffset - 20)
                     : nil,
                 alignment: .topLeading
             )
@@ -5229,6 +5370,7 @@ struct MonthViewExpanded: View {
     @State private var dragStartDate: Date?
     @State private var isDragging = false
     let dataManager: AppDataManager
+    let onDayClick: (() -> Void)?
     
     private let calendar = Calendar.current
     private let dateFormatter: DateFormatter = {
@@ -5308,6 +5450,9 @@ struct MonthViewExpanded: View {
             displayedMonth = selectedDate
             selectedDates = [selectedDate]
         }
+        .onChange(of: selectedDate) { oldValue, newValue in
+            dataManager.switchToDay(newValue)
+        }
     }
     
     private var calendarDays: [Date?] {
@@ -5346,9 +5491,12 @@ struct MonthViewExpanded: View {
     
     // Multi-day selection handlers
     private func handleDayTap(_ date: Date) {
+        // Always set the selected date first - this will trigger onChange and switchToDay
+        selectedDate = date
+        
         if selectedDates.contains(date) && selectedDates.count == 1 {
-            // Single selection - navigate to that day
-            selectedDate = date
+            // Single selection - navigate to that day and trigger day click
+            onDayClick?()
         } else if selectedDates.contains(date) {
             // Remove from multi-selection
             selectedDates.remove(date)
@@ -5356,9 +5504,9 @@ struct MonthViewExpanded: View {
                 selectedDate = selectedDates.sorted().first ?? date
             }
         } else {
-            // Add to selection or replace selection
+            // Add to selection or replace selection and trigger day click
             selectedDates = [date]
-            selectedDate = date
+            onDayClick?()
         }
     }
     
@@ -8421,6 +8569,7 @@ struct TopBarView: View {
     let xp: Int
     let xxp: Int
     let aiConnected: Bool
+    @Binding var showingMindPanel: Bool
     let hideSettingsButton: Bool
     let onSettingsTap: () -> Void
     let onDiagnosticsTap: () -> Void
@@ -10711,9 +10860,6 @@ struct MindTabView: View {
             
             ScrollView {
                 VStack(spacing: 24) {
-                    // Chains section
-                    ChainsSection()
-                    
                     // Pillars section
                     PillarsSection()
                     
@@ -11782,9 +11928,6 @@ struct DayPlannerView: View {
             }
             .scrollDisabled(draggedBlock != nil) // Disable scroll when dragging an event
         }
-        .onChange(of: selectedDate) { oldValue, newValue in
-            updateDataManagerDate()
-        }
         .onAppear {
             // Ensure selectedDate matches currentDay on appear
             selectedDate = dataManager.appState.currentDay.date
@@ -12790,11 +12933,13 @@ struct MonthView: View {
     // MARK: - Day Selection Logic
     
     private func handleDayTap(_ date: Date) {
+        // Always switch to the clicked day first
+        dataManager.switchToDay(date)
+        
         if selectedDates.isEmpty {
             // First selection
             selectedDates.insert(date)
             dateSelectionRange.start = date
-            dataManager.switchToDay(date)
         } else if selectedDates.count == 1 {
             // Second selection - create range
             let existingDate = selectedDates.first!
@@ -12816,7 +12961,6 @@ struct MonthView: View {
             selectedDates.removeAll()
             selectedDates.insert(date)
             dateSelectionRange = (date, nil)
-            dataManager.switchToDay(date)
         }
     }
     
@@ -16208,6 +16352,162 @@ struct HistoryLogView: View {
             }
         }
         .frame(width: 600, height: 400)
+    }
+}
+
+// MARK: - Chains Templates View
+
+struct ChainsTemplatesView: View {
+    let selectedDate: Date
+    @EnvironmentObject private var dataManager: AppDataManager
+    @State private var templates: [ChainTemplate] = []
+    
+    var body: some View {
+        VStack(spacing: 12) {
+            HStack {
+                Text("Chain Templates")
+                    .font(.headline)
+                    .fontWeight(.semibold)
+                
+                Spacer()
+                
+                Text("Drag to timeline")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+            
+            ScrollView(.horizontal, showsIndicators: false) {
+                HStack(spacing: 12) {
+                    ForEach(templates) { template in
+                        DraggableChainTemplate(template: template)
+                    }
+                }
+                .padding(.horizontal, 16)
+            }
+        }
+        .padding(16)
+        .background(.ultraThinMaterial.opacity(0.4), in: RoundedRectangle(cornerRadius: 12))
+        .overlay(
+            RoundedRectangle(cornerRadius: 12)
+                .strokeBorder(.white.opacity(0.1), lineWidth: 1)
+        )
+        .onAppear {
+            generateTemplates()
+        }
+    }
+    
+    private func generateTemplates() {
+        templates = [
+            ChainTemplate(
+                name: "Morning Routine",
+                icon: "🌅",
+                activities: ["Wake up routine", "Exercise", "Breakfast", "Plan day"],
+                totalDuration: 120, // 2 hours
+                energyFlow: [.sunrise, .sunrise, .daylight, .daylight]
+            ),
+            ChainTemplate(
+                name: "Deep Work",
+                icon: "🎯", 
+                activities: ["Setup workspace", "Focus session", "Break", "Review"],
+                totalDuration: 90, // 1.5 hours
+                energyFlow: [.daylight, .daylight, .moonlight, .daylight]
+            ),
+            ChainTemplate(
+                name: "Evening Wind-down",
+                icon: "🌙",
+                activities: ["Dinner", "Reflection", "Reading", "Sleep prep"],
+                totalDuration: 150, // 2.5 hours  
+                energyFlow: [.daylight, .moonlight, .moonlight, .moonlight]
+            ),
+            ChainTemplate(
+                name: "Creative Flow",
+                icon: "🎨",
+                activities: ["Inspiration gathering", "Brainstorm", "Create", "Refine"],
+                totalDuration: 180, // 3 hours
+                energyFlow: [.daylight, .sunrise, .sunrise, .daylight]
+            )
+        ]
+    }
+}
+
+struct DraggableChainTemplate: View {
+    let template: ChainTemplate
+    @EnvironmentObject private var dataManager: AppDataManager
+    @State private var dragOffset: CGSize = .zero
+    @State private var isDragging = false
+    
+    var body: some View {
+        VStack(spacing: 8) {
+            Text(template.icon)
+                .font(.title)
+            
+            Text(template.name)
+                .font(.caption)
+                .fontWeight(.medium)
+                .multilineTextAlignment(.center)
+                .lineLimit(2)
+            
+            HStack(spacing: 4) {
+                Text("\(template.totalDuration)m")
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
+                
+                Text("•")
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
+                
+                Text("\(template.activities.count) steps")
+                    .font(.caption2)
+                    .foregroundStyle(.blue)
+            }
+        }
+        .padding(12)
+        .frame(width: 100, height: 80)
+        .background(
+            RoundedRectangle(cornerRadius: 8)
+                .fill(.ultraThinMaterial.opacity(0.6))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 8)
+                        .strokeBorder(.white.opacity(0.2), lineWidth: 1)
+                )
+        )
+        .scaleEffect(isDragging ? 1.05 : 1.0)
+        .offset(dragOffset)
+        .animation(.spring(response: 0.3, dampingFraction: 0.6), value: isDragging)
+        .gesture(
+            DragGesture()
+                .onChanged { value in
+                    isDragging = true
+                    dragOffset = value.translation
+                }
+                .onEnded { value in
+                    isDragging = false
+                    dragOffset = .zero
+                    
+                    // Create chain from template and apply to selected date
+                    createChainFromTemplate()
+                }
+        )
+    }
+    
+    private func createChainFromTemplate() {
+        let chain = Chain(
+            id: UUID(),
+            name: template.name,
+            blocks: template.activities.enumerated().map { index, activity in
+                let startTime = Calendar.current.date(byAdding: .minute, value: index * 30, to: Date()) ?? Date()
+                return TimeBlock(
+                    title: activity,
+                    startTime: startTime,
+                    duration: TimeInterval((template.totalDuration * 60) / template.activities.count),
+                    energy: template.energyFlow[index % template.energyFlow.count],
+                    emoji: template.icon
+                )
+            },
+            flowPattern: .waterfall
+        )
+        
+        dataManager.applyChain(chain, startingAt: Date())
     }
 }
 
