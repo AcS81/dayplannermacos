@@ -415,13 +415,44 @@ struct EnhancedTimeBlockCard: View {
 
 struct BlockCreationSheet: View {
     let suggestedTime: Date
+    private let maxDurationMinutes: Int?
+    private let minimumDurationMinutes: Int
     let onCreate: (TimeBlock) -> Void
     
-    @State private var title = ""
-    @State private var selectedEnergy: EnergyType = .daylight
-    @State private var selectedEmoji: String = "🌊"
-    @State private var duration: Int = 60 // minutes
+    @State private var title: String
+    @State private var selectedEnergy: EnergyType
+    @State private var selectedEmoji: String
+    @State private var duration: Int
+    @State private var notes: String
     @Environment(\.dismiss) private var dismiss
+    
+    init(
+        suggestedTime: Date,
+        initialTitle: String = "",
+        initialEnergy: EnergyType = .daylight,
+        initialEmoji: String = "🌊",
+        initialDuration: Int = 60,
+        initialNotes: String = "",
+        minimumDurationMinutes: Int = 15,
+        maxDurationMinutes: Int? = nil,
+        onCreate: @escaping (TimeBlock) -> Void
+    ) {
+        self.suggestedTime = suggestedTime
+        self.minimumDurationMinutes = max(5, minimumDurationMinutes)
+        if let maxDurationMinutes {
+            self.maxDurationMinutes = max(self.minimumDurationMinutes, maxDurationMinutes)
+        } else {
+            self.maxDurationMinutes = nil
+        }
+        self.onCreate = onCreate
+        let upperBound = self.maxDurationMinutes ?? 240
+        let clampedDuration = max(self.minimumDurationMinutes, min(initialDuration, upperBound))
+        _title = State(initialValue: initialTitle)
+        _selectedEnergy = State(initialValue: initialEnergy)
+        _selectedEmoji = State(initialValue: initialEmoji)
+        _duration = State(initialValue: clampedDuration)
+        _notes = State(initialValue: initialNotes)
+    }
     
     var body: some View {
         NavigationView {
@@ -507,11 +538,32 @@ struct BlockCreationSheet: View {
                     Text("Duration: \(duration) minutes")
                         .font(.headline)
                     
-                    Slider(value: Binding(
-                        get: { Double(duration) },
-                        set: { duration = Int($0) }
-                    ), in: 15...240, step: 15)
+                    Slider(
+                        value: Binding(
+                            get: { Double(duration) },
+                            set: { duration = Int($0) }
+                        ),
+                        in: Double(minimumDurationMinutes)...Double(maxDurationMinutes ?? 240),
+                        step: 1
+                    )
                     .accentColor(.blue)
+                }
+
+                VStack(alignment: .leading, spacing: 8) {
+                    Text("Notes")
+                        .font(.headline)
+                    
+                    TextEditor(text: $notes)
+                        .frame(minHeight: 80)
+                        .padding(8)
+                        .background(
+                            RoundedRectangle(cornerRadius: 8)
+                                .fill(Color.gray.opacity(0.08))
+                        )
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 8)
+                                .stroke(Color.gray.opacity(0.2))
+                        )
                 }
                 
                 Spacer()
@@ -527,13 +579,15 @@ struct BlockCreationSheet: View {
                 
                 ToolbarItem(placement: .confirmationAction) {
                     Button("Create") {
+                        let trimmedNotes = notes.trimmingCharacters(in: .whitespacesAndNewlines)
                         let block = TimeBlock(
                             title: title,
                             startTime: suggestedTime,
                             duration: TimeInterval(duration * 60),
                             energy: selectedEnergy,
                             emoji: selectedEmoji,
-                            glassState: .mist
+                            glassState: .mist,
+                            notes: trimmedNotes.isEmpty ? nil : trimmedNotes
                         )
                         onCreate(block)
                     }

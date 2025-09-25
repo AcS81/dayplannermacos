@@ -114,6 +114,7 @@ class AppDataManager: ObservableObject {
             appState.addXXP(Int(block.duration / 60), reason: "Added productive time block")
         }
         
+        refreshPastBlocks()
         save()
     }
     
@@ -121,6 +122,7 @@ class AppDataManager: ObservableObject {
         withAnimation(.spring(response: 0.4, dampingFraction: 0.9)) {
             appState.updateBlock(block)
         }
+        refreshPastBlocks()
         save()
     }
     
@@ -135,6 +137,98 @@ class AppDataManager: ObservableObject {
         var updatedBlock = block
         updatedBlock.startTime = newStartTime
         updateTimeBlock(updatedBlock)
+    }
+    
+    // MARK: - Confirmation & Records
+    
+    func refreshPastBlocks(referenceDate: Date = Date()) {
+        var didUpdate = false
+        for index in appState.currentDay.blocks.indices {
+            var block = appState.currentDay.blocks[index]
+            if block.endTime <= referenceDate && block.confirmationState == .scheduled {
+                block.confirmationState = .unconfirmed
+                if block.glassState == .solid {
+                    block.glassState = .liquid
+                }
+                if block.glassState == .crystal {
+                    block.glassState = .mist
+                }
+                appState.currentDay.blocks[index] = block
+                didUpdate = true
+            } else if block.startTime > referenceDate && block.confirmationState == .unconfirmed {
+                block.confirmationState = .scheduled
+                appState.currentDay.blocks[index] = block
+                didUpdate = true
+            }
+        }
+        if didUpdate {
+            save()
+        }
+    }
+    
+    var unconfirmedBlocks: [TimeBlock] {
+        appState.currentDay.blocks
+            .filter { $0.confirmationState == .unconfirmed }
+            .sorted { $0.startTime < $1.startTime }
+    }
+    
+    func nextUnconfirmedBlock() -> TimeBlock? {
+        unconfirmedBlocks.first
+    }
+    
+    func confirmBlock(_ blockId: UUID, notes: String? = nil) {
+        guard let index = appState.currentDay.blocks.firstIndex(where: { $0.id == blockId }) else { return }
+        var block = appState.currentDay.blocks[index]
+        let trimmedNotes = notes?.trimmingCharacters(in: .whitespacesAndNewlines)
+        if let trimmedNotes, !trimmedNotes.isEmpty {
+            block.notes = trimmedNotes
+        }
+        block.confirmationState = .confirmed
+        block.glassState = .solid
+        appState.currentDay.blocks[index] = block
+        
+        let record = Record(
+            blockId: block.id,
+            title: block.title,
+            startTime: block.startTime,
+            endTime: block.endTime,
+            notes: block.notes,
+            energy: block.energy,
+            emoji: block.emoji,
+            confirmedAt: Date()
+        )
+        appState.records.append(record)
+        save()
+    }
+    
+    func undoRecord(_ recordId: UUID) {
+        guard let index = appState.records.firstIndex(where: { $0.id == recordId }) else { return }
+        let record = appState.records[index]
+        guard Date().timeIntervalSince(record.confirmedAt) <= 86_400 else { return }
+        if let blockIndex = appState.currentDay.blocks.firstIndex(where: { $0.id == record.blockId }) {
+            var block = appState.currentDay.blocks[blockIndex]
+            block.confirmationState = .unconfirmed
+            if block.glassState == .solid {
+                block.glassState = .liquid
+            }
+            appState.currentDay.blocks[blockIndex] = block
+        }
+        appState.records.remove(at: index)
+        save()
+    }
+    
+    func requeueBlock(_ blockId: UUID, notes: String? = nil) {
+        guard let index = appState.currentDay.blocks.firstIndex(where: { $0.id == blockId }) else { return }
+        var block = appState.currentDay.blocks[index]
+        let trimmedNotes = notes?.trimmingCharacters(in: .whitespacesAndNewlines)
+        if let trimmedNotes, !trimmedNotes.isEmpty {
+            block.notes = trimmedNotes
+        }
+        block.confirmationState = .scheduled
+        block.glassState = .mist
+        appState.currentDay.blocks[index] = block
+        // TODO: integrate with To-Do backlog and Past markers
+        save()
     }
     
     // MARK: - Chain Operations
@@ -427,6 +521,7 @@ class AppDataManager: ObservableObject {
             appState.historicalDays.append(newDay)
         }
         ensureTodayExists()
+        refreshPastBlocks()
     }
     
     func updateDayMood(_ mood: GlassMood) {

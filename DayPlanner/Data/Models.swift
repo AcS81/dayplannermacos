@@ -23,6 +23,8 @@ struct TimeBlock: Identifiable, Codable, Equatable, Transferable {
     var position: CGPoint = .zero // for drag interactions
     var relatedGoalId: UUID? // Link to related goal
     var relatedPillarId: UUID? // Link to related pillar
+    var notes: String? // Optional freeform notes
+    var confirmationState: BlockConfirmationState = .scheduled
     
     // Computed properties
     var endTime: Date {
@@ -48,7 +50,20 @@ struct TimeBlock: Identifiable, Codable, Equatable, Transferable {
     
     // MARK: - Initializers
     
-    init(id: UUID = UUID(), title: String, startTime: Date, duration: TimeInterval, energy: EnergyType, emoji: String, glassState: GlassState = .solid, position: CGPoint = .zero, relatedGoalId: UUID? = nil, relatedPillarId: UUID? = nil) {
+    init(
+        id: UUID = UUID(),
+        title: String,
+        startTime: Date,
+        duration: TimeInterval,
+        energy: EnergyType,
+        emoji: String,
+        glassState: GlassState = .solid,
+        position: CGPoint = .zero,
+        relatedGoalId: UUID? = nil,
+        relatedPillarId: UUID? = nil,
+        notes: String? = nil,
+        confirmationState: BlockConfirmationState = .scheduled
+    ) {
         self.id = id
         self.title = title
         self.startTime = startTime
@@ -59,12 +74,14 @@ struct TimeBlock: Identifiable, Codable, Equatable, Transferable {
         self.position = position
         self.relatedGoalId = relatedGoalId
         self.relatedPillarId = relatedPillarId
+        self.notes = notes
+        self.confirmationState = confirmationState
     }
     
     // MARK: - Backward Compatibility & Migration
     
     private enum CodingKeys: String, CodingKey {
-        case id, title, startTime, duration, energy, emoji, glassState, position, relatedGoalId, relatedPillarId
+        case id, title, startTime, duration, energy, emoji, glassState, position, relatedGoalId, relatedPillarId, notes, confirmationState
         case flow // Old system - for backward compatibility
     }
     
@@ -80,6 +97,8 @@ struct TimeBlock: Identifiable, Codable, Equatable, Transferable {
         position = try container.decodeIfPresent(CGPoint.self, forKey: .position) ?? .zero
         relatedGoalId = try container.decodeIfPresent(UUID.self, forKey: .relatedGoalId)
         relatedPillarId = try container.decodeIfPresent(UUID.self, forKey: .relatedPillarId)
+        notes = try container.decodeIfPresent(String.self, forKey: .notes)
+        confirmationState = try container.decodeIfPresent(BlockConfirmationState.self, forKey: .confirmationState) ?? .scheduled
         
         // Handle migration from old flow system to emoji system
         if let existingEmoji = try container.decodeIfPresent(String.self, forKey: .emoji), !existingEmoji.isEmpty {
@@ -106,6 +125,8 @@ struct TimeBlock: Identifiable, Codable, Equatable, Transferable {
         try container.encode(position, forKey: .position)
         try container.encodeIfPresent(relatedGoalId, forKey: .relatedGoalId)
         try container.encodeIfPresent(relatedPillarId, forKey: .relatedPillarId)
+        try container.encodeIfPresent(notes, forKey: .notes)
+        try container.encode(confirmationState, forKey: .confirmationState)
     }
     
     // MARK: - Transferable Conformance
@@ -463,8 +484,10 @@ struct Suggestion: Identifiable, Codable {
     var emoji: String
     var explanation: String
     var confidence: Double // 0.0 to 1.0
+    var relatedGoalId: UUID? = nil
+    var relatedPillarId: UUID? = nil
     
-    init(id: UUID = UUID(), title: String, duration: TimeInterval, suggestedTime: Date, energy: EnergyType, emoji: String, explanation: String, confidence: Double) {
+    init(id: UUID = UUID(), title: String, duration: TimeInterval, suggestedTime: Date, energy: EnergyType, emoji: String, explanation: String, confidence: Double, relatedGoalId: UUID? = nil, relatedPillarId: UUID? = nil) {
         self.id = id
         self.title = title
         self.duration = duration
@@ -473,6 +496,8 @@ struct Suggestion: Identifiable, Codable {
         self.emoji = emoji
         self.explanation = explanation
         self.confidence = confidence
+        self.relatedGoalId = relatedGoalId
+        self.relatedPillarId = relatedPillarId
     }
     
     func toTimeBlock() -> TimeBlock {
@@ -482,7 +507,9 @@ struct Suggestion: Identifiable, Codable {
             duration: duration,
             energy: energy,
             emoji: emoji,
-            glassState: .crystal
+            glassState: .crystal,
+            relatedGoalId: relatedGoalId,
+            relatedPillarId: relatedPillarId
         )
     }
 }
@@ -546,6 +573,7 @@ struct AppState: Codable {
     var routines: [Routine] = [] // Promoted chains that became routines
     var userPatterns: [String] = [] // Simple pattern storage
     var preferences: UserPreferences = UserPreferences()
+    var records: [Record] = []
     
     // XP/XXP System
     var userXP: Int = 0 // Knowledge about user
@@ -581,6 +609,28 @@ struct AppState: Codable {
     mutating func addXXP(_ amount: Int, reason: String) {
         userXXP += amount
         // Could log the reason for transparency
+    }
+}
+
+enum BlockConfirmationState: String, Codable, CaseIterable {
+    case scheduled
+    case unconfirmed
+    case confirmed
+}
+
+struct Record: Identifiable, Codable {
+    var id = UUID()
+    var blockId: UUID
+    var title: String
+    var startTime: Date
+    var endTime: Date
+    var notes: String?
+    var energy: EnergyType
+    var emoji: String
+    var confirmedAt: Date = Date()
+    
+    var duration: TimeInterval {
+        endTime.timeIntervalSince(startTime)
     }
 }
 
